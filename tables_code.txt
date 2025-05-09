@@ -1,0 +1,109 @@
+-- Address table
+CREATE TABLE Address (
+    address_id INT AUTO_INCREMENT PRIMARY KEY,
+    city VARCHAR(255),
+    street VARCHAR(255),
+    house_Num INT,
+    floor INT,
+    city_code CHAR(7)
+);
+
+-- Products table
+CREATE TABLE Products (
+    product_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255),
+    description VARCHAR(255),
+    category_id INT,
+    production_time TIME,
+    recipe_id INT,
+    FOREIGN KEY(recipe_id) REFERENCES NutritionPlan(recipe_id),
+    CONSTRAINT fk_category FOREIGN KEY (category_id) REFERENCES Categories(category_id)
+);
+
+-- Customers table
+CREATE TABLE Customers (
+    cust_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255),
+    email VARCHAR(255),
+    product_id INT,
+    address_id INT,
+    FOREIGN KEY(product_id) REFERENCES Products(product_id),
+    FOREIGN KEY(address_id) REFERENCES Address(address_id)
+);
+
+-- Components table
+CREATE TABLE Components (
+    comp_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255),
+    type VARCHAR(100),
+    product_id INT,
+    FOREIGN KEY(product_id) REFERENCES Products(product_id)
+);
+
+-- Orders table (הזמנות)
+CREATE TABLE Orders (
+    order_id INT PRIMARY KEY AUTO_INCREMENT,
+    order_date DATE,
+    order_status VARCHAR(50),
+    product_id INT,
+    CONSTRAINT fk_product_orders FOREIGN KEY(product_id) REFERENCES Products(product_id)
+);
+
+-- Deliveries table (משלוח)
+CREATE TABLE Deliveries (
+    delivery_id INT PRIMARY KEY AUTO_INCREMENT,
+    delivery_date DATE,
+    payment_details VARCHAR(255),
+    order_id INT,
+    CONSTRAINT fk_order_deliveries FOREIGN KEY(order_id) REFERENCES Orders(order_id)
+);
+
+-- NutritionPlan table (תכונות תזונה)
+CREATE TABLE NutritionPlan (
+    recipe_id INT PRIMARY KEY AUTO_INCREMENT,
+    plan_date DATE,
+    name VARCHAR(255),
+    product_id INT,
+    FOREIGN KEY(product_id) REFERENCES Products(product_id)
+);
+
+-- Nutrition_Plan_Contains_Products table (תוכנית_תזונה_מכיל_מרכיבים)
+CREATE TABLE Nutrition_Plan_Contains_Products(
+    product_id INT,
+    nutrition_id INT,
+    product_amount INT,
+    date DATE,
+    cust_id INT,
+    CONSTRAINT pk_product_nutrition PRIMARY KEY (product_id, nutrition_id),
+    CONSTRAINT fk_product_nutrition FOREIGN KEY (product_id) REFERENCES Products(product_id),
+    CONSTRAINT fk_nutrition_nutrition FOREIGN KEY (nutrition_id) REFERENCES NutritionPlan(recipe_id),
+    CONSTRAINT fk_customers_nutrition FOREIGN KEY(cust_id) REFERENCES Customers(cust_id)
+);
+
+-- Product_Contains_Components table (מרכיב_מכיל_מוצרים)
+CREATE TABLE Product_Contains_Components (
+    product_id INT,
+    comp_id INT,
+    CONSTRAINT pk_product_components PRIMARY KEY (product_id, comp_id),
+    CONSTRAINT fk_product_component FOREIGN KEY (product_id) REFERENCES Products(product_id),
+    CONSTRAINT fk_component FOREIGN KEY (comp_id) REFERENCES Components(comp_id)
+);
+
+-- Order_belongTo_Customer table (הזמנה_שייכת_ללקוח)
+CREATE TABLE Order_belongTo_Customer (
+    cust_id INT,
+    order_id INT,
+    order_status VARCHAR(255),
+    CONSTRAINT fk_customers_orders FOREIGN KEY(cust_id) REFERENCES Customers(cust_id),
+    CONSTRAINT fk_order_customers FOREIGN KEY(order_id) REFERENCES Orders(order_id)
+);
+
+-- Delivery_Contains_Order table (משלוח_מכיל_הזמנה)
+CREATE TABLE Delivery_Contains_Order(
+    order_id INT,
+    delivery_id INT,
+    delivery_date DATE,
+    order_status VARCHAR(255),
+    CONSTRAINT fk_order_delivery FOREIGN KEY(order_id) REFERENCES Orders(order_id),
+    CONSTRAINT fk_delivery_order FOREIGN KEY(delivery_id) REFERENCES Deliveries(delivery_id)
+);

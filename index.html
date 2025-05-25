@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Nutribite - Home</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <nav>
+        <h1>Nutribite</h1>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="login.html">Login</a></li>
+          <li><a href="cart.html">Payment & Order</a></li>
+          <li><a href="notifications.html">Notifications & Receipts</a></li>
+          <li>
+            <a href="comments-and-dietitians.html">Comments & Dietitians</a>
+          </li>
+          <li><a href="calorie-calculator.html">Calorie Calculator</a></li>
+          <li><a href="admin.html">Admin Dashboard</a></li>
+          <li>
+            <a href="email-confirmation.html">Order Confirmation Email</a>
+          </li>
+        </ul>
+      </nav>
+    </header>
+
+    <div class="main-content">
+      <section class="hero">
+        <h2>Healthy Food Products</h2>
+        <p>Choose from a variety of healthy and tasty products</p>
+      </section>
+
+      <section class="personal-account">
+        <h2>Your Account</h2>
+        <p>Welcome back, valued customer!</p>
+        <p><a href="login.html" class="btn">Manage Your Account</a></p>
+      </section>
+
+      <section class="product-grid">
+        <div>
+          <p>Products in Order: <span id="order-count">0</span></p>
+        </div>
+        <article class="product">
+          <img
+            src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80"
+            alt="Vegetable Salad"
+          />
+          <h3>Vegetable Salad</h3>
+          <p>Fresh and nutritious salad with organic vegetables.</p>
+          <p class="price">₪25</p>
+          <button
+            class="btn add-to-order"
+            data-product="Vegetable Salad"
+            data-price="25"
+          >
+            Add to Order
+          </button>
+        </article>
+        <article class="product">
+          <img
+            src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=400&q=80"
+            alt="Organic Granola"
+          />
+          <h3>Organic Granola</h3>
+          <p>Granola rich in natural and healthy ingredients.</p>
+          <p class="price">₪18</p>
+          <button
+            class="btn add-to-order"
+            data-product="Organic Granola"
+            data-price="18"
+          >
+            Add to Order
+          </button>
+        </article>
+        <article class="product">
+          <img
+            src="https://images.unsplash.com/photo-1506806732259-39c2d0268443?auto=format&fit=crop&w=400&q=80"
+            alt="Fruit Shake"
+          />
+          <h3>Fruit Shake</h3>
+          <p>Natural and refreshing fruit shake.</p>
+          <p class="price">₪20</p>
+          <button
+            class="btn add-to-order"
+            data-product="Fruit Shake"
+            data-price="20"
+          >
+            Add to Order
+          </button>
+        </article>
+        <article class="product">
+          <img
+            src="https://images.unsplash.com/photo-1523983303497-1a7a7a7a7a7a?auto=format&fit=crop&w=400&q=80"
+            alt="Natural Nuts"
+          />
+          <h3>Natural Nuts</h3>
+          <p>Mix of natural nuts without additives.</p>
+          <p class="price">₪30</p>
+          <button
+            class="btn add-to-order"
+            data-product="Natural Nuts"
+            data-price="30"
+          >
+            Add to Order
+          </button>
+        </article>
+      </section>
+      <script>
+        const orderCountElem = document.getElementById("order-count");
+        let orderCount = 0;
+        document.querySelectorAll(".add-to-order").forEach((button) => {
+          button.addEventListener("click", () => {
+            orderCount++;
+            orderCountElem.textContent = orderCount;
+            alert(button.dataset.product + " added to order.");
+          });
+        });
+      </script>
+    </div>
+
+    <footer>
+      <p>&copy; 2025 Healthy Eating Site</p>
+    </footer>
+  </body>
+</html>

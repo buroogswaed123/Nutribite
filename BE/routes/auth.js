@@ -2,41 +2,12 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const db = require('../dbSingleton');
-const { generateToken, sendVerificationEmail, sendResetEmail } = require('../utils/tokenUtils');
+const { generateToken, sendResetEmail } = require('../utils/tokenUtils');
 const { v4: uuidv4 } = require('uuid');
 
 // Helper function to check token expiration
 const isTokenExpired = (expiresAt) => {
     return new Date(expiresAt) < new Date();
-};
-
-// Helper function to verify token
-const verifyToken = async (token) => {
-    const conn = db.getConnection();
-    const [user] = await conn.promise().query(
-        'SELECT * FROM users WHERE verification_token = ? AND verification_status = ?',
-        [token, 'pending']
-    );
-
-    if (!user.length || isTokenExpired(user[0].verification_expires_at)) {
-        return null;
-    }
-
-    return user[0];
-};
-
-// Helper function to generate verification token
-const generateVerificationToken = async (userId, email) => {
-    const token = generateToken();
-    const conn = db.getConnection();
-    
-    await conn.promise().query(
-        'UPDATE users SET verification_token = ?, verification_status = ?, verification_expires_at = ? WHERE id = ?',
-        [token, 'pending', new Date(Date.now() + 24 * 60 * 60 * 1000), userId]
-    );
-
-    await sendVerificationEmail(email, token);
-    return token;
 };
 
 // Helper function to generate reset token
@@ -76,15 +47,12 @@ router.post('/register', async (req, res) => {
 
         // Insert new user
         const [result] = await conn.promise().query(
-            'INSERT INTO users (username, email, password, verification_status) VALUES (?, ?, ?, ?)',
-            [username, email, hashedPassword, 'pending']
+            'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
+            [username, email, hashedPassword]
         );
 
-        // Generate verification token
-        await generateVerificationToken(result.insertId, email);
-
         res.status(201).json({
-            message: 'User registered successfully. Please check your email for verification.',
+            message: 'User registered successfully',
             user: {
                 id: result.insertId,
                 username,
@@ -96,24 +64,6 @@ router.post('/register', async (req, res) => {
         console.error('Registration error:', error);
         res.status(500).json({ message: 'Registration failed' });
     }
-});
-
-// Verify email
-router.get('/verify/:token', async (req, res) => {
-    const { token } = req.params;
-    const user = await verifyToken(token);
-
-    if (!user) {
-        return res.status(400).json({ message: 'Invalid or expired verification token' });
-    }
-
-    const conn = db.getConnection();
-    await conn.promise().query(
-        'UPDATE users SET verification_status = ?, email_verified = ? WHERE id = ?',
-        ['verified', true, user.id]
-    );
-
-    res.json({ message: 'Email verified successfully' });
 });
 
 // Request password reset
@@ -181,10 +131,6 @@ router.post('/login', async (req, res) => {
 
         if (!user.length) {
             return res.status(401).json({ message: 'Invalid email or password' });
-        }
-
-        if (!user[0].email_verified) {
-            return res.status(401).json({ message: 'Please verify your email first' });
         }
 
         const validPassword = await bcrypt.compare(password, user[0].password);

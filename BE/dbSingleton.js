@@ -10,8 +10,9 @@ const dbSingleton = {
             connection = mysql.createConnection({
                 host: 'localhost',
                 user: 'root',
-                password: '',
+                password: 'your_xampp_password',  // Replace with your XAMPP MySQL password
                 database: 'nutribite_db',
+                port: 3306
             });
 
             // Connect to the database

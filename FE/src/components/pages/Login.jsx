@@ -40,6 +40,10 @@ export default function LoginPage({ onLoginSuccess }) {
     setIsActive(true);
   };
 
+  const handleBackToLogin = () => {
+    setIsActive(false);
+  };
+
   const handleLoginClick = async (e) => {
     e.preventDefault();
     setError(null);
@@ -160,6 +164,7 @@ export default function LoginPage({ onLoginSuccess }) {
             <h1>!ברוך הבא</h1>
             <p>הכנס את הפרטים האישיים שלך,או</p>
             <button className={classes.hidden} id="register" onClick={handleRegisterClick}>הרשם</button>
+            <button className={classes.hidden} id="backToLogin" onClick={handleBackToLogin}>חזור להתחברות</button>
           </div>
         </div>
       </div>

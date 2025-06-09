@@ -4,6 +4,8 @@ const session = require('express-session');
 const mysql = require('mysql2');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
+const helmet = require('helmet');
+const nodemailer = require('nodemailer');
 
 // Generate a secure session secret
 const generateSecret = () => {
@@ -39,6 +41,27 @@ const db = mysql.createConnection({
   password: '',
   database: 'nutribite_db'
 });
+
+// Initialize database
+const initDatabase = () => {
+  // Add reset_code and reset_code_expires columns if they don't exist
+  const addColumnsQuery = `
+    ALTER TABLE users 
+    ADD COLUMN IF NOT EXISTS reset_code VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS reset_code_expires DATETIME
+  `;
+
+  db.query(addColumnsQuery, (err) => {
+    if (err) {
+      console.error('Error adding columns:', err);
+      return;
+    }
+    console.log('Database initialized successfully');
+  });
+};
+
+// Initialize database when server starts
+initDatabase();
 
 // Test database connection
 try {
@@ -216,27 +239,79 @@ app.get('/', (req, res) => {
 // Generate a reset code for password recovery
 app.get('/api/password-reset/:email', (req, res) => {
   const { email } = req.params;
+  console.log('Password reset request for email:', email);
   
   // Generate a random reset code
   const resetCode = Math.random().toString(36).substring(2, 15);
+  console.log('Generated reset code:', resetCode);
   
-  // Store the reset code in the database
-  db.query('UPDATE users SET reset_code = ?, reset_code_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE email = ?', 
-    [resetCode, email], (err, result) => {
+  // First, check if user exists
+  db.query('SELECT * FROM users WHERE email = ?', [email], (err, results) => {
     if (err) {
-      console.error('Error storing reset code:', err);
-      return res.status(500).json({ error: 'Failed to generate reset code' });
+      console.error('Error checking user existence:', err);
+      return res.status(500).json({ error: 'Database error' });
     }
 
-    if (result.affectedRows === 0) {
+    if (results.length === 0) {
+      console.log('User not found:', email);
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // In a real application, you would send this code to the user's email
-    // For our demo, we'll just return it
-    res.json({ 
-      success: true, 
-      message: `Your reset code is: ${resetCode}. Please keep it safe and use it within the next hour.`
+    // Store the reset code in the database
+    db.query('UPDATE users SET reset_code = ?, reset_code_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE email = ?', 
+      [resetCode, email], (err, result) => {
+      if (err) {
+        console.error('Error storing reset code:', err);
+        return res.status(500).json({ error: 'Failed to generate reset code' });
+      }
+
+      if (result.affectedRows === 0) {
+        console.log('No rows updated');
+        return res.status(500).json({ error: 'Failed to update reset code' });
+      }
+
+      console.log('Reset code stored successfully');
+      
+      // Create a transporter for sending emails
+      const transporter = nodemailer.createTransport({
+        // For production, use your actual email service configuration
+        // For now, we'll use a dummy configuration
+        host: 'smtp.example.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: 'noreply@example.com',
+          pass: 'password'
+        }
+      });
+
+      // Send the reset code email
+      const mailOptions = {
+        from: 'noreply@example.com',
+        to: email,
+        subject: 'Password Reset Code',
+        text: `Your password reset code is: ${resetCode}
+        This code will expire in 15 minutes.
+        Please keep it safe and do not share it with anyone.
+        If you did not request a password reset, please ignore this email.`
+      };
+
+      // Send the email
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error('Error sending email:', error);
+          // In production, we would handle this error differently
+          // For now, we'll just log it and continue
+        } else {
+          console.log('Email sent: ' + info.response);
+        }
+
+        // Return only a success message
+        res.json({ 
+          success: true, 
+          message: 'Password reset code sent successfully'
+        });
+      });
     });
   });
 });

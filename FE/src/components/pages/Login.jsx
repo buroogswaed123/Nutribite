@@ -25,7 +25,10 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    console.log('Attempting login with:', { email: email, password: '***' });
+    
     try {
+      console.log('Making request to:', window.location.origin + '/api/login');
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
@@ -34,17 +37,25 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         body: JSON.stringify({ email, password }),
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
       const data = await response.json();
+      console.log('Response data:', data);
       
       if (response.ok) {
+        console.log('Login successful');
         onLoginSuccess(data.user);
         navigate('/home');
       } else if (response.status === 401) {
+        console.log('Authentication failed');
         setError('Invalid email or password');
       } else {
+        console.log('Login failed with error:', data.error);
         setError(data.error || 'Login failed');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('Network error occurred');
     }
   };

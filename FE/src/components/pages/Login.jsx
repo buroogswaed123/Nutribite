@@ -96,7 +96,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
     }
 
     try {
-      const response = await fetch("/api/login", {
+      const response = await fetch("http://localhost:3001/api/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -106,6 +106,8 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('Response status:', response.status);
+        console.error('Error data:', errorData);
         if (response.status === 401) {
           setError('Invalid email or password');
         } else if (errorData.error) {
@@ -117,6 +119,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
       }
 
       const data = await response.json();
+      console.log('Login response:', data);
       if (data.success) {
         onLoginSuccess(data.user);
         navigate('/home');
@@ -124,6 +127,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         setError(data.error || 'Login failed. Please try again.');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError("Network error: " + err.message);
     }
   };

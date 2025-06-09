@@ -10,14 +10,25 @@ import NavBar from "../components/navBar/NavBar";
 import NotFound from "../components/pages/NotFound";
 
 const pages = [
-  { name: "מחשבון קלוריות", path: "/CalorieCalc" },
+  { name: "מחשבון קלוריות", path: "/caloriecalc" },
   { name: "פרופיל", path: "/profile" },
   { name: "בית", path: "/home" },
 ];
 
-const AuthContext = createContext();
+export const AuthContext = createContext();
 
-export default function App() {
+const RequireAuth = ({ children, allowGuest = false }) => {
+  const location = useLocation();
+  const { isLoggedIn } = useContext(AuthContext);
+
+  if (!isLoggedIn && !allowGuest) {
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -38,17 +49,6 @@ export default function App() {
     handleLogout
   };
 
-  const RequireAuth = ({ children, allowGuest = false }) => {
-    const location = useLocation();
-    const { isLoggedIn } = useContext(AuthContext);
-
-    if (!isLoggedIn && !allowGuest) {
-      return <Navigate to="/" state={{ from: location }} replace />;
-    }
-
-    return <>{children}</>;
-  };
-
   return (
     <AuthContext.Provider value={auth}>
       <section className={classes.app}>
@@ -60,25 +60,21 @@ export default function App() {
               element={
                 <RequireAuth allowGuest>
                   <>
-                    <NavBar
-                      pages={pages}
-                      auth={auth}
-                    />
+                    <NavBar pages={pages} />
                     <Home />
                   </>
                 </RequireAuth>
               }
             />
             <Route
-              path="/CalorieCalc"
+              path="/caloriecalc"
               element={
-                <>
-                  <NavBar
-                    pages={pages}
-                    auth={auth}
-                  />
-                  <CalorieCalc />
-                </>
+                <RequireAuth>
+                  <>
+                    <NavBar pages={pages} />
+                    <CalorieCalc />
+                  </>
+                </RequireAuth>
               }
             />
             <Route
@@ -86,10 +82,7 @@ export default function App() {
               element={
                 <RequireAuth>
                   <>
-                    <NavBar
-                      pages={pages}
-                      auth={auth}
-                    />
+                    <NavBar pages={pages} />
                     <Profile />
                   </>
                 </RequireAuth>
@@ -102,3 +95,5 @@ export default function App() {
     </AuthContext.Provider>
   );
 }
+
+export default App;

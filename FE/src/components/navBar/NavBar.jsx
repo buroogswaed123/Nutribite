@@ -1,59 +1,30 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { Link } from 'react-router-dom';
 import classes from "./navbar.module.css";
 
 const defaultPages = [
-  { name: "מחשבון קלוריות", path: "/CalorieCalc" },
-  { name: "תפריט", path: "/menu" },
-  { name: "אודות", path: "/about" },
-  { name: "צור קשר", path: "/contact" },
+  { name: "בית", path: "/home" },
+  { name: "מחשבון קלוריות", path: "/caloriecalc" },
+  { name: "פרופיל", path: "/profile" }
 ];
 
-export default function NavBar({
-  pages = defaultPages,
-  auth,
-}) {
-  const { isLoggedIn, handleLogout: authLogout, currentUser } = auth;
-  const navigate = useNavigate();
-  
-  const handleLogout = () => {
-    authLogout();
-    navigate("/");
-  };
-  
+export default function NavBar({ pages = defaultPages }) {
+  if (!pages || pages.length === 0) {
+    return null;
+  }
   return (
     <nav className={classes.navbar}>
-      <ul>
-        {/* Show all navigation links all the time */}
-        {pages.map((page, index) => (
-          <li key={index}>
-            <NavLink 
-              to={page.path}
-              className={({ isActive }) => 
-                isActive ? classes.activeLink : undefined
-              }
-            >
-              {page.name}
-            </NavLink>
-          </li>
+      <div className={classes.logo}>Nutribite</div>
+      <div className={classes.navItems}>
+        {pages.map((page) => (
+          <Link
+            key={page.path}
+            to={page.path}
+            className={classes.navButton}
+          >
+            {page.name}
+          </Link>
         ))}
-        
-        {/* Show user info and logout button when logged in */}
-        {isLoggedIn && (
-          <>
-            <li className={classes.userInfo}>
-              <span>Welcome, {currentUser?.email}</span>
-            </li>
-            <li>
-              <button 
-                onClick={handleLogout}
-                className={classes.logoutButton}
-              >
-                Logout
-              </button>
-            </li>
-          </>
-        )}
-      </ul>
+      </div>
     </nav>
   );
 }

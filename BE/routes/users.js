@@ -2,7 +2,7 @@ const express = require("express");
 const dbSingleton = require("../dbSingleton");
 const router = express.Router();
 const db = dbSingleton.getConnection();
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 
 router.get("/", (rq, res) => {
   const query = "SELECT * FROM users ";

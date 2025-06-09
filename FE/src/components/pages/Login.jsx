@@ -262,10 +262,9 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
           <button type="submit" className={classes.loginButton}>
             להיכנס
           </button>
-         
-          <a href="/forgotPassword" className={classes.forgotPassword} onClick={(e) => {
+          <a href="/password-reset" className={classes.forgotPassword} onClick={(e) => {
             e.preventDefault();
-            navigate('/forgotPassword');
+            navigate('/password-reset');
           }}>שכחת סיסמא?</a>
           <a href="/home" className={classes.guestLink}
             onClick={(e) => {

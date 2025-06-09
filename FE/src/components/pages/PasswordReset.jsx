@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import classes from '../assets/styles/login.module.css';
+import classes from "../../assets/styles/login.module.css"
+import timerClasses from "../../assets/styles/passwordReset.module.css"
 
 export default function PasswordReset() {
   const [email, setEmail] = useState('');
@@ -8,7 +9,29 @@ export default function PasswordReset() {
   const [newPassword, setNewPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [timer, setTimer] = useState(0);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let countdown;
+    if (timer > 0) {
+      countdown = setInterval(() => {
+        setTimer(prev => {
+          if (prev <= 0) {
+            clearInterval(countdown);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (countdown) {
+        clearInterval(countdown);
+      }
+    };
+  }, [timer]);
 
   const handleGetResetCode = async (e) => {
     e.preventDefault();
@@ -16,11 +39,12 @@ export default function PasswordReset() {
     setSuccess('');
 
     try {
-      const response = await fetch(`/api/password-reset/${email}`);
+      const response = await fetch(`http://localhost:3001/api/password-reset/${encodeURIComponent(email)}`);
       const data = await response.json();
 
       if (response.ok) {
         setSuccess(data.message);
+        setTimer(15 * 60); // 15 minutes in seconds
       } else {
         setError(data.error || 'Failed to get reset code');
       }
@@ -40,7 +64,7 @@ export default function PasswordReset() {
     }
 
     try {
-      const response = await fetch('/api/reset-password', {
+      const response = await fetch('http://localhost:3001/api/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,6 +105,15 @@ export default function PasswordReset() {
             onChange={(e) => setEmail(e.target.value)}
           />
           <button type="submit">קבל קוד איפוס</button>
+          {success && (
+            <div className={classes.success}>
+              <p>קוד איפוס נשלח לכתובת הדוא"ל שלך</p>
+              <p>הקוד תקף עד 15 דקות</p>
+              <div className={timerClasses.timer}>
+                {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, '0')}
+              </div>
+            </div>
+          )}
         </form>
 
         {success && (

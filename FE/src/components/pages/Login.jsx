@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import classes from "../../assets/styles/login.module.css";
 import { useNavigate, Link } from 'react-router-dom';
 
-export default function LoginPage({ onLoginSuccess }) {
+export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   const [isActive, setIsActive] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(newUserCredentials?.email || '');
+  const [password, setPassword] = useState(newUserCredentials?.password || '');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -23,17 +23,54 @@ export default function LoginPage({ onLoginSuccess }) {
     return false;
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    // In a real application, you would handle the login logic here
-    // For now, we'll just redirect to Home
-    navigate('/Home');
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        onLoginSuccess(data.user);
+        navigate('/home');
+      } else if (response.status === 401) {
+        setError('Invalid email or password');
+      } else {
+        setError(data.error || 'Login failed');
+      }
+    } catch (err) {
+      setError('Network error occurred');
+    }
   };
 
-  const handleGuestClick = (e) => {
+  const handleGuestClick = async (e) => {
     e.preventDefault();
-    // Guest login - redirect to Home without authentication
-    navigate('/Home');
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: 'guest@example.com', password: 'guest' }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        onLoginSuccess(data.user);
+        navigate('/home');
+      } else {
+        setError(data.error || 'Guest login failed');
+      }
+    } catch (err) {
+      setError('Network error occurred');
+    }
   };
 
   const handleRegisterClick = () => {
@@ -42,9 +79,14 @@ export default function LoginPage({ onLoginSuccess }) {
 
   const handleBackToLogin = () => {
     setIsActive(false);
+    // Reset error state when switching back to login
+    setError('');
+    // Reset form fields
+    setEmail('');
+    setPassword('');
   };
 
-  const handleLoginClick = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     
@@ -54,7 +96,7 @@ export default function LoginPage({ onLoginSuccess }) {
     }
 
     try {
-      const response = await fetch("http://localhost:8801/api/login", {
+      const response = await fetch("/api/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -62,18 +104,24 @@ export default function LoginPage({ onLoginSuccess }) {
         body: JSON.stringify({ email, password }),
       });
       
-      const data = await response.json();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          setError('Invalid email or password');
+        } else if (errorData.error) {
+          setError(errorData.error);
+        } else {
+          setError('Login failed. Please try again.');
+        }
+        return;
+      }
 
-      if (response.ok) {
-        // login success
+      const data = await response.json();
+      if (data.success) {
         onLoginSuccess(data.user);
         navigate('/home');
-      } else if (response.status === 401) {
-        // Unauthorized - invalid credentials
-        setError('Invalid email or password');
       } else {
-        // Other server errors
-        setError(data.message || 'Login failed');
+        setError(data.error || 'Login failed. Please try again.');
       }
     } catch (err) {
       setError("Network error: " + err.message);
@@ -89,6 +137,7 @@ export default function LoginPage({ onLoginSuccess }) {
   return (
     <div className={handleContainerNaming()} id="container">
       <div className={`${classes["form-container"]} ${classes["sign-up"]}`}>
+
         <form>
           <h1>צור חשבון</h1>
           <div className={classes.icons}>
@@ -106,7 +155,7 @@ export default function LoginPage({ onLoginSuccess }) {
       </div>
 
       <div className={`${classes["form-container"]} ${classes["sign-in"]}`}>
-        <form>
+        <form onSubmit={handleSubmit}>
           <h1>להיכנס</h1>
           <div className={classes.icons}>
             <a onClick={(e) => { e.preventDefault(); openPopup('https://accounts.google.com/signin'); }} className="icon"><i className="fa-brands fa-google-plus-g"></i></a>
@@ -129,23 +178,19 @@ export default function LoginPage({ onLoginSuccess }) {
             onChange={(e) => setPassword(e.target.value)}
             className={error ? classes.errorInput : ''}
           />
+          <div className={classes.error}>{error}</div>
+          <button type="submit" className={classes.loginButton}>
+            להיכנס
+          </button>
+         
           <a href="/forgotPassword" className={classes.forgotPassword} onClick={(e) => {
             e.preventDefault();
             navigate('/forgotPassword');
           }}>שכחת סיסמא?</a>
-          {error && <p className={classes.error}>{error}</p>}
-          <button 
-            type="submit" 
-            onClick={handleLoginClick} 
-            className={classes.loginButton}
-            disabled={!email || !password}
-          >
-            להיכנס
-          </button>
-          <a href="/Home" className={classes.guestLink}
+          <a href="/home" className={classes.guestLink}
             onClick={(e) => {
               e.preventDefault();
-              navigate('/Home');
+              navigate('/home');
             }}
           >
             הכנס כאורח
@@ -156,15 +201,22 @@ export default function LoginPage({ onLoginSuccess }) {
       <div className={classes.toggleContainer}>
         <div className={classes.toggle}>
           <div className={`${classes["togglePanel"]} ${classes["toggleLeft"]}`}>
+
             <h1> שלום, חבר!</h1>
             <p>רשום את הפרטים האישיים שלך,או</p>
-            <button className={classes.hidden} id="login" onClick={handleLoginClick}>הכנס</button>
+            <button className={classes.hidden} id="login" onClick={handleBackToLogin}>הכנס</button>
           </div>
           <div className={`${classes["togglePanel"]} ${classes["toggleRight"]}`}>
+
             <h1>!ברוך הבא</h1>
             <p>הכנס את הפרטים האישיים שלך,או</p>
-            <button className={classes.hidden} id="register" onClick={handleRegisterClick}>הרשם</button>
-            <button className={classes.hidden} id="backToLogin" onClick={handleBackToLogin}>חזור להתחברות</button>
+            <button 
+              className={classes.hidden} 
+              id="register" 
+              onClick={handleRegisterClick}
+            >
+              הרשם
+            </button>
           </div>
         </div>
       </div>

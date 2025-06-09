@@ -4,7 +4,33 @@ const session = require('express-session');
 const mysql = require('mysql2');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
+
+// Generate a secure session secret
+const generateSecret = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 32; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
 const app = express();
+
+// Security middleware
+app.use((req, res, next) => {
+  res.header('Content-Security-Policy', "default-src 'self'");
+  res.header('X-Content-Type-Options', 'nosniff');
+  res.header('X-Frame-Options', 'SAMEORIGIN');
+  res.header('X-XSS-Protection', '1; mode=block');
+  next();
+});
+
+// CORS configuration
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true
+}));
 
 // Database connection
 const db = mysql.createConnection({
@@ -56,12 +82,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-  secret: 'your-secret-key',
+  secret: generateSecret(),
   resave: false,
   saveUninitialized: true,
   cookie: {
-    secure: false,
-    maxAge: 1000 * 60 * 30 // 30 minutes
+    secure: false, // Change to true in production
+    httpOnly: true,
+    maxAge: 1000 * 60 * 30, // 30 minutes
+    sameSite: 'strict'
   }
 }));
 
@@ -95,21 +123,86 @@ app.post('/api/login', (req, res) => {
 
     const user = results[0];
     console.log('Found user:', user.email);
-    console.log('Database password:', user.password);
-    console.log('Submitted password:', password);
 
-    // Compare plain text password
-    if (user.password !== password) {
-      console.log('Password mismatch for user:', user.email);
-      return res.status(401).json({ error: 'Invalid password' });
+    // Compare hashed password
+    bcrypt.compare(password, user.password, (err, same) => {
+      if (err) {
+        console.error('Password comparison error:', err);
+        return res.status(500).json({ error: 'Password verification failed' });
+      }
+
+      if (!same) {
+        console.log('Password mismatch for user:', user.email);
+        return res.status(401).json({ error: 'Invalid password' });
+      }
+
+      // Set session
+      req.session.isAuthenticated = true;
+      req.session.user = user.email;
+      
+      console.log('Login successful for user:', user.email);
+      res.json({ success: true, user: { email: user.email, username: user.username, user_type: user.user_type } });
+    });
+  });
+});
+
+// Register new user
+app.post('/api/register', (req, res) => {
+  console.log('Register endpoint hit');
+  console.log('Request headers:', req.headers);
+  console.log('Request body:', req.body);
+
+  const { email, password, username, user_type } = req.body;
+  
+  if (!email || !password || !username || !user_type) {
+    console.log('Missing required fields');
+    return res.status(400).json({ error: 'Email, password, username, and user_type are required' });
+  }
+
+  // Check if user already exists
+  db.query('SELECT * FROM users WHERE email = ?', [email], (err, results) => {
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Database error', details: err.message });
     }
 
-    // Set session
-    req.session.isAuthenticated = true;
-    req.session.user = user.email;
-    
-    console.log('Login successful for user:', user.email);
-    res.json({ success: true, user: { email: user.email, username: user.username, user_type: user.user_type } });
+    if (results.length > 0) {
+      console.log('User already exists:', email);
+      return res.status(400).json({ error: 'User already exists' });
+    }
+
+    // Hash the password
+    bcrypt.hash(password, 10, (err, hash) => {
+      if (err) {
+        console.error('Password hashing error:', err);
+        return res.status(500).json({ error: 'Password hashing failed' });
+      }
+
+      // Insert new user with hashed password
+      const insertQuery = 'INSERT INTO users (email, password, username, user_type) VALUES (?, ?, ?, ?)';
+      console.log('Insert query:', db.format(insertQuery, [email, hash, username, user_type]));
+
+      db.query(insertQuery, [email, hash, username, user_type], (err, result) => {
+        if (err) {
+          console.error('Insert error:', err);
+          return res.status(500).json({ error: 'Database error', details: err.message });
+        }
+
+        console.log('User registered successfully:', email);
+        // Automatically log in the new user
+        req.session.isAuthenticated = true;
+        req.session.user = email;
+        
+        res.json({ 
+          success: true, 
+          user: { 
+            email: email, 
+            username: username, 
+            user_type: user_type 
+          }
+        });
+      });
+    });
   });
 });
 
@@ -118,6 +211,79 @@ const PORT = process.env.PORT || 3001;
 // Root route
 app.get('/', (req, res) => {
   res.send('Backend server is running');
+});
+
+// Generate a reset code for password recovery
+app.get('/api/password-reset/:email', (req, res) => {
+  const { email } = req.params;
+  
+  // Generate a random reset code
+  const resetCode = Math.random().toString(36).substring(2, 15);
+  
+  // Store the reset code in the database
+  db.query('UPDATE users SET reset_code = ?, reset_code_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE email = ?', 
+    [resetCode, email], (err, result) => {
+    if (err) {
+      console.error('Error storing reset code:', err);
+      return res.status(500).json({ error: 'Failed to generate reset code' });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // In a real application, you would send this code to the user's email
+    // For our demo, we'll just return it
+    res.json({ 
+      success: true, 
+      message: `Your reset code is: ${resetCode}. Please keep it safe and use it within the next hour.`
+    });
+  });
+});
+
+// Reset password using reset code
+app.post('/api/reset-password', (req, res) => {
+  const { resetCode, newPassword } = req.body;
+  
+  if (!resetCode || !newPassword) {
+    return res.status(400).json({ error: 'Reset code and new password are required' });
+  }
+
+  // Check if the reset code is valid
+  db.query('SELECT * FROM users WHERE reset_code = ? AND reset_code_expires > NOW()', [resetCode], (err, results) => {
+    if (err) {
+      console.error('Error checking reset code:', err);
+      return res.status(500).json({ error: 'Failed to verify reset code' });
+    }
+
+    if (results.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
+    }
+
+    const user = results[0];
+    
+    // Hash the new password
+    bcrypt.hash(newPassword, 10, (err, hash) => {
+      if (err) {
+        console.error('Password hashing error:', err);
+        return res.status(500).json({ error: 'Failed to update password' });
+      }
+
+      // Update the password and clear the reset code
+      db.query('UPDATE users SET password = ?, reset_code = NULL, reset_code_expires = NULL WHERE id = ?', 
+        [hash, user.id], (err, result) => {
+        if (err) {
+          console.error('Error updating password:', err);
+          return res.status(500).json({ error: 'Failed to update password' });
+        }
+
+        res.json({ 
+          success: true, 
+          message: 'Password updated successfully'
+        });
+      });
+    });
+  });
 });
 
 // Error handling middleware

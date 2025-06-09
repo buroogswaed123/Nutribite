@@ -6,6 +6,8 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   const [isActive, setIsActive] = useState(false);
   const [email, setEmail] = useState(newUserCredentials?.email || '');
   const [password, setPassword] = useState(newUserCredentials?.password || '');
+  const [username, setUsername] = useState(newUserCredentials?.username || '');
+  const [userType, setUserType] = useState(newUserCredentials?.user_type || 'user');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -56,6 +58,50 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
       }
     } catch (err) {
       console.error('Login error:', err);
+      setError('Network error occurred');
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    console.log('Attempting registration with:', { 
+      email: email, 
+      password: '***',
+      username: username,
+      user_type: userType
+    });
+    
+    try {
+      console.log('Making request to:', window.location.origin + '/api/register');
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email: email, 
+          password: password,
+          username: username,
+          user_type: userType
+        }),
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
+      const data = await response.json();
+      console.log('Response data:', data);
+      
+      if (response.ok) {
+        console.log('Registration successful');
+        onLoginSuccess(data.user);
+        navigate('/home');
+      } else {
+        console.log('Registration failed with error:', data.error);
+        setError(data.error || 'Registration failed');
+      }
+    } catch (err) {
+      console.error('Registration error:', err);
       setError('Network error occurred');
     }
   };
@@ -153,7 +199,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
     <div className={handleContainerNaming()} id="container">
       <div className={`${classes["form-container"]} ${classes["sign-up"]}`}>
 
-        <form>
+        <form onSubmit={handleRegister}>
           <h1>צור חשבון</h1>
           <div className={classes.icons}>
             <a onClick={(e) => { e.preventDefault(); openPopup('https://accounts.google.com/signin'); }} className="icon"><i className="fa-brands fa-google-plus-g"></i></a>
@@ -162,10 +208,29 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
             <a onClick={(e) => { e.preventDefault(); openPopup('https://www.linkedin.com/login'); }} className="icon"><i className="fa-brands fa-linkedin-in"></i></a>
           </div>
           <span>או הרשמ במייל</span>
-          <input type="text" placeholder="שם" />
-          <input type="email" placeholder="דו''א" />
-          <input type="password" placeholder="סיסמה" />
-          <button type="button">להירשם</button>
+          <input 
+            type="text" 
+            placeholder="שם"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className={error ? classes.errorInput : ''}
+          />
+          <input 
+            type="email" 
+            placeholder="דו''א"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={error ? classes.errorInput : ''}
+          />
+          <input 
+            type="password" 
+            placeholder="סיסמה"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={error ? classes.errorInput : ''}
+          />
+          <div className={classes.error}>{error}</div>
+          <button type="submit">להירשם</button>
         </form>
       </div>
 

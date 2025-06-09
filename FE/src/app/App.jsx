@@ -6,6 +6,7 @@ import Home from "../components/pages/Home";
 import Login from "../components/pages/Login";
 import CalorieCalc from "../components/pages/CalorieCalc";
 import Profile from "../components/pages/Profile";
+import PasswordReset from "../components/pages/PasswordReset";
 import NavBar from "../components/navBar/NavBar";
 import NotFound from "../components/pages/NotFound";
 
@@ -88,6 +89,7 @@ function App() {
                 </RequireAuth>
               }
             />
+            <Route path="/password-reset" element={<PasswordReset />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

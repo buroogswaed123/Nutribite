@@ -11,6 +11,12 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  // Email validation function
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const openPopup = (url) => {
     const width = 500;
     const height = 600;
@@ -25,55 +31,14 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
     return false;
   };
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    console.log('Attempting login with:', { email: email, password: '***' });
-    
-    try {
-      console.log('Making request to:', window.location.origin + '/api/login');
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-      
-      const data = await response.json();
-      console.log('Response data:', data);
-      
-      if (response.ok) {
-        console.log('Login successful');
-        onLoginSuccess(data.user);
-        navigate('/home');
-      } else if (response.status === 401) {
-        console.log('Authentication failed');
-        setError('Invalid email or password');
-      } else {
-        console.log('Login failed with error:', data.error);
-        setError(data.error || 'Login failed');
-      }
-    } catch (err) {
-      console.error('Login error:', err);
-      setError('Network error occurred');
-    }
-  };
-
   const handleRegister = async (e) => {
     e.preventDefault();
-    console.log('Attempting registration with:', { 
-      email: email, 
-      password: '***',
-      username: username,
-      user_type: userType
-    });
-    
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
     try {
-      console.log('Making request to:', window.location.origin + '/api/register');
-      const response = await fetch('/api/register', {
+      const response = await fetch('http://localhost:3001/api/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -86,44 +51,39 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         }),
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-      
       const data = await response.json();
-      console.log('Response data:', data);
-      
       if (response.ok) {
-        console.log('Registration successful');
         onLoginSuccess(data.user);
         navigate('/home');
       } else {
-        console.log('Registration failed with error:', data.error);
         setError(data.error || 'Registration failed');
       }
     } catch (err) {
-      console.error('Registration error:', err);
       setError('Network error occurred');
     }
   };
 
-  const handleGuestClick = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetch('http://localhost:3001/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: 'guest@example.com', password: 'guest' }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
-      
       if (response.ok) {
         onLoginSuccess(data.user);
         navigate('/home');
       } else {
-        setError(data.error || 'Guest login failed');
+        setError(data.error || 'Invalid credentials');
       }
     } catch (err) {
       setError('Network error occurred');
@@ -136,57 +96,9 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
 
   const handleBackToLogin = () => {
     setIsActive(false);
-    // Reset error state when switching back to login
     setError('');
-    // Reset form fields
     setEmail('');
     setPassword('');
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    
-    if (!email || !password) {
-      setError('Please enter both email and password');
-      return;
-    }
-
-    try {
-      const response = await fetch("http://localhost:3001/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Response status:', response.status);
-        console.error('Error data:', errorData);
-        if (response.status === 401) {
-          setError('Invalid email or password');
-        } else if (errorData.error) {
-          setError(errorData.error);
-        } else {
-          setError('Login failed. Please try again.');
-        }
-        return;
-      }
-
-      const data = await response.json();
-      console.log('Login response:', data);
-      if (data.success) {
-        onLoginSuccess(data.user);
-        navigate('/home');
-      } else {
-        setError(data.error || 'Login failed. Please try again.');
-      }
-    } catch (err) {
-      console.error('Login error:', err);
-      setError("Network error: " + err.message);
-    }
   };
 
   const handleContainerNaming = () => {
@@ -198,7 +110,6 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   return (
     <div className={handleContainerNaming()} id="container">
       <div className={`${classes["form-container"]} ${classes["sign-up"]}`}>
-
         <form onSubmit={handleRegister}>
           <h1>צור חשבון</h1>
           <div className={classes.icons}>
@@ -235,7 +146,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
       </div>
 
       <div className={`${classes["form-container"]} ${classes["sign-in"]}`}>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleLogin}>
           <h1>להיכנס</h1>
           <div className={classes.icons}>
             <a onClick={(e) => { e.preventDefault(); openPopup('https://accounts.google.com/signin'); }} className="icon"><i className="fa-brands fa-google-plus-g"></i></a>
@@ -266,27 +177,21 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
             e.preventDefault();
             navigate('/password-reset');
           }}>שכחת סיסמא?</a>
-          <a href="/home" className={classes.guestLink}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate('/home');
-            }}
-          >
-            הכנס כאורח
-          </a>
+          <a href="/home" className={classes.guestLink} onClick={(e) => {
+            e.preventDefault();
+            navigate('/home');
+          }}>הכנס כאורח</a>
         </form>
       </div>
 
       <div className={classes.toggleContainer}>
         <div className={classes.toggle}>
           <div className={`${classes["togglePanel"]} ${classes["toggleLeft"]}`}>
-
             <h1> שלום, חבר!</h1>
             <p>רשום את הפרטים האישיים שלך,או</p>
             <button className={classes.hidden} id="login" onClick={handleBackToLogin}>הכנס</button>
           </div>
           <div className={`${classes["togglePanel"]} ${classes["toggleRight"]}`}>
-
             <h1>!ברוך הבא</h1>
             <p>הכנס את הפרטים האישיים שלך,או</p>
             <button 

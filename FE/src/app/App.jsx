@@ -51,19 +51,17 @@ function App() {
   };
 
   return (
-    <AuthContext.Provider value={auth}>
-      <section className={classes.app}>
-        <BrowserRouter>
+    <BrowserRouter>
+      <AuthContext.Provider value={auth}>
+        <div className={classes.app}>
           <Routes>
             <Route path="/" element={<Login onLoginSuccess={handleLogin} />} />
             <Route
               path="/home"
               element={
-                <RequireAuth allowGuest>
-                  <>
-                    <NavBar pages={pages} />
-                    <Home />
-                  </>
+                <RequireAuth>
+                  <NavBar pages={pages} />
+                  <Home />
                 </RequireAuth>
               }
             />
@@ -71,10 +69,8 @@ function App() {
               path="/caloriecalc"
               element={
                 <RequireAuth>
-                  <>
-                    <NavBar pages={pages} />
-                    <CalorieCalc />
-                  </>
+                  <NavBar pages={pages} />
+                  <CalorieCalc />
                 </RequireAuth>
               }
             />
@@ -82,19 +78,17 @@ function App() {
               path="/profile"
               element={
                 <RequireAuth>
-                  <>
-                    <NavBar pages={pages} />
-                    <Profile />
-                  </>
+                  <NavBar pages={pages} />
+                  <Profile />
                 </RequireAuth>
               }
             />
             <Route path="/password-reset" element={<PasswordReset />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </section>
-    </AuthContext.Provider>
+        </div>
+      </AuthContext.Provider>
+    </BrowserRouter>
   );
 }
 

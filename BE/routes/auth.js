@@ -15,51 +15,157 @@ const findUserByEmail = async (email) => {
 
 // Register
 router.post('/register', async (req, res) => {
-  const { username, email, password } = req.body;
-  if (!username || !email || !password)
-    return res.status(400).json({ message: 'Missing fields' });
-
   try {
+    const { username, email, password, user_type } = req.body;
+    if (!username || !email || !password || !user_type) {
+      console.log('Missing fields:', { username, email, password, user_type });
+      return res.status(400).json({ 
+        message: 'Missing fields', 
+        fields: { username, email, password, user_type }
+      });
+    }
+
+    console.log('Attempting to register user:', { email, username, user_type });
+    
     const [existing] = await conn.promise().query(
       'SELECT * FROM users WHERE email = ? OR username = ?',
       [email, username]
     );
-    if (existing.length > 0)
-      return res.status(400).json({ message: 'Email or username already exists' });
 
+    if (existing.length > 0) {
+      console.log('User already exists:', existing[0].email);
+      return res.status(400).json({ 
+        message: 'Email or username already exists',
+        existing: existing[0].email
+      });
+    }
+
+    console.log('Hashing password...');
     const hashedPassword = await bcrypt.hash(password, 10);
-    const [result] = await conn.promise().query(
-      'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
-      [username, email, hashedPassword]
-    );
+    console.log('Password hashed successfully');
+
+    // Log the query and parameters before execution
+    const query = 'INSERT INTO users (email, password_hash, username, user_type, account_creation_time) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)';
+    const params = [email, hashedPassword, username, user_type];
+    console.log('Executing query:', query);
+    console.log('With parameters:', params);
+
+    const [result] = await conn.promise().query(query, params);
+    console.log('Insert result:', result);
 
     res.status(201).json({
       message: 'User registered successfully',
-      user: { id: result.insertId, username, email },
+      user: { 
+        user_id: result.insertId, 
+        email, 
+        username, 
+        user_type 
+      }
     });
   } catch (err) {
-    console.error('Register error:', err);
-    res.status(500).json({ message: 'Registration failed' });
+    console.error('Registration error:', err);
+    console.error('Error details:', {
+      code: err.code,
+      sql: err.sql,
+      sqlMessage: err.sqlMessage
+    });
+    res.status(500).json({
+      message: 'Registration failed',
+      error: err.message,
+      details: {
+        code: err.code,
+        sql: err.sql,
+        sqlMessage: err.sqlMessage
+      }
+    });
   }
 });
 
 // Login
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ message: 'Missing fields' });
+  const { identifier, password, loginMethod = 'email' } = req.body;
+  if (!identifier || !password) return res.status(400).json({ message: 'Missing fields' });
 
   try {
-    const user = await findUserByEmail(email);
-    if (!user) return res.status(401).json({ message: 'Invalid email or password' });
+    let user;
+    if (loginMethod === 'email') {
+      user = await findUserByEmail(identifier);
+    } else if (loginMethod === 'username') {
+      const [rows] = await conn.promise().query('SELECT * FROM users WHERE username = ?', [identifier]);
+      user = rows[0];
+    } else {
+      return res.status(400).json({ message: 'Invalid login method' });
+    }
 
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) return res.status(401).json({ message: 'Invalid email or password' });
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
-    const { password: _, ...safeUser } = user;
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    if (!isValid) return res.status(401).json({ message: 'Invalid credentials' });
+
+    const { password_hash, reset_code, reset_code_expires, ...safeUser } = user;
     res.json({ user: safeUser });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ message: 'Login failed' });
+    console.error('Error details:', {
+      code: err.code,
+      sql: err.sql,
+      sqlMessage: err.sqlMessage
+    });
+    res.status(500).json({ message: 'Login failed', error: err.message });
+  }
+});
+
+// Password Reset
+router.get('/password-reset/:email', async (req, res) => {
+  const { email } = req.params;
+  try {
+    const user = await findUserByEmail(email);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Generate a reset code (in a real app, this would be more secure)
+    const resetCode = Math.random().toString(36).substring(2, 8);
+    
+    // Store reset code in database (in a real app, this would have an expiration)
+    await conn.promise().query(
+      'INSERT INTO password_resets (email, code) VALUES (?, ?)',
+      [email, resetCode]
+    );
+
+    res.json({ message: 'Reset code sent', resetCode });
+  } catch (err) {
+    console.error('Password reset error:', err);
+    res.status(500).json({ message: 'Password reset failed' });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  const { resetCode, newPassword } = req.body;
+  if (!resetCode || !newPassword) return res.status(400).json({ message: 'Missing fields' });
+
+  try {
+    const [rows] = await conn.promise().query(
+      'SELECT email FROM password_resets WHERE code = ?',
+      [resetCode]
+    );
+
+    if (rows.length === 0) return res.status(400).json({ message: 'Invalid reset code' });
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await conn.promise().query(
+      'UPDATE users SET password = ? WHERE email = ?',
+      [hashedPassword, rows[0].email]
+    );
+
+    // Clean up the reset code
+    await conn.promise().query(
+      'DELETE FROM password_resets WHERE code = ?',
+      [resetCode]
+    );
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (err) {
+    console.error('Password reset error:', err);
+    res.status(500).json({ message: 'Password reset failed' });
   }
 });
 

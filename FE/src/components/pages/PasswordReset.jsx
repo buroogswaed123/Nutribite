@@ -39,7 +39,7 @@ export default function PasswordReset() {
     setSuccess('');
 
     try {
-      const response = await fetch(`http://localhost:3001/api/password-reset/${encodeURIComponent(email)}`);
+      const response = await fetch(`http://localhost:3000/api/password-reset/${encodeURIComponent(email)}`);
       const data = await response.json();
 
       if (response.ok) {
@@ -64,15 +64,15 @@ export default function PasswordReset() {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/reset-password', {
+      const response = await fetch('http://localhost:3000/api/reset-password', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           resetCode,
           newPassword
-        }),
+        })
       });
 
       const data = await response.json();

@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import classes from "../../assets/styles/login.module.css";
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -16,7 +16,17 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   const [username, setUsername] = useState(newUserCredentials?.username || '');
   const [userType, setUserType] = useState(newUserCredentials?.user_type || 'Customer');
   const [error, setError] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // If navigated with state { openRegister: true }, open the register panel
+  useEffect(() => {
+    if (location.state && location.state.openRegister) {
+      setIsActive(true);
+    }
+  }, [location.state]);
 
   // Email validation function
   const validateEmail = (email) => {
@@ -40,6 +50,8 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    setUsernameError('');
+    setEmailError('');
     if (!validateEmail(identifier)) {
       setError('Please enter a valid email address');
       return;
@@ -67,8 +79,44 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Network error' }));
-        console.error('Registration error:', errorData);
-        setError(errorData.message || 'Registration failed');
+        const msg = (errorData && (errorData.message || errorData.error)) || '';
+
+        // Prefer structured field info if provided by backend
+        const field = (errorData && (errorData.field || errorData.key)) || '';
+        const code = (errorData && (errorData.code || errorData.type)) || '';
+
+        let handled = false;
+        if (field) {
+          if (/^user(name)?$/i.test(field)) {
+            setUsernameError('שם המשתמש כבר תפוס');
+            setError('שם המשתמש כבר תפוס');
+            handled = true;
+          } else if (/^e?-?mail$/i.test(field) || /email/i.test(field)) {
+            setEmailError('כתובת הדוא"ל כבר תפוס');
+            setError('כתובת הדוא"ל כבר תפוס');
+            handled = true;
+          }
+        }
+
+        if (!handled) {
+          const lower = (msg || '').toLowerCase();
+          const mentionsUsername = /\buser(name)?\b/.test(lower);
+          const mentionsEmail = /\bemail\b|\bmail\b/.test(lower);
+          const isDuplicate = /(exists|taken|duplicate|already)/.test(lower);
+
+          if (isDuplicate && mentionsUsername && !mentionsEmail) {
+            setUsernameError('שם המשתמש כבר תפוס');
+            setError('שם המשתמש כבר תפוס');
+          } else if (isDuplicate && mentionsEmail && !mentionsUsername) {
+            setEmailError('כתובת הדוא"ל כבר רשומה');
+            setError('כתובת הדוא"ל כבר רשומה');
+          } else {
+            // Ambiguous or generic backend message: choose one field to display
+            // Prefer marking email as taken to avoid double-highlighting
+            setEmailError('כתובת הדוא"ל כבר רשומה');
+            setError('שם המשתמש או הדוא"ל כבר בשימוש');
+          }
+        }
         return;
       }
 
@@ -128,6 +176,8 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   const handleBackToLogin = () => {
     setIsActive(false);
     setError('');
+    setUsernameError('');
+    setEmailError('');
     setIdentifier('');
     setPassword('');
   };
@@ -139,92 +189,93 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   };
 
   return (
-    <div className={handleContainerNaming()} id="container">
-      <div className={`${classes["form-container"]} ${classes["sign-up"]}`}>
-        <form onSubmit={handleRegister}>
-          <h1>צור חשבון</h1>
-          <div className={classes.icons}>
-            <a onClick={(e) => { e.preventDefault(); openPopup('https://accounts.google.com/signin'); }} className="icon"><i className="fa-brands fa-google-plus-g"></i></a>
-            <a onClick={(e) => { e.preventDefault(); openPopup('https://www.facebook.com/login'); }} className="icon"><i className="fa-brands fa-facebook-f"></i></a>
-            <a onClick={(e) => { e.preventDefault(); openPopup('https://github.com/login'); }} className="icon"><i className="fa-brands fa-github"></i></a>
-            <a onClick={(e) => { e.preventDefault(); openPopup('https://www.linkedin.com/login'); }} className="icon"><i className="fa-brands fa-linkedin-in"></i></a>
-          </div>
-          <span>או הרשמ במייל</span>
-          <input 
-            type="text" 
-            placeholder="שם"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className={error ? classes.errorInput : ''}
-          />
-          <input 
-            type="text" 
-            placeholder="דו''א"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            className={error ? classes.errorInput : ''}
-          />
-          <input 
-            type="password" 
-            placeholder="סיסמה"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className={error ? classes.errorInput : ''}
-          />
-          <input 
-            type="password" 
-            placeholder="אימות סיסמה"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-          />
-          <div className={classes.error}>{error}</div>
-          <button type="submit">להירשם</button>
-        </form>
-      </div>
+    <div className={classes.loginPage}>
+      <div className={handleContainerNaming()} id="container">
+        <div className={`${classes["form-container"]} ${classes["sign-up"]}`}>
+          <form onSubmit={handleRegister}>
+            <h1>צור חשבון</h1>
+            <div className={classes.icons}>
+              <a onClick={(e) => { e.preventDefault(); openPopup('https://accounts.google.com/signin'); }} className="icon"><i className="fa-brands fa-google-plus-g"></i></a>
+              <a onClick={(e) => { e.preventDefault(); openPopup('https://www.facebook.com/login'); }} className="icon"><i className="fa-brands fa-facebook-f"></i></a>
+              <a onClick={(e) => { e.preventDefault(); openPopup('https://github.com/login'); }} className="icon"><i className="fa-brands fa-github"></i></a>
+              <a onClick={(e) => { e.preventDefault(); openPopup('https://www.linkedin.com/login'); }} className="icon"><i className="fa-brands fa-linkedin-in"></i></a>
+            </div>
+            <span>או הרשמ במייל</span>
+            <input 
+              type="text" 
+              placeholder="שם"
+              value={username}
+              onChange={(e) => { setUsername(e.target.value); setUsernameError(''); }}
+              className={usernameError ? classes.errorInput : ''}
+            />
+            <input 
+              type="text" 
+              placeholder="דו''א"
+              value={identifier}
+              onChange={(e) => { setIdentifier(e.target.value); setEmailError(''); }}
+              className={emailError ? classes.errorInput : ''}
+            />
+            <input 
+              type="password" 
+              placeholder="סיסמה"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className={''}
+            />
+            <input 
+              type="password" 
+              placeholder="אימות סיסמה"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              className={''}
+            />
+            <div className={classes.error}>{error}</div>
+            <button type="submit">להירשם</button>
+          </form>
+        </div>
 
-      <div className={`${classes["form-container"]} ${classes["sign-in"]}`}>
-        <form onSubmit={handleLogin}>
-          <h1>להיכנס</h1>
-          <div className={classes.icons}>
-            <a onClick={(e) => { e.preventDefault(); openPopup('https://accounts.google.com/signin'); }} className="icon"><i className="fa-brands fa-google-plus-g"></i></a>
-            <a onClick={(e) => { e.preventDefault(); openPopup('https://www.facebook.com/login'); }} className="icon"><i className="fa-brands fa-facebook-f"></i></a>
-            <a onClick={(e) => { e.preventDefault(); openPopup('https://github.com/login'); }} className="icon"><i className="fa-brands fa-github"></i></a>
-            <a onClick={(e) => { e.preventDefault(); openPopup('https://www.linkedin.com/login'); }} className="icon"><i className="fa-brands fa-linkedin-in"></i></a>
-          </div>
-          <span>או השתמש בסיסמת הדוא&#39;&#39;ל שלך</span>
-          <input 
-            type="text" 
-            placeholder="דוא&quot;ל/שם משתמש"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            className={error ? classes.errorInput : ''}
-          />
-          <input 
-            type="password" 
-            placeholder="סיסמה" 
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={error ? classes.errorInput : ''}
-          />
-          <div className={classes.error}>{error}</div>
-          <button type="submit" className={classes.loginButton}>
-            להיכנס
-          </button>
-          <a href="/password-reset" className={classes.forgotPassword} onClick={(e) => {
-            e.preventDefault();
-            navigate('/password-reset');
-          }}>שכחת סיסמא?</a>
-          <a href="/home" className={classes.guestLink} onClick={(e) => {
-            e.preventDefault();
-            navigate('/home');
-          }}>הכנס כאורח</a>
-        </form>
-      </div>
+        <div className={`${classes["form-container"]} ${classes["sign-in"]}`}>
+          <form onSubmit={handleLogin}>
+            <h1>להיכנס</h1>
+            <div className={classes.icons}>
+              <a onClick={(e) => { e.preventDefault(); openPopup('https://accounts.google.com/signin'); }} className="icon"><i className="fa-brands fa-google-plus-g"></i></a>
+              <a onClick={(e) => { e.preventDefault(); openPopup('https://www.facebook.com/login'); }} className="icon"><i className="fa-brands fa-facebook-f"></i></a>
+              <a onClick={(e) => { e.preventDefault(); openPopup('https://github.com/login'); }} className="icon"><i className="fa-brands fa-github"></i></a>
+              <a onClick={(e) => { e.preventDefault(); openPopup('https://www.linkedin.com/login'); }} className="icon"><i className="fa-brands fa-linkedin-in"></i></a>
+            </div>
+            <span>או השתמש בסיסמת הדוא&#39;&#39;ל שלך</span>
+            <input 
+              type="text" 
+              placeholder="דוא&quot;ל/שם משתמש"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              className={error ? classes.errorInput : ''}
+            />
+            <input 
+              type="password" 
+              placeholder="סיסמה" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={error ? classes.errorInput : ''}
+            />
+            <div className={classes.error}>{error}</div>
+            <button type="submit" className={classes.loginButton}>להיכנס</button>
+            <a href="/password-reset" className={classes.forgotPassword} onClick={(e) => {
+              e.preventDefault();
+              navigate('/password-reset');
+            }}>שכחת סיסמא?</a>
+            <a href="/home" className={classes.guestLink} onClick={(e) => {
+              e.preventDefault();
+              navigate('/home');
+            }}>הכנס כאורח</a>
+          </form>
+        </div>
+      
 
       <div className={classes.toggleContainer}>
-        <div className={classes.toggle}>
+        <div className={classes.Logintoggle}>
           <div className={`${classes["togglePanel"]} ${classes["toggleLeft"]}`}>
             <h1> שלום, חבר!</h1>
             <p>רשום את הפרטים האישיים שלך,או</p>
@@ -244,6 +295,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

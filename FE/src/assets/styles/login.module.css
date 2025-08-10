@@ -1,13 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap");
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: "Montserrat", sans-serif;
-}
-
-body {
+/* Scoped wrapper for the login page to prevent global style leakage */
+.loginPage {
   background-image: url("https://images.unsplash.com/photo-1490818387583-1baba5e638af?q=80&w=1932&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D");
   background-repeat: no-repeat;
   background-size: cover;
@@ -16,7 +10,15 @@ body {
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
+  /* Set base font on container so Font Awesome classes can override properly */
+  font-family: "Montserrat", sans-serif;
+}
+
+.loginPage * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .container {
@@ -189,8 +191,8 @@ body {
   border-radius: 0 150px 100px 0;
 }
 
-.toggle {
-  background-color: 7CB342;
+.loginPage .Logintoggle {
+  background-color: #7CB342;
   height: 100%;
   background-image: url("https://topdog.co.il/wp-content/uploads/2023/09/%D7%99%D7%A8%D7%A7%D7%95%D7%AA-%D7%9C%D7%9B%D7%9C%D7%91%D7%99%D7%9D.webp");
   background-size: cover;
@@ -209,7 +211,7 @@ body {
   transition: all 0.6s ease-in-out;
 }
 
-.container.active .toggle {
+.container.active .Logintoggle {
   transform: translateX(50%);
 }
 
@@ -245,15 +247,17 @@ body {
   transform: translateX(200%);
 }
 
-.toggle button {
-  background-color: rgba(255, 255, 255, 0.9);
+/* Toggle panel action buttons (Login/Register) */
+.loginPage .togglePanel button {
+  border: 1px solid #7cb342; /* thin green border */
+  border-radius: 8px;        /* rounded corners */
+  background-color: transparent;
   color: #7cb342;
   font-weight: 700;
-  border: 2px solid #7cb342;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-.toggle button:hover {
+.loginPage .togglePanel button:hover {
   background-color: #7cb342;
   color: #fff;
 }

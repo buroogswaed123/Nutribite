@@ -27,16 +27,28 @@ router.post('/register', async (req, res) => {
 
     console.log('Attempting to register user:', { email, username, user_type });
     
-    const [existing] = await conn.promise().query(
-      'SELECT * FROM users WHERE email = ? OR username = ?',
-      [email, username]
+    // Option A: Perform explicit checks to return a specific field for duplicates
+    const [emailRows] = await conn.promise().query(
+      'SELECT 1 FROM users WHERE email = ? LIMIT 1',
+      [email]
     );
+    if (emailRows.length > 0) {
+      return res.status(409).json({
+        message: 'Email already exists',
+        field: 'email',
+        code: 'duplicate'
+      });
+    }
 
-    if (existing.length > 0) {
-      console.log('User already exists:', existing[0].email);
-      return res.status(400).json({ 
-        message: 'Email or username already exists',
-        existing: existing[0].email
+    const [usernameRows] = await conn.promise().query(
+      'SELECT 1 FROM users WHERE username = ? LIMIT 1',
+      [username]
+    );
+    if (usernameRows.length > 0) {
+      return res.status(409).json({
+        message: 'Username already exists',
+        field: 'username',
+        code: 'duplicate'
       });
     }
 

@@ -2,19 +2,16 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { createContext, useContext } from "react";
 import { useState } from "react";
 import classes from "./app.module.css";
-import Home from "../components/pages/Home";
+import Home from "../components/pages/admin/home/Home";
 import Login from "../components/pages/Login";
 import CalorieCalc from "../components/pages/CalorieCalc";
-import Profile from "../components/pages/Profile";
+// import Profile from "../components/pages/admin/Profile";
 import PasswordReset from "../components/pages/PasswordReset";
-import NavBar from "../components/navBar/NavBar";
 import NotFound from "../components/pages/NotFound";
+import Footer from "../components/layout/footer/Footer";
+import Header from "../components/layout/header/Header";
 
-const pages = [
-  { name: "מחשבון קלוריות", path: "/caloriecalc" },
-  { name: "פרופיל", path: "/profile" },
-  { name: "בית", path: "/home" },
-];
+// NavBar replaced by Header and Footer
 
 export const AuthContext = createContext();
 
@@ -57,24 +54,39 @@ function App() {
           <Routes>
             <Route path="/" element={<Login onLoginSuccess={handleLogin} />} />
             <Route
+  path="/home"
+  element={
+    <div className={classes.withNav}>
+      <Header />
+      <Home />
+      <Footer />
+    </div>
+  }
+/>
+             {/* <Route
               path="/home"
               element={
-                <RequireAuth>
+                 <RequireAuth>
+                
                   <NavBar pages={pages} />
                   <Home />
-                </RequireAuth>
+                 </RequireAuth> 
               }
-            />
+            /> */}
+             
             <Route
               path="/caloriecalc"
               element={
                 <RequireAuth>
-                  <NavBar pages={pages} />
-                  <CalorieCalc />
+                  <div className={classes.withNav}>
+                    <Header />
+                    <CalorieCalc />
+                    <Footer />
+                  </div>
                 </RequireAuth>
               }
             />
-            <Route
+            {/* <Route
               path="/profile"
               element={
                 <RequireAuth>
@@ -82,7 +94,7 @@ function App() {
                   <Profile />
                 </RequireAuth>
               }
-            />
+            /> */}
             <Route path="/password-reset" element={<PasswordReset />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

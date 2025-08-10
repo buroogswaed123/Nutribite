@@ -233,5 +233,19 @@ process.on('SIGTERM', () => {
   });
 });
 
+// Mock sales data
+const salesData = [
+  { date: "2025-08-01", salesQuantity: 10, productsSold: 7 },
+  { date: "2025-08-02", salesQuantity: 15, productsSold: 10 },
+  { date: "2025-08-03", salesQuantity: 7, productsSold: 5 },
+];
+
+// Endpoint
+app.get('/api/admin/sales', (req, res) => {
+  res.json(salesData);
+});
+
+
+
 // Export server for testing
 module.exports = server;

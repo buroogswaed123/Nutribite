@@ -11,19 +11,37 @@ export default function Footer() {
           {/* Column 1: Logo and description */}
           <div>
             <Link to="/" className={styles.brandLink}>
-              <span className={styles.brand}>EatThisMuch</span>
+              <span className={styles.brand}>Nutribite</span>
             </Link>
             <p className={styles.description}>
-              Automatic meal planning that makes eating healthy and reaching your diet goals easier than ever before.
+              תכנון ארוחות אוטומטי שהופך את האכילה הבריאה וההגעה ליעדי התזונה לקלים מאי פעם.
             </p>
             <div className={styles.socialRow}>
-              <a href="#" className={styles.socialLink}>
+              <a
+                href="https://twitter.com"
+                className={styles.socialLink}
+                aria-label="Twitter"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <Twitter size={20} />
               </a>
-              <a href="#" className={styles.socialLink}>
+              <a
+                href="https://facebook.com"
+                className={styles.socialLink}
+                aria-label="Facebook"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <Facebook size={20} />
               </a>
-              <a href="#" className={styles.socialLink}>
+              <a
+                href="https://instagram.com"
+                className={styles.socialLink}
+                aria-label="Instagram"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <Instagram size={20} />
               </a>
             </div>
@@ -31,26 +49,26 @@ export default function Footer() {
 
           {/* Column 2: Features */}
           <div>
-            <h3 className={styles.sectionTitle}>Features</h3>
+            <h3 className={styles.sectionTitle}>מאפיינים</h3>
             <ul className={styles.linkList}>
               <li className={styles.linkItem}>
                 <Link to="/meal-planner" className={styles.link}>
-                  Meal Planner
+                  מתכנן ארוחות
                 </Link>
               </li>
               <li className={styles.linkItem}>
                 <Link to="/recipes" className={styles.link}>
-                  Recipe Database
+                  מאגר מתכונים
                 </Link>
               </li>
               <li className={styles.linkItem}>
                 <Link to="/grocery-list" className={styles.link}>
-                  Grocery Lists
+                  רשימות קניות
                 </Link>
               </li>
               <li className={styles.linkItem}>
                 <Link to="/nutrition-tracking" className={styles.link}>
-                  Nutrition Tracking
+                  מעקב תזונה
                 </Link>
               </li>
             </ul>
@@ -58,26 +76,26 @@ export default function Footer() {
 
           {/* Column 3: Resources */}
           <div>
-            <h3 className={styles.sectionTitle}>Resources</h3>
+            <h3 className={styles.sectionTitle}>משאבים</h3>
             <ul className={styles.linkList}>
               <li className={styles.linkItem}>
                 <Link to="/blog" className={styles.link}>
-                  Blog
+                  בלוג
                 </Link>
               </li>
               <li className={styles.linkItem}>
                 <Link to="/faq" className={styles.link}>
-                  FAQ
+                  שאלות נפוצות
                 </Link>
               </li>
               <li className={styles.linkItem}>
                 <Link to="/support" className={styles.link}>
-                  Support
+                  תמיכה
                 </Link>
               </li>
               <li className={styles.linkItem}>
                 <Link to="/how-it-works" className={styles.link}>
-                  How It Works
+                  איך זה עובד
                 </Link>
               </li>
             </ul>
@@ -85,37 +103,32 @@ export default function Footer() {
 
           {/* Column 4: Company */}
           <div>
-            <h3 className={styles.sectionTitle}>Company</h3>
+            <h3 className={styles.sectionTitle}>חברה</h3>
             <ul className={styles.linkList}>
               <li className={styles.linkItem}>
                 <Link to="/about" className={styles.link}>
-                  About Us
+                  אודות
                 </Link>
               </li>
               <li className={styles.linkItem}>
                 <Link to="/careers" className={styles.link}>
-                  Careers
+                  קריירה
                 </Link>
               </li>
               <li className={styles.linkItem}>
                 <Link to="/privacy" className={styles.link}>
-                  Privacy Policy
+                  מדיניות פרטיות
                 </Link>
               </li>
               <li className={styles.linkItem}>
                 <Link to="/terms" className={styles.link}>
-                  Terms of Service
+                  תנאי שימוש
                 </Link>
               </li>
             </ul>
           </div>
         </div>
-        <div className={styles.bottomBar}>
-          <p className={styles.bottomText}>
-            &copy; {new Date().getFullYear()} EatThisMuch. All rights reserved.
-          </p>
-        </div>
       </div>
     </footer>
   );
-};
+}

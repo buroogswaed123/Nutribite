@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { createContext, useContext } from "react";
 import { useState } from "react";
 import classes from "./app.module.css";
-import Home from "../components/pages/admin/home/Home";
+import Home from "../components/pages/customer/home/Home";
 import Login from "../components/pages/Login";
 import CalorieCalc from "../components/pages/CalorieCalc";
 // import Profile from "../components/pages/admin/Profile";

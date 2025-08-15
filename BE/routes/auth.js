@@ -181,4 +181,34 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// Session: current user
+router.get('/session/me', async (req, res) => {
+  try {
+    const userId = req.session && req.session.user_id;
+    if (!userId) {
+      return res.json({ user: null });
+    }
+    const [rows] = await conn.promise().query('SELECT * FROM users WHERE user_id = ? LIMIT 1', [userId]);
+    const user = rows?.[0];
+    if (!user) return res.json({ user: null });
+    const { password_hash, reset_code, reset_code_expires, ...safeUser } = user;
+    res.json({ user: safeUser });
+  } catch (err) {
+    console.error('Session me error:', err);
+    res.status(500).json({ message: 'Failed to get session user' });
+  }
+});
+
+// Session: logout
+router.post('/logout', (req, res) => {
+  if (!req.session) return res.json({ success: true });
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Session destroy error:', err);
+      return res.status(500).json({ message: 'Logout failed' });
+    }
+    res.json({ success: true });
+  });
+});
+
 module.exports = router;

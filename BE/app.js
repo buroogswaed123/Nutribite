@@ -3,6 +3,7 @@ const mysql = require('mysql2');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
 const cors = require('cors');
+// No external OAuth libs; manual flow
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -179,8 +180,9 @@ app.get('/test-tables', (req, res) => {
 initDatabase();
 
 // Middleware
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 app.use(cors({
-  origin: 'http://localhost:3001',
+  origin: FRONTEND_ORIGIN,
   credentials: true
 }));
 app.use(express.json());
@@ -199,6 +201,8 @@ app.use(session({
 // Import routes
 const authRoutes = require('./routes/auth');
 app.use('/api', authRoutes);
+const oauthRoutes = require('./routes/oauth');
+app.use('/auth', oauthRoutes);
 
 // Routes
 app.get('/', (req, res) => {

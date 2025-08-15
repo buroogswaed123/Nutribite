@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import classes from "../../assets/styles/login.module.css";
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-
+import SocialAuthButtons from './SocialAuthButtons';
 const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
@@ -20,6 +20,28 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   const [emailError, setEmailError] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Small helper: use backend to check the user's type from DB
+  // It posts to the existing /api/login endpoint and extracts user_type
+  // Returns user_type string or null on failure
+  const checkUserType = async (id, pwd) => {
+    try {
+      if (!id || !pwd) return null;
+      const isEmail = validateEmail(id);
+      const method = isEmail ? 'email' : 'username';
+      const res = await fetch('http://localhost:3000/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: id, password: pwd, loginMethod: method })
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.user?.user_type ?? null;
+    } catch (e) {
+      console.error('checkUserType error:', e);
+      return null;
+    }
+  };
 
   // If navigated with state { openRegister: true }, open the register panel
   useEffect(() => {
@@ -159,6 +181,19 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
 
       const data = await response.json();
       if (response.ok) {
+        // Ensure we have the user_type from backend and store it locally
+        const typeFromLogin = data?.user?.user_type;
+        if (typeFromLogin) {
+          setUserType(typeFromLogin);
+          try { localStorage.setItem('user_type', typeFromLogin); } catch {}
+        } else {
+          // Fallback: query backend again to resolve user_type explicitly
+          const fallbackType = await checkUserType(identifier, password);
+          if (fallbackType) {
+            setUserType(fallbackType);
+            try { localStorage.setItem('user_type', fallbackType); } catch {}
+          }
+        }
         onLoginSuccess(data.user);
         navigate('/home');
       } else {
@@ -194,12 +229,33 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         <div className={`${classes["form-container"]} ${classes["sign-up"]}`}>
           <form onSubmit={handleRegister}>
             <h1>צור חשבון</h1>
-            <div className={classes.icons}>
-              <a onClick={(e) => { e.preventDefault(); openPopup('https://accounts.google.com/signin'); }} className="icon"><i className="fa-brands fa-google-plus-g"></i></a>
-              <a onClick={(e) => { e.preventDefault(); openPopup('https://www.facebook.com/login'); }} className="icon"><i className="fa-brands fa-facebook-f"></i></a>
-              <a onClick={(e) => { e.preventDefault(); openPopup('https://github.com/login'); }} className="icon"><i className="fa-brands fa-github"></i></a>
-              <a onClick={(e) => { e.preventDefault(); openPopup('https://www.linkedin.com/login'); }} className="icon"><i className="fa-brands fa-linkedin-in"></i></a>
-            </div>
+            <SocialAuthButtons
+              variant="register"
+              onSuccess={async (user) => {
+                try {
+                  if (user?.user_type) localStorage.setItem('user_type', user.user_type);
+                } catch {}
+                // Wait so the popup can show the Hebrew success text
+                await new Promise(r => setTimeout(r, 2600));
+                // Ensure session is synced from backend
+                try {
+                  const resp = await fetch('http://localhost:3000/api/session/me', { credentials: 'include' });
+                  if (resp.ok) {
+                    const data = await resp.json();
+                    const serverUser = data?.user || user;
+                    if (typeof onLoginSuccess === 'function') onLoginSuccess(serverUser);
+                  } else {
+                    if (typeof onLoginSuccess === 'function') onLoginSuccess(user);
+                  }
+                } catch {
+                  if (typeof onLoginSuccess === 'function') onLoginSuccess(user);
+                }
+                window.location.replace('/home');
+              }}
+              onError={(err) => {
+                setError(err?.message || 'Social login failed');
+              }}
+            />
             <span>או הרשמ במייל</span>
             <input 
               type="text" 
@@ -239,12 +295,18 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         <div className={`${classes["form-container"]} ${classes["sign-in"]}`}>
           <form onSubmit={handleLogin}>
             <h1>להיכנס</h1>
-            <div className={classes.icons}>
-              <a onClick={(e) => { e.preventDefault(); openPopup('https://accounts.google.com/signin'); }} className="icon"><i className="fa-brands fa-google-plus-g"></i></a>
-              <a onClick={(e) => { e.preventDefault(); openPopup('https://www.facebook.com/login'); }} className="icon"><i className="fa-brands fa-facebook-f"></i></a>
-              <a onClick={(e) => { e.preventDefault(); openPopup('https://github.com/login'); }} className="icon"><i className="fa-brands fa-github"></i></a>
-              <a onClick={(e) => { e.preventDefault(); openPopup('https://www.linkedin.com/login'); }} className="icon"><i className="fa-brands fa-linkedin-in"></i></a>
-            </div>
+            <SocialAuthButtons
+              onSuccess={(user) => {
+                try {
+                  if (user?.user_type) localStorage.setItem('user_type', user.user_type);
+                } catch {}
+                if (typeof onLoginSuccess === 'function') onLoginSuccess(user);
+                navigate('/home', { replace: true });
+              }}
+              onError={(err) => {
+                setError(err?.message || 'Social login failed');
+              }}
+            />
             <span>או השתמש בסיסמת הדוא&#39;&#39;ל שלך</span>
             <input 
               type="text" 

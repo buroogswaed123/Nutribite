@@ -1,3 +1,6 @@
+// ========================
+// Core & Libraries
+// ========================
 const express = require('express');
 const mysql = require('mysql2');
 const bcrypt = require('bcrypt');
@@ -5,10 +8,16 @@ const session = require('express-session');
 const cors = require('cors');
 // No external OAuth libs; manual flow
 
+// ========================
+// App & Config
+// ========================
 const app = express();
 const PORT = process.env.PORT || 3000;
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 
-// DB connection
+// ========================
+// DB Connection
+// ========================
 const db = mysql.createConnection({
   host: 'localhost',
   user: 'root',
@@ -67,7 +76,19 @@ db.on('close', () => {
   console.log('Database connection closed');
 });
 
+// ========================
+// Helpers
+// ========================
+const formatDbError = (err) => ({
+  code: err?.code,
+  sql: err?.sql,
+  sqlMessage: err?.sqlMessage,
+  errno: err?.errno,
+});
+
+// ========================
 // Initialize database schema
+// ========================
 const initDatabase = () => {
   const createUserTable = `
     CREATE TABLE IF NOT EXISTS users (
@@ -96,12 +117,7 @@ const initDatabase = () => {
   db.query(createUserTable, async (err) => {
     if (err) {
       console.error('Error creating users table:', err);
-      console.error('Error details:', {
-        code: err.code,
-        sql: err.sql,
-        sqlMessage: err.sqlMessage,
-        errno: err.errno
-      });
+      console.error('Error details:', formatDbError(err));
       return;
     }
 
@@ -110,12 +126,7 @@ const initDatabase = () => {
     db.query(createPasswordResetsTable, (err) => {
       if (err) {
         console.error('Error creating password_resets table:', err);
-        console.error('Error details:', {
-          code: err.code,
-          sql: err.sql,
-          sqlMessage: err.sqlMessage,
-          errno: err.errno
-        });
+        console.error('Error details:', formatDbError(err));
         return;
       }
 
@@ -125,25 +136,17 @@ const initDatabase = () => {
   });
 };
 
-// Test database connection
+// ========================
+// Diagnostics & Test Endpoints
+// ========================
 app.get('/test-db', (req, res) => {
   db.query('SELECT 1 + 1 AS solution', (err, results) => {
     if (err) {
       console.error('Database test failed:', err);
-      console.error('Error details:', {
-        code: err.code,
-        sql: err.sql,
-        sqlMessage: err.sqlMessage,
-        errno: err.errno
-      });
+      console.error('Error details:', formatDbError(err));
       res.status(500).json({ 
         error: 'Database test failed', 
-        details: {
-          code: err.code,
-          sql: err.sql,
-          sqlMessage: err.sqlMessage,
-          errno: err.errno
-        }
+        details: formatDbError(err)
       });
     } else {
       console.log('Database test successful:', results);
@@ -161,12 +164,7 @@ app.get('/test-tables', (req, res) => {
         console.error('Users table test failed:', err);
         res.status(500).json({ 
           error: 'Users table test failed', 
-          details: {
-            code: err.code,
-            sql: err.sql,
-            sqlMessage: err.sqlMessage,
-            errno: err.errno
-          }
+          details: formatDbError(err)
         });
       } else {
         console.log('Users table structure:', results);
@@ -179,12 +177,24 @@ app.get('/test-tables', (req, res) => {
 // Initialize database when server starts
 initDatabase();
 
+// ========================
 // Middleware
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+// ========================
+// Allow multiple dev origins via whitelist
+const DEV_ORIGINS = ['http://localhost:3001', 'http://localhost:5173'];
+const CORS_WHITELIST = Array.from(new Set([FRONTEND_ORIGIN, ...DEV_ORIGINS].filter(Boolean)));
+
 app.use(cors({
-  origin: FRONTEND_ORIGIN,
+  origin: (origin, cb) => {
+    // Allow non-browser clients with no Origin
+    if (!origin) return cb(null, true);
+    if (CORS_WHITELIST.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
+// Handle preflight for all routes
+app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
@@ -194,27 +204,28 @@ app.use(session({
   cookie: {
     httpOnly: true,
     maxAge: 1000 * 60 * 30, // 30 mins
-    sameSite: 'strict'
+    sameSite: 'lax'
   }
 }));
 
-// Import routes
+// ========================
+// Routes Registration
+// ========================
 const authRoutes = require('./routes/auth');
 app.use('/api', authRoutes);
 const oauthRoutes = require('./routes/oauth');
 app.use('/auth', oauthRoutes);
 
-// Routes
+// Basic Routes
 app.get('/', (req, res) => {
   res.send('Backend is running.');
 });
 
-// Test route to check if server is working
-app.get('/test', (req, res) => {
-  res.json({ message: 'Server is working' });
-});
 
+
+// ========================
 // Error handling
+// ========================
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(500).json({
@@ -223,12 +234,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
+// ========================
+// Startup
+// ========================
 const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
+// ========================
 // Graceful shutdown
+// ========================
 process.on('SIGTERM', () => {
   console.log('Received SIGTERM. Shutting down...');
   server.close(() => {
@@ -244,7 +259,7 @@ const salesData = [
   { date: "2025-08-03", salesQuantity: 7, productsSold: 5 },
 ];
 
-// Endpoint
+// Endpoint (example)
 app.get('/api/admin/sales', (req, res) => {
   res.json(salesData);
 });

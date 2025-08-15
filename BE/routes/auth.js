@@ -1,213 +1,155 @@
-// routes/auth.js
-const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcryptjs');
-const db = require('../dbSingleton');
+  const express = require('express');
+  const bcrypt = require('bcrypt');
+  const db = require('../dbSingleton');
+  const router = express.Router();
 
-// Helper: get DB connection
-const conn = db.getConnection();
 
-// Helper: find user by email
+// helpers:
+
+const handleError = (res, err, msg = 'Server error') => {
+  console.error(msg, err);
+  res.status(500).json({ message: msg, error: err.message || err });
+};
+
+const hashPassword = (password) => bcrypt.hash(password, 10);
+
+// DB query helper using singleton connection
+const runQuery = async (sql, params = []) => {
+  const conn = db.getConnection && db.getConnection();
+  if (!conn) throw new Error('DB connection not initialized');
+  if (typeof conn.promise === 'function') {
+    return conn.promise().query(sql, params);
+  }
+  if (typeof conn.query === 'function') {
+    // Wrap callback-based query in a Promise
+    return new Promise((resolve, reject) => {
+      conn.query(sql, params, (err, results) => {
+        if (err) return reject(err);
+        resolve([results]);
+      });
+    });
+  }
+  throw new Error('Unsupported DB client on connection');
+};
+
 const findUserByEmail = async (email) => {
-  const [rows] = await conn.promise().query('SELECT * FROM users WHERE email = ?', [email]);
+  const [rows] = await runQuery(
+    'SELECT * FROM users WHERE email = ? LIMIT 1',
+    [email]
+  );
   return rows[0];
 };
 
+const findUserById = async (id) => {
+  const [rows] = await runQuery(
+    'SELECT * FROM users WHERE user_id = ? LIMIT 1',
+    [id]
+  );
+  return rows[0];
+};
+
+const findUserByName = async (name) => {
+  const [rows] = await runQuery(
+    'SELECT * FROM users WHERE name = ? LIMIT 1',
+    [name]
+  );
+  return rows[0];
+};
+
+//routes:
+
 // Register
 router.post('/register', async (req, res) => {
+  const { name, username, email, password } = req.body;
+  const nameToUse = name || username; // FE may send username
+  if (!nameToUse || !email || !password)
+    return res.status(400).json({ message: 'Missing fields' });
+
   try {
-    const { username, email, password, user_type } = req.body;
-    if (!username || !email || !password || !user_type) {
-      console.log('Missing fields:', { username, email, password, user_type });
-      return res.status(400).json({ 
-        message: 'Missing fields', 
-        fields: { username, email, password, user_type }
-      });
-    }
+    if (await findUserByEmail(email))
+      return res.status(400).json({ message: 'Email already in use' });
 
-    console.log('Attempting to register user:', { email, username, user_type });
-    
-    // Option A: Perform explicit checks to return a specific field for duplicates
-    const [emailRows] = await conn.promise().query(
-      'SELECT 1 FROM users WHERE email = ? LIMIT 1',
-      [email]
+    const hashed = await hashPassword(password);
+    const [result] = await runQuery(
+      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
+      [nameToUse, email, hashed]
     );
-    if (emailRows.length > 0) {
-      return res.status(409).json({
-        message: 'Email already exists',
-        field: 'email',
-        code: 'duplicate'
-      });
-    }
-
-    const [usernameRows] = await conn.promise().query(
-      'SELECT 1 FROM users WHERE username = ? LIMIT 1',
-      [username]
-    );
-    if (usernameRows.length > 0) {
-      return res.status(409).json({
-        message: 'Username already exists',
-        field: 'username',
-        code: 'duplicate'
-      });
-    }
-
-    console.log('Hashing password...');
-    const hashedPassword = await bcrypt.hash(password, 10);
-    console.log('Password hashed successfully');
-
-    // Log the query and parameters before execution
-    const query = 'INSERT INTO users (email, password_hash, username, user_type, account_creation_time) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)';
-    const params = [email, hashedPassword, username, user_type];
-    console.log('Executing query:', query);
-    console.log('With parameters:', params);
-
-    const [result] = await conn.promise().query(query, params);
-    console.log('Insert result:', result);
-
-    res.status(201).json({
-      message: 'User registered successfully',
-      user: { 
-        user_id: result.insertId, 
-        email, 
-        username, 
-        user_type 
-      }
-    });
+    res.status(201).json({ message: 'User created', userId: result.insertId });
   } catch (err) {
-    console.error('Registration error:', err);
-    console.error('Error details:', {
-      code: err.code,
-      sql: err.sql,
-      sqlMessage: err.sqlMessage
-    });
-    res.status(500).json({
-      message: 'Registration failed',
-      error: err.message,
-      details: {
-        code: err.code,
-        sql: err.sql,
-        sqlMessage: err.sqlMessage
-      }
-    });
+    handleError(res, err, 'Error registering user');
   }
 });
 
 // Login
 router.post('/login', async (req, res) => {
-  const { identifier, password, loginMethod = 'email' } = req.body;
-  if (!identifier || !password) return res.status(400).json({ message: 'Missing fields' });
-
   try {
-    let user;
-    if (loginMethod === 'email') {
-      user = await findUserByEmail(identifier);
-    } else if (loginMethod === 'username') {
-      const [rows] = await conn.promise().query('SELECT * FROM users WHERE username = ?', [identifier]);
-      user = rows[0];
-    } else {
-      return res.status(400).json({ message: 'Invalid login method' });
+    const { email, password, identifier, loginMethod } = req.body;
+
+    const isUsernameLogin = loginMethod === 'username';
+    const emailToUse = email || (!isUsernameLogin && loginMethod === 'email' ? identifier : null);
+    const usernameToUse = isUsernameLogin ? (identifier || null) : null;
+
+    if ((!emailToUse && !usernameToUse) || !password) {
+      return res.status(400).json({ message: 'Missing fields' });
     }
+
+    const user = usernameToUse
+      ? await findUserByName(usernameToUse)
+      : await findUserByEmail(emailToUse);
 
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
-    const isValid = await bcrypt.compare(password, user.password_hash);
-    if (!isValid) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!user.password_hash) {
+      console.error('User found but no password field:', user);
+      return res.status(500).json({ message: 'User password missing' });
+    }
 
-    const { password_hash, reset_code, reset_code_expires, ...safeUser } = user;
-    res.json({ user: safeUser });
-  } catch (err) {
-    console.error('Login error:', err);
-    console.error('Error details:', {
-      code: err.code,
-      sql: err.sql,
-      sqlMessage: err.sqlMessage
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) return res.status(401).json({ message: 'Invalid credentials' });
+
+    if (!req.session) {
+      console.error('Session not configured!');
+      return res.status(500).json({ message: 'Session not configured' });
+    }
+
+    req.session.user_id = user.user_id;
+    req.session.user_type = user.user_type;
+
+    res.json({
+      message: 'Login successful',
+      user: {
+        user_id: user.user_id,
+        email: user.email,
+        name: user.name,
+        user_type: user.user_type
+      }
     });
-    res.status(500).json({ message: 'Login failed', error: err.message });
+
+  } catch (err) {
+    console.error('LOGIN ERROR:', err);
+    res.status(500).json({ message: 'Error logging in', error: err.message });
   }
 });
 
-// Password Reset
-router.get('/password-reset/:email', async (req, res) => {
-  const { email } = req.params;
+
+// Get current session user
+router.get('/me', async (req, res) => {
+  if (!req.session.user_id)
+    return res.status(401).json({ message: 'Not logged in' });
+
   try {
-    const user = await findUserByEmail(email);
+    const user = await findUserById(req.session.user_id);
     if (!user) return res.status(404).json({ message: 'User not found' });
-
-    // Generate a reset code (in a real app, this would be more secure)
-    const resetCode = Math.random().toString(36).substring(2, 8);
-    
-    // Store reset code in database (in a real app, this would have an expiration)
-    await conn.promise().query(
-      'INSERT INTO password_resets (email, code) VALUES (?, ?)',
-      [email, resetCode]
-    );
-
-    res.json({ message: 'Reset code sent', resetCode });
+    res.json(user);
   } catch (err) {
-    console.error('Password reset error:', err);
-    res.status(500).json({ message: 'Password reset failed' });
+    handleError(res, err, 'Error fetching user');
   }
 });
 
-router.post('/reset-password', async (req, res) => {
-  const { resetCode, newPassword } = req.body;
-  if (!resetCode || !newPassword) return res.status(400).json({ message: 'Missing fields' });
-
-  try {
-    const [rows] = await conn.promise().query(
-      'SELECT email FROM password_resets WHERE code = ?',
-      [resetCode]
-    );
-
-    if (rows.length === 0) return res.status(400).json({ message: 'Invalid reset code' });
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await conn.promise().query(
-      'UPDATE users SET password = ? WHERE email = ?',
-      [hashedPassword, rows[0].email]
-    );
-
-    // Clean up the reset code
-    await conn.promise().query(
-      'DELETE FROM password_resets WHERE code = ?',
-      [resetCode]
-    );
-
-    res.json({ message: 'Password reset successfully' });
-  } catch (err) {
-    console.error('Password reset error:', err);
-    res.status(500).json({ message: 'Password reset failed' });
-  }
-});
-
-// Session: current user
-router.get('/session/me', async (req, res) => {
-  try {
-    const userId = req.session && req.session.user_id;
-    if (!userId) {
-      return res.json({ user: null });
-    }
-    const [rows] = await conn.promise().query('SELECT * FROM users WHERE user_id = ? LIMIT 1', [userId]);
-    const user = rows?.[0];
-    if (!user) return res.json({ user: null });
-    const { password_hash, reset_code, reset_code_expires, ...safeUser } = user;
-    res.json({ user: safeUser });
-  } catch (err) {
-    console.error('Session me error:', err);
-    res.status(500).json({ message: 'Failed to get session user' });
-  }
-});
-
-// Session: logout
+// Logout
 router.post('/logout', (req, res) => {
-  if (!req.session) return res.json({ success: true });
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Session destroy error:', err);
-      return res.status(500).json({ message: 'Logout failed' });
-    }
-    res.json({ success: true });
+  req.session.destroy(() => {
+    res.json({ message: 'Logged out successfully' });
   });
 });
 

@@ -34,6 +34,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: id, password: pwd, loginMethod: method })
       });
+     
       if (!res.ok) return null;
       const data = await res.json();
       return data?.user?.user_type ?? null;
@@ -172,6 +173,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ 
           identifier: identifier,
           password: password,
@@ -197,7 +199,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         onLoginSuccess(data.user);
         navigate('/home');
       } else {
-        setError(data.error || 'Invalid credentials');
+        setError(data.message || data.error || 'Invalid credentials');
       }
     } catch (err) {
       setError('Network error occurred');
@@ -250,7 +252,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
                 } catch {
                   if (typeof onLoginSuccess === 'function') onLoginSuccess(user);
                 }
-                window.location.replace('/home');
+                navigate('/home', { replace: true });
               }}
               onError={(err) => {
                 setError(err?.message || 'Social login failed');

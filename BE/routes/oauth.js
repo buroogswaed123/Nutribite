@@ -88,6 +88,103 @@ function postForm(urlString, formObj) {
   });
 }
 
+// Small utility: send success popup HTML
+function sendPopupSuccess(res, payload) {
+  res.set('Content-Type', 'text/html');
+  res.send(renderSuccessHtml(payload, ''));
+}
+
+// Small utility: unified demo flow for providers
+async function demoFlow({ req, res, provider, logoChar, brandColor, demoEmail, demoName, providerId }) {
+  let user = await findUserByEmail(demoEmail);
+  let existed = !!user;
+  if (!user) {
+    const usernameBase = (demoName || demoEmail.split('@')[0]).replace(/\s+/g, '').toLowerCase();
+    user = await createUserFromProvider({ email: demoEmail, usernameBase, provider, providerId, userType: 'customer' });
+    existed = false;
+  }
+  req.session.user_id = user.user_id;
+  req.session.user_type = user.user_type;
+  const payload = {
+    type: 'oauth-success',
+    user: { id: user.user_id, email: user.email, username: user.username, user_type: user.user_type },
+    token: null,
+    existed: !!existed,
+    demo: true,
+    provider
+  };
+  const variant = (req.query.variant || 'login').toLowerCase();
+  const isRegister = variant === 'register';
+  const confirmLabel = isRegister ? 'אשר הרשמה' : 'אשר התחברות';
+  const successText = '';
+  res.set('Content-Type', 'text/html');
+  return res.send(
+    renderDemoConfirmHtml({ provider, logoChar, brandColor, isRegister, payload, confirmLabel, successText })
+  );
+}
+
+// HTML helpers to reduce duplication
+function renderSuccessHtml(payload) {
+  return `<!doctype html>
+<html lang="he"><head><meta charset="utf-8"><title>התחברות הושלמה</title></head>
+<body>
+<script>
+  (function() {
+    try {
+      var data = ${JSON.stringify(JSON.stringify(payload))};
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage(JSON.parse(data), '*');
+      }
+    } catch (e) {}
+    setTimeout(function(){ try{ window.close(); }catch(e){} }, 2500);
+  })();
+</script>
+</body></html>`;
+}
+
+function renderDemoConfirmHtml({ provider, logoChar, brandColor, isRegister, payload, confirmLabel, successText }) {
+  return `<!doctype html>
+<html lang="he"><head><meta charset="utf-8"><title>${provider} דמו</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f7f7f8;color:#111}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.06);padding:24px;max-width:360px;width:90%}
+  h1{font-size:1.1rem;margin:0 0 8px}
+  p{margin:0 0 16px;color:#374151}
+  button{background:${brandColor};color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:0.95rem;cursor:pointer}
+  button:disabled{opacity:.6;cursor:not-allowed}
+  .ok{color:#05622b;margin-top:12px}
+  small{color:#6b7280}
+  .logo{display:inline-flex;align-items:center;gap:8px;margin-bottom:8px}
+  .logo i{font-style:normal;background:${brandColor};color:#fff;border-radius:6px;padding:2px 6px;font-size:.8rem}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo"><i>${logoChar}</i><span>${provider} דמו</span></div>
+    <h1>${isRegister ? 'אישור הרשמה' : 'אישור התחברות'}</h1>
+    <p>${isRegister ? `לחץ/י כדי להשלים הרשמה באמצעות ${provider} (דמו)` : `לחץ/י כדי להשלים התחברות באמצעות ${provider} (דמו)`}</p>
+    <button id="confirmBtn">${confirmLabel}</button>
+    <p><small>החלון ייסגר אוטומטית לאחר מספר שניות</small></p>
+  </div>
+  <script>
+    (function(){
+      var payload = ${JSON.stringify(JSON.stringify(payload))};
+      var btn = document.getElementById('confirmBtn');
+      btn.addEventListener('click', function(){
+        btn.disabled = true;
+        try{
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(JSON.parse(payload), '*');
+          }
+        }catch(e){}
+        setTimeout(function(){ try{ window.close(); }catch(e){} }, 2500);
+      });
+    })();
+  </script>
+</body></html>`;
+}
+
 function getJson(urlString, headers = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(urlString);
@@ -119,73 +216,16 @@ router.get('/google', async (req, res) => {
   try {
     // Demo mode: if Google envs are missing, simulate a successful login immediately
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-      const email = 'demo+google@nutribite.local';
-      const name = 'Google Demo';
-      let user = await findUserByEmail(email);
-      let existed = !!user;
-      if (!user) {
-        const usernameBase = name.replace(/\s+/g, '').toLowerCase();
-        user = await createUserFromProvider({ email, usernameBase, provider: 'google', providerId: 'demo-google', userType: 'customer' });
-        existed = false;
-      }
-      req.session.user_id = user.user_id;
-      req.session.user_type = user.user_type;
-      const payload = {
-        type: 'oauth-success',
-        user: { id: user.user_id, email: user.email, username: user.username, user_type: user.user_type },
-        token: null,
-        existed: !!existed,
-        demo: true,
-        provider: 'google'
-      };
-      const variant = (req.query.variant || 'login').toLowerCase();
-      const isRegister = variant === 'register';
-      const confirmLabel = isRegister ? 'אשר הרשמה' : 'אשר התחברות';
-      const successText = isRegister ? 'נרשמת בהצלחה! מעביר לדף הבית...' : 'התחברת בהצלחה! מעביר לדף הבית...';
-      res.set('Content-Type', 'text/html');
-      return res.send(`<!doctype html>
-<html lang="he"><head><meta charset="utf-8"><title>Google דמו</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f7f7f8;color:#111}
-  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.06);padding:24px;max-width:360px;width:90%}
-  h1{font-size:1.1rem;margin:0 0 8px}
-  p{margin:0 0 16px;color:#374151}
-  button{background:#111;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:0.95rem;cursor:pointer}
-  button:disabled{opacity:.6;cursor:not-allowed}
-  .ok{color:#05622b;margin-top:12px}
-  small{color:#6b7280}
-  .logo{display:inline-flex;align-items:center;gap:8px;margin-bottom:8px}
-  .logo i{font-style:normal;background:#111;color:#fff;border-radius:6px;padding:2px 6px;font-size:.8rem}
-</style>
-</head>
-<body>
-  <div class="card">
-    <div class="logo"><i>G</i><span>Google דמו</span></div>
-    <h1>${isRegister ? 'אישור הרשמה' : 'אישור התחברות'}</h1>
-    <p>${isRegister ? 'לחץ/י כדי להשלים הרשמה באמצעות Google (דמו)' : 'לחץ/י כדי להשלים התחברות באמצעות Google (דמו)'}</p>
-    <button id="confirmBtn">${confirmLabel}</button>
-    <p class="ok" id="okMsg" style="display:none">${successText}</p>
-    <p><small>החלון ייסגר אוטומטית לאחר מספר שניות</small></p>
-  </div>
-  <script>
-    (function(){
-      var payload = ${JSON.stringify(JSON.stringify(payload))};
-      var btn = document.getElementById('confirmBtn');
-      var ok = document.getElementById('okMsg');
-      btn.addEventListener('click', function(){
-        btn.disabled = true;
-        try{
-          if (window.opener && !window.opener.closed) {
-            window.opener.postMessage(JSON.parse(payload), '*');
-          }
-        }catch(e){}
-        ok.style.display = 'block';
-        setTimeout(function(){ try{ window.close(); }catch(e){} }, 2500);
+      return demoFlow({
+        req,
+        res,
+        provider: 'Google',
+        logoChar: 'G',
+        brandColor: '#111',
+        demoEmail: 'demo+google@nutribite.local',
+        demoName: 'Google Demo',
+        providerId: 'demo-google'
       });
-    })();
-  </script>
-</body></html>`);
     }
 
     const state = crypto.randomBytes(16).toString('hex');
@@ -265,24 +305,7 @@ router.get('/google/callback', async (req, res) => {
       existed: !!existed,
     };
 
-    res.set('Content-Type', 'text/html');
-    res.send(`<!doctype html>
-<html lang="he"><head><meta charset="utf-8"><title>התחברות הושלמה</title></head>
-<body>
-<script>
-  (function() {
-    try {
-      var data = ${JSON.stringify(JSON.stringify(payload))};
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(JSON.parse(data), '*');
-      }
-    } catch (e) {}
-    // המתן לפני סגירה כדי להציג הודעת הצלחה בחלון הקופץ
-    setTimeout(function(){ try{ window.close(); }catch(e){} }, 2500);
-  })();
-</script>
-התחברת בהצלחה! מעביר לדף הבית...
-</body></html>`);
+    sendPopupSuccess(res, payload);
   } catch (err) {
     console.error('OAuth callback error:', err);
     res.redirect('/auth/failure');
@@ -302,10 +325,9 @@ router.get('/failure', (req, res) => {
         window.opener.postMessage(data, '*');
       }
     } catch (e) {}
-    window.close();
+    try { window.close(); } catch(e) {}
   })();
 </script>
-OAuth failed. You can close this window.
 </body></html>`);
 });
 
@@ -314,73 +336,16 @@ router.get('/facebook', async (req, res) => {
   try {
     // Demo mode: if Facebook envs are missing, simulate a successful login immediately
     if (!FACEBOOK_CLIENT_ID || !FACEBOOK_CLIENT_SECRET) {
-      const email = 'demo+facebook@nutribite.local';
-      const name = 'Facebook Demo';
-      let user = await findUserByEmail(email);
-      let existed = !!user;
-      if (!user) {
-        const usernameBase = name.replace(/\s+/g, '').toLowerCase();
-        user = await createUserFromProvider({ email, usernameBase, provider: 'facebook', providerId: 'demo-facebook', userType: 'customer' });
-        existed = false;
-      }
-      req.session.user_id = user.user_id;
-      req.session.user_type = user.user_type;
-      const payload = {
-        type: 'oauth-success',
-        user: { id: user.user_id, email: user.email, username: user.username, user_type: user.user_type },
-        token: null,
-        existed: !!existed,
-        demo: true,
-        provider: 'facebook'
-      };
-      const variantF = (req.query.variant || 'login').toLowerCase();
-      const isRegisterF = variantF === 'register';
-      const confirmLabelF = isRegisterF ? 'אשר הרשמה' : 'אשר התחברות';
-      const successTextF = isRegisterF ? 'נרשמת בהצלחה! מעביר לדף הבית...' : 'התחברת בהצלחה! מעביר לדף הבית...';
-      res.set('Content-Type', 'text/html');
-      return res.send(`<!doctype html>
-<html lang="he"><head><meta charset="utf-8"><title>Facebook דמו</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f7f7f8;color:#111}
-  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.06);padding:24px;max-width:360px;width:90%}
-  h1{font-size:1.1rem;margin:0 0 8px}
-  p{margin:0 0 16px;color:#374151}
-  button{background:#1877f2;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:0.95rem;cursor:pointer}
-  button:disabled{opacity:.6;cursor:not-allowed}
-  .ok{color:#05622b;margin-top:12px}
-  small{color:#6b7280}
-  .logo{display:inline-flex;align-items:center;gap:8px;margin-bottom:8px}
-  .logo i{font-style:normal;background:#1877f2;color:#fff;border-radius:6px;padding:2px 6px;font-size:.8rem}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="logo"><i>f</i><span>Facebook דמו</span></div>
-    <h1>${isRegisterF ? 'אישור הרשמה' : 'אישור התחברות'}</h1>
-    <p>${isRegisterF ? 'לחץ/י כדי להשלים הרשמה באמצעות Facebook (דמו)' : 'לחץ/י כדי להשלים התחברות באמצעות Facebook (דמו)'}</p>
-    <button id="confirmBtn">${confirmLabelF}</button>
-    <p class="ok" id="okMsg" style="display:none">${successTextF}</p>
-    <p><small>החלון ייסגר אוטומטית לאחר מספר שניות</small></p>
-  </div>
-  <script>
-    (function(){
-      var payload = ${JSON.stringify(JSON.stringify(payload))};
-      var btn = document.getElementById('confirmBtn');
-      var ok = document.getElementById('okMsg');
-      btn.addEventListener('click', function(){
-        btn.disabled = true;
-        try{
-          if (window.opener && !window.opener.closed) {
-            window.opener.postMessage(JSON.parse(payload), '*');
-          }
-        }catch(e){}
-        ok.style.display = 'block';
-        setTimeout(function(){ try{ window.close(); }catch(e){} }, 2500);
+      return demoFlow({
+        req,
+        res,
+        provider: 'Facebook',
+        logoChar: 'f',
+        brandColor: '#1877f2',
+        demoEmail: 'demo+facebook@nutribite.local',
+        demoName: 'Facebook Demo',
+        providerId: 'demo-facebook'
       });
-    })();
-  </script>
-</body></html>`);
     }
 
     const state = crypto.randomBytes(16).toString('hex');
@@ -443,24 +408,7 @@ router.get('/facebook/callback', async (req, res) => {
       existed: !!existed,
     };
 
-    res.set('Content-Type', 'text/html');
-    res.send(`<!doctype html>
-<html lang="he"><head><meta charset="utf-8"><title>התחברות הושלמה</title></head>
-<body>
-<script>
-  (function() {
-    try {
-      var data = ${JSON.stringify(JSON.stringify(payload))};
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(JSON.parse(data), '*');
-      }
-    } catch (e) {}
-    // המתן לפני סגירה כדי להציג הודעת הצלחה בחלון הקופץ
-    setTimeout(function(){ try{ window.close(); }catch(e){} }, 2500);
-  })();
-</script>
-התחברת בהצלחה! מעביר לדף הבית...
-</body></html>`);
+    sendPopupSuccess(res, payload);
   } catch (err) {
     console.error('Facebook OAuth callback error:', err);
     res.redirect('/auth/failure');
@@ -468,4 +416,3 @@ router.get('/facebook/callback', async (req, res) => {
 });
 
 module.exports = router;
-

@@ -73,7 +73,7 @@ export default function Header() {
             ) : (
               <>
                 <Link 
-                  to="/login" 
+                  to="/" 
                   className={styles.loginLink}
                 >
                   התחבר
@@ -128,7 +128,7 @@ export default function Header() {
                 ) : (
                   <>
                     <Link
-                      to="/login"
+                      to="/"
                       className={styles.mobileLink}
                       onClick={() => setIsMenuOpen(false)}
                     >

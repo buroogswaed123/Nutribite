@@ -1,14 +1,42 @@
 .profileWrapper {
   max-width: 900px;
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 8px 16px 48px;
 }
 
 .header {
-  display: grid;
-  grid-template-columns: 140px 1fr;
+  display: flex;
+  flex-direction: row;
+  direction: rtl;
   gap: 24px;
   align-items: center;
+}
+
+/* Variant: place avatar on the right, details on its left (still right side of page) */
+.headerRight {
+  grid-template-columns: max-content 140px; /* shrink left column to content */
+  gap: 4px; /* bring username even closer to the photo */
+}
+.headerRight .avatar {
+  grid-column: 2;
+  justify-self: end;
+}
+.headerRight .userMeta {
+  grid-column: 1;
+  text-align: right;
+  align-self: center; /* vertically align with the avatar */
+  justify-self: end; /* hug the photo */
+  width: max-content; /* shrink to content width */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* align username flush to the avatar */
+}
+
+/* In headerRight, make username the closest element to the avatar */
+.headerRight .topRow {
+  display: flex;
+  flex-direction: row-reverse; /* username nearest to avatar (on the right) */
+  gap: 8px;
 }
 
 .avatar {
@@ -89,7 +117,6 @@
 }
 
 .tabs {
-  display: flex;
   gap: 48px;
   margin-top: 28px;
   border-top: 1px solid #e5e7eb;
@@ -100,6 +127,32 @@
   direction: rtl;
   flex-direction: row-reverse; /* place first tab on the right */
   justify-content: flex-start; /* keep spacing consistent from right side */
+}
+
+/* Whole page RTL mode */
+.rtlPage {
+  direction: rtl;
+  text-align: right;
+}
+
+/* When in RTL mode, place avatar on the right and user info on the left */
+.rtlPage .header {
+  grid-template-columns: 1fr 140px;
+}
+.rtlPage .avatar {
+  grid-column: 2;
+  justify-self: end;
+}
+.rtlPage .userMeta {
+  grid-column: 1;
+  text-align: right;
+}
+
+/* Tabs alignment from the right in RTL page */
+.rtlPage .tabs {
+  direction: rtl;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
 }
 
 .tab {
@@ -138,6 +191,34 @@
 .rtlText {
   direction: rtl;
   text-align: right;
+}
+
+/* Small rounded subscription info box */
+.subscriptionBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #d1fae5; /* emerald-100 to match other cards */
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.08);
+  max-width: 520px;
+  color: #065f46; /* emerald-800 */
+}
+
+.changeBtn {
+  padding: 10px 14px;
+  border-radius: 9999px;
+  border: 1px solid #10b981; /* emerald-500 */
+  background: #10b981;
+  color: #ffffff;
+  cursor: pointer;
+}
+.changeBtn:hover {
+  background: #059669; /* emerald-600 */
+  border-color: #059669;
 }
 
 .grid {
@@ -248,4 +329,32 @@
   .tabs {
     gap: 16px;
   }
+}
+
+.form {
+    display: grid;
+    gap: 12px;
+}
+
+.formField {
+    display: grid;
+    gap: 6px;
+}
+
+.formLegend {
+    padding: 0 6px;
+}
+
+.formGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.formInput {
+    padding: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+    color: #111827;
 }

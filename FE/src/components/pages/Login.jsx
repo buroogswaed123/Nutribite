@@ -44,6 +44,14 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
     }
   };
 
+  // Map a user_type to the correct home route
+  const resolveHomePath = (typeRaw) => {
+    const t = (typeRaw || localStorage.getItem('user_type') || '').toString().toLowerCase();
+    if (t === 'admin') return '/adminhome';
+    if (t === 'courier') return '/courierhome';
+    return '/customerhome';
+  };
+
   // If navigated with state { openRegister: true }, open the register panel
   useEffect(() => {
     if (location.state && location.state.openRegister) {
@@ -151,7 +159,8 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
       }
 
       onLoginSuccess(data.user);
-      navigate('/home', { replace: true });
+      const next = resolveHomePath(data?.user?.user_type || userType);
+      navigate(next, { replace: true });
     } catch (err) {
       setError('Network error occurred');
     }
@@ -197,7 +206,8 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
           }
         }
         onLoginSuccess(data.user);
-        navigate('/home');
+        const chosenType = data?.user?.user_type || localStorage.getItem('user_type') || userType;
+        navigate(resolveHomePath(chosenType));
       } else {
         setError(data.message || data.error || 'Invalid credentials');
       }
@@ -246,13 +256,18 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
                     const data = await resp.json();
                     const serverUser = data?.user || user;
                     if (typeof onLoginSuccess === 'function') onLoginSuccess(serverUser);
+                    const t = serverUser?.user_type || user?.user_type || localStorage.getItem('user_type');
+                    navigate(resolveHomePath(t), { replace: true });
                   } else {
                     if (typeof onLoginSuccess === 'function') onLoginSuccess(user);
+                    const t = user?.user_type || localStorage.getItem('user_type');
+                    navigate(resolveHomePath(t), { replace: true });
                   }
                 } catch {
                   if (typeof onLoginSuccess === 'function') onLoginSuccess(user);
+                  const t = user?.user_type || localStorage.getItem('user_type');
+                  navigate(resolveHomePath(t), { replace: true });
                 }
-                navigate('/home', { replace: true });
               }}
               onError={(err) => {
                 setError(err?.message || 'Social login failed');
@@ -303,7 +318,8 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
                   if (user?.user_type) localStorage.setItem('user_type', user.user_type);
                 } catch {}
                 if (typeof onLoginSuccess === 'function') onLoginSuccess(user);
-                navigate('/home', { replace: true });
+                const t = user?.user_type || localStorage.getItem('user_type');
+                navigate(resolveHomePath(t), { replace: true });
               }}
               onError={(err) => {
                 setError(err?.message || 'Social login failed');
@@ -332,7 +348,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
             }}>שכחת סיסמא?</a>
             <a href="/home" className={classes.guestLink} onClick={(e) => {
               e.preventDefault();
-              navigate('/home');
+              navigate('/customerhome');
             }}>הכנס כאורח</a>
           </form>
         </div>

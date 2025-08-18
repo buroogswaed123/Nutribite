@@ -50,7 +50,7 @@ const findUserById = async (id) => {
 
 const findUserByName = async (name) => {
   const [rows] = await runQuery(
-    'SELECT * FROM users WHERE name = ? LIMIT 1',
+    'SELECT * FROM users WHERE username = ? LIMIT 1',
     [name]
   );
   return rows[0];
@@ -60,8 +60,9 @@ const findUserByName = async (name) => {
 
 // Register
 router.post('/register', async (req, res) => {
-  const { name, username, email, password } = req.body;
-  const nameToUse = name || username; // FE may send username
+  const { username, email, password, user_type } = req.body;
+  const nameToUse = username;
+  const role = user_type || 'customer';
   if (!nameToUse || !email || !password)
     return res.status(400).json({ message: 'Missing fields' });
 
@@ -71,10 +72,22 @@ router.post('/register', async (req, res) => {
 
     const hashed = await hashPassword(password);
     const [result] = await runQuery(
-      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
-      [nameToUse, email, hashed]
+      'INSERT INTO users (username, email, password_hash, user_type) VALUES (?, ?, ?, ?)',
+      [nameToUse, email, hashed, role]
     );
-    res.status(201).json({ message: 'User created', userId: result.insertId });
+
+    const newUserId = result.insertId;
+    // Auto-create customers row for customer role
+    if (role === 'customer') {
+      try {
+        await runQuery('INSERT INTO customers (user_id) VALUES (?)', [newUserId]);
+      } catch (e) {
+        // If duplicate or other non-fatal error, log and continue
+        console.error('Auto-create customer failed:', e?.message || e);
+      }
+    }
+
+    res.status(201).json({ message: 'User created', userId: newUserId, user_type: role });
   } catch (err) {
     handleError(res, err, 'Error registering user');
   }
@@ -120,8 +133,9 @@ router.post('/login', async (req, res) => {
       user: {
         user_id: user.user_id,
         email: user.email,
-        name: user.name,
-        user_type: user.user_type
+        username: user.username,
+        user_type: user.user_type,
+        profile_image: user.profile_image
       }
     });
 

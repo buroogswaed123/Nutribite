@@ -2,7 +2,7 @@ import React from 'react';
 import styles from './home.module.css';
 import Orders from './Orders';
 
-function Home() {
+export default function CourierHome() {
   return (
     <div className={styles.dashboard}>
       <header className={styles.header}>
@@ -56,4 +56,4 @@ function Home() {
   );
 }
 
-export default Home;
+

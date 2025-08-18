@@ -1,6 +1,10 @@
 const express = require("express");
-const db = require("../dbSingleton");
+const dbSingleton = require("../dbSingleton");
+const db = dbSingleton.getConnection();
 const bcrypt = require("bcrypt");
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 
 // Helper functions
@@ -114,3 +118,80 @@ router.post("/login", (req, res) => {
 });
 
 module.exports = router;
+
+// -----------------------------
+// Profile image upload endpoint
+// -----------------------------
+// Ensure upload directory exists
+const uploadsRoot = path.join(__dirname, '..', 'uploads');
+const profileDir = path.join(uploadsRoot, 'profile');
+try { fs.mkdirSync(profileDir, { recursive: true }); } catch {}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, profileDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname) || '.jpg';
+    const base = `user_${req.params.user_id}_${Date.now()}`;
+    cb(null, base + ext);
+  }
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) return cb(new Error('Only image files are allowed'));
+    cb(null, true);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
+
+// Update user's profile image
+router.post('/:user_id/profile-image', upload.single('image'), (req, res) => {
+  const { user_id } = req.params;
+  if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+  const relativePath = path.posix.join('uploads', 'profile', req.file.filename);
+
+  // 1) Fetch old image
+  db.query('SELECT profile_image FROM users WHERE user_id = ? LIMIT 1', [user_id], (selErr, rows) => {
+    if (selErr) {
+      try { fs.unlinkSync(path.join(__dirname, '..', relativePath)); } catch {}
+      return sendError(res, selErr);
+    }
+    if (!rows || rows.length === 0) {
+      try { fs.unlinkSync(path.join(__dirname, '..', relativePath)); } catch {}
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const oldImg = rows[0].profile_image || '';
+
+    // 2) Update with new image
+    db.query('UPDATE users SET profile_image = ? WHERE user_id = ?', [relativePath, user_id], (updErr, result) => {
+      if (updErr) {
+        try { fs.unlinkSync(path.join(__dirname, '..', relativePath)); } catch {}
+        return sendError(res, updErr);
+      }
+      if (result.affectedRows === 0) {
+        try { fs.unlinkSync(path.join(__dirname, '..', relativePath)); } catch {}
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      // 3) Delete old image if it was a user-uploaded file under uploads/profile and not the same as new
+      if (oldImg && oldImg !== relativePath) {
+        try {
+          // Normalize and ensure inside uploads dir
+          const oldRel = oldImg.replace(/^\/+|^\\+/, '');
+          const oldAbs = path.join(__dirname, '..', oldRel);
+          const uploadsRoot = path.join(__dirname, '..', 'uploads');
+          const isUnderUploads = oldAbs.startsWith(uploadsRoot);
+          const looksLikeProfile = /(^|\\|\/)uploads(\\|\/)profile(\\|\/)/.test(oldAbs);
+          if (isUnderUploads && looksLikeProfile && fs.existsSync(oldAbs)) {
+            fs.unlinkSync(oldAbs);
+          }
+        } catch {}
+      }
+
+      return res.json({ message: 'Profile image updated', profile_image: relativePath });
+    });
+  });
+});

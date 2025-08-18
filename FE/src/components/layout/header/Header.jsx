@@ -10,7 +10,9 @@ export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { isLoggedIn, handleLogout } = useContext(AuthContext) || {};
+  const { isLoggedIn, handleLogout, currentUser } = useContext(AuthContext) || {};
+  const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
+  const avatarWrapperRef = React.useRef(null);
 
   // Simple helper function to check auth state
   const userLoggedIn = () => !!isLoggedIn;
@@ -22,6 +24,53 @@ export default function Header() {
     // Optional: route to login after logout
     navigate('/');
   };
+
+  const getUserType = () => {
+    const type = currentUser?.user_type || (typeof window !== 'undefined' ? localStorage.getItem('user_type') : null);
+    return (type || '').toString();
+  };
+
+  const getProfilePath = () => {
+    const type = getUserType().toLowerCase();
+    if (type === 'admin') return '/adminprofile';
+    if (type === 'courier') return '/courierprofile';
+    if (type === 'customer') return '/customerprofile';
+    // default customer
+    return '/customerprofile';
+  };
+
+  const getHomePath = () => {
+    const type = getUserType().toLowerCase();
+    if (type === 'admin') return '/adminhome';
+    if (type === 'courier') return '/courierhome';
+    if (type === 'customer') return '/customerhome';
+    // default customer
+    return '/customerhome';
+  };
+
+  const getProfileImageUrl = () => {
+    const raw = currentUser?.profile_image || '';
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw)) return raw;
+    // If already includes uploads path from BE
+    if (/^uploads\//i.test(raw) || /\/uploads\//i.test(raw)) {
+      return `http://localhost:3000/${raw.replace(/^\/+/, '')}`;
+    }
+    // Assume it's a filename stored under uploads/profile
+    return `http://localhost:3000/uploads/profile/${raw}`;
+  };
+
+  // Close avatar dropdown on outside click
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!isAvatarMenuOpen) return;
+      if (avatarWrapperRef.current && !avatarWrapperRef.current.contains(e.target)) {
+        setIsAvatarMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [isAvatarMenuOpen]);
 
   // Enable scroll-based toggle (match Tailwind snippet behavior)
   useEffect(() => {
@@ -47,7 +96,7 @@ export default function Header() {
       <div className={styles.container}>
         <div className={styles.row}>
           {/* Logo */}
-          <Link to="/home" className={styles.logo}>
+          <Link to={userLoggedIn() ? getHomePath() : '/'} className={styles.logo}>
             <span className={styles.brand}>Nutribite</span>
           </Link>
 
@@ -67,9 +116,88 @@ export default function Header() {
           {/* Auth Buttons - Desktop */}
           <div className={styles.authDesktop}>
             {userLoggedIn() ? (
-              <button onClick={onLogout} className={styles.signupBtn}>
-                התנתק
-              </button>
+              <div
+                ref={avatarWrapperRef}
+                style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+              >
+                <button
+                  onClick={() => setIsAvatarMenuOpen((v) => !v)}
+                  aria-haspopup="menu"
+                  aria-expanded={isAvatarMenuOpen}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <img
+                    src={getProfileImageUrl() || 'https://ui-avatars.com/api/?name=NB&background=0D8ABC&color=fff'}
+                    alt="Profile"
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '2px solid rgba(255,255,255,0.7)'
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://ui-avatars.com/api/?name=NB&background=0D8ABC&color=fff';
+                    }}
+                  />
+                </button>
+                {isAvatarMenuOpen && (
+                  <div
+                    role="menu"
+                    style={{
+                      position: 'absolute',
+                      top: '110%',
+                      right: 0,
+                      background: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 8,
+                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+                      minWidth: 160,
+                      zIndex: 20,
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        setIsAvatarMenuOpen(false);
+                        navigate(getProfilePath());
+                      }}
+                      style={{
+                        width: '100%',
+                        textAlign: 'right',
+                        padding: '10px 12px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      פרופיל
+                    </button>
+                    <div style={{ height: 1, background: '#e5e7eb' }} />
+                    <button
+                      role="menuitem"
+                      onClick={onLogout}
+                      style={{
+                        width: '100%',
+                        textAlign: 'right',
+                        padding: '10px 12px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#b91c1c',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      התנתק
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <>
                 <Link 
@@ -116,15 +244,24 @@ export default function Header() {
               ))}
               <div className={styles.mobileAuth}>
                 {userLoggedIn() ? (
-                  <button
-                    className={styles.mobileSignupBtn}
-                    onClick={() => {
-                      onLogout();
-                      setIsMenuOpen(false);
-                    }}
-                  >
-                    התנתק
-                  </button>
+                  <>
+                    <Link
+                      to={getProfilePath()}
+                      className={styles.mobileLink}
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      פרופיל
+                    </Link>
+                    <button
+                      className={styles.mobileSignupBtn}
+                      onClick={() => {
+                        onLogout();
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      התנתק
+                    </button>
+                  </>
                 ) : (
                   <>
                     <Link

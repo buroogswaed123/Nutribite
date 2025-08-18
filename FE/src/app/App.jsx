@@ -2,10 +2,21 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { createContext, useContext } from "react";
 import { useState } from "react";
 import classes from "./app.module.css";
-import Home from "../components/pages/customer/home/Home";
+
+
+//Home Page imports
+import CustomerHome from "../components/pages/customer/home/Home";
+import AdminHome from "../components/pages/admin/home/Home";
+import CourierHome from "../components/pages/courier/home/Home";
+
+//Profile Page imports
+import AdminProfile from "../components/pages/admin/profile/Profile";
+import CustomerProfile from "../components/pages/customer/profile/Profile";
+import  CourierProfile from "../components/pages/courier/profile/Profile";
+
+//Regular imports
 import Login from "../components/pages/Login";
 import CalorieCalc from "../components/pages/CalorieCalc";
-// import Profile from "../components/pages/admin/Profile";
 import PasswordReset from "../components/pages/PasswordReset";
 import NotFound from "../components/pages/NotFound";
 import Footer from "../components/layout/footer/Footer";
@@ -54,25 +65,78 @@ function App() {
           <Routes>
             <Route path="/" element={<Login onLoginSuccess={handleLogin} />} />
             <Route
-  path="/home"
+  path="/customerhome"
   element={
+    <RequireAuth>
     <div className={classes.withNav}>
       <Header />
-      <Home />
+      <CustomerHome />
       <Footer />
     </div>
+    </RequireAuth>
   }
 />
-             {/* <Route
-              path="/home"
-              element={
-                 <RequireAuth>
-                
-                  <NavBar pages={pages} />
-                  <Home />
-                 </RequireAuth> 
-              }
-            /> */}
+<Route
+  path="/adminhome"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      <Header />
+      <AdminHome />
+      <Footer />
+    </div>
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/courierhome"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      <Header />
+      <CourierHome />
+      <Footer />
+    </div>
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/customerprofile"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      
+      <CustomerProfile />
+      
+    </div>
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/adminprofile"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      <Header />
+      <AdminProfile />
+      <Footer />
+    </div>
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/courierprofile"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      
+      <CourierProfile />
+      
+    </div>
+    </RequireAuth>
+  }
+/>
+    
              
             <Route
               path="/caloriecalc"
@@ -86,15 +150,7 @@ function App() {
                 </RequireAuth>
               }
             />
-            {/* <Route
-              path="/profile"
-              element={
-                <RequireAuth>
-                  <NavBar pages={pages} />
-                  <Profile />
-                </RequireAuth>
-              }
-            /> */}
+            
             <Route path="/password-reset" element={<PasswordReset />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

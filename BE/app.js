@@ -124,6 +124,24 @@ const initDatabase = () => {
 
     console.log('Users table created successfully');
 
+    // Ensure profile_image column exists
+    db.query(
+      "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'profile_image'",
+      (colErr, rows) => {
+        if (colErr) {
+          console.error('Error checking profile_image column:', formatDbError(colErr));
+        } else if (rows && rows[0] && rows[0].cnt === 0) {
+          db.query("ALTER TABLE users ADD COLUMN profile_image VARCHAR(255) NULL", (altErr) => {
+            if (altErr) {
+              console.error('Error adding profile_image column:', formatDbError(altErr));
+            } else {
+              console.log('Added users.profile_image column');
+            }
+          });
+        }
+      }
+    );
+
     db.query(createPasswordResetsTable, (err) => {
       if (err) {
         console.error('Error creating password_resets table:', err);
@@ -216,6 +234,13 @@ const authRoutes = require('./routes/auth');
 app.use('/api', authRoutes);
 const oauthRoutes = require('./routes/oauth');
 app.use('/auth', oauthRoutes);
+const customersRoutes = require('./routes/customers');
+app.use('/api/customers', customersRoutes);
+const usersRoutes = require('./routes/users');
+app.use('/api/users', usersRoutes);
+
+// Serve uploaded files (profile images, etc.)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Basic Routes
 app.get('/', (req, res) => {

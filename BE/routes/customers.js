@@ -29,6 +29,22 @@ router.get("/", (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
+// Get a customer by user_id (used by FE to retrieve cust_id and name)
+router.get("/by-user/:user_id", (req, res) => {
+  try {
+    const conn = getConn();
+    conn.query(
+      "SELECT * FROM customers WHERE user_id = ? LIMIT 1",
+      [req.params.user_id],
+      (err, rows) => {
+        if (err) return sendError(res, err);
+        if (!rows || rows.length === 0) return res.status(404).json({ message: "Customer not found" });
+        return res.json(rows[0]);
+      }
+    );
+  } catch (e) { sendError(res, e); }
+});
+
 // Delete a customer
 router.delete("/:cust_id", (req, res) => {
   try {

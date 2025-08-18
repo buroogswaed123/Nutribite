@@ -6,7 +6,8 @@ const mysql = require('mysql2');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
 const cors = require('cors');
-// No external OAuth libs; manual flow
+const path = require("path");
+
 
 // ========================
 // App & Config
@@ -265,6 +266,8 @@ app.get('/api/admin/sales', (req, res) => {
 });
 
 
+//use the photos folder
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Export server for testing
 module.exports = server;

@@ -75,7 +75,7 @@ function App() {
             <Route
   path="/customerhome"
   element={
-    <RequireAuth>
+    <RequireAuth allowGuest={true}>
     <div className={classes.withNav}>
       <Header />
       <CustomerHome />

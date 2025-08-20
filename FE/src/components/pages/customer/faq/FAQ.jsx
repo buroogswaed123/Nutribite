@@ -7,9 +7,43 @@ function FAQ({ currentUser }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  // Resolved user (from prop or localStorage fallback)
+  const [resolvedUser, setResolvedUser] = useState(currentUser);
+  // Normalize user type for robust checks
+  const userType = (resolvedUser?.user_type || '').toString().trim().toLowerCase();
+  const isAdmin = userType === 'admin';
+  const isCustomer = userType === 'customer';
+  // Debug: verify received currentUser
+  useEffect(() => {
+    // Remove or silence after verifying
+    // eslint-disable-next-line no-console
+    console.log('FAQ currentUser:', currentUser);
+  }, [currentUser]);
 
-  const isAdmin = currentUser?.user_type === 'admin';
-  const isCustomer = currentUser?.user_type === 'customer';
+  // Keep resolvedUser in sync with prop when provided
+  useEffect(() => {
+    if (currentUser) {
+      setResolvedUser(currentUser);
+      return;
+    }
+    // Fallback: try common localStorage keys
+    try {
+      const keys = ['currentUser', 'user', 'authUser'];
+      for (const k of keys) {
+        const raw = window.localStorage.getItem(k);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            setResolvedUser(parsed);
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.debug('No user in localStorage');
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     // Fetch questions from backend
@@ -39,7 +73,7 @@ function FAQ({ currentUser }) {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question_text: q, user_id: currentUser.user_id }),
+        body: JSON.stringify({ question_text: q, user_id: resolvedUser?.user_id }),
       });
       const data = await res.json();
       setItems([data, ...items]);

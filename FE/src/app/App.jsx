@@ -182,7 +182,7 @@ function App() {
               element={
                 <div className={classes.withNav}>
                   <Header />
-                  <FAQ />
+                  <FAQ currentUser={currentUser} />
                   <Footer />
                 </div>
               }

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { createContext, useContext } from "react";
 import { useState } from "react";
 import classes from "./app.module.css";
@@ -21,8 +21,14 @@ import PasswordReset from "../components/pages/PasswordReset";
 import NotFound from "../components/pages/NotFound";
 import Footer from "../components/layout/footer/Footer";
 import Header from "../components/layout/header/Header";
+import Articles from "../components/pages/customer/articles/Articles";
+import QA from "../components/pages/customer/articles/QA";
+import FAQ from "../components/pages/customer/faq/FAQ";
 
-// NavBar replaced by Header and Footer
+function QAWrapper() {
+  const { articleId } = useParams();
+  return <QA articleId={parseInt(articleId, 10)} />;
+}
 
 export const AuthContext = createContext();
 
@@ -148,6 +154,37 @@ function App() {
                     <Footer />
                   </div>
                 </RequireAuth>
+              }
+            />
+            {/* Public content routes with Header/Footer */}
+            <Route
+              path="/articles"
+              element={
+                <div className={classes.withNav}>
+                  <Header />
+                  <Articles />
+                  <Footer />
+                </div>
+              }
+            />
+            <Route
+              path="/qa/:articleId"
+              element={
+                <div className={classes.withNav}>
+                  <Header />
+                  <QAWrapper />
+                  <Footer />
+                </div>
+              }
+            />
+            <Route
+              path="/faq"
+              element={
+                <div className={classes.withNav}>
+                  <Header />
+                  <FAQ />
+                  <Footer />
+                </div>
               }
             />
             

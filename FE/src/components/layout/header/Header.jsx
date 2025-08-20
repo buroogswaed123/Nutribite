@@ -82,10 +82,11 @@ export default function Header() {
 
   // Navigation links (Hebrew labels)
   const navLinks = [
-    { name: 'איך זה עובד', path: '/how-it-works' },
+    { name: 'שאלות ותשובות', path: '/faq' },
     { name: 'תוכניות ארוחה', path: '/meal-planner' },
     { name: 'מתכונים', path: '/recipes' },
-    { name: 'מחירים', path: '/pricing' },
+    { name: 'צור קשר', path: '/contact' },
+    {name : 'מאמרים', path : '/articles'}
   ];
 
   // Apply transparent on home top, solid when scrolled or on other routes

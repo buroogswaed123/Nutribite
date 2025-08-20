@@ -21,9 +21,8 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Small helper: use backend to check the user's type from DB
-  // It posts to the existing /api/login endpoint and extracts user_type
-  // Returns user_type string or null on failure
+  // Helper: query backend by attempting login again to discover user_type
+  // Returns user_type or null
   const checkUserType = async (id, pwd) => {
     try {
       if (!id || !pwd) return null;
@@ -32,9 +31,9 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
       const res = await fetch('http://localhost:3000/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ identifier: id, password: pwd, loginMethod: method })
       });
-     
       if (!res.ok) return null;
       const data = await res.json();
       return data?.user?.user_type ?? null;
@@ -59,11 +58,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
     }
   }, [location.state]);
 
-  // Email validation function
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
+  // (deduped) Email validation function already defined above
 
   const openPopup = (url) => {
     const width = 500;
@@ -142,8 +137,6 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
             setEmailError('כתובת הדוא"ל כבר רשומה');
             setError('כתובת הדוא"ל כבר רשומה');
           } else {
-            // Ambiguous or generic backend message: choose one field to display
-            // Prefer marking email as taken to avoid double-highlighting
             setEmailError('כתובת הדוא"ל כבר רשומה');
             setError('שם המשתמש או הדוא"ל כבר בשימוש');
           }
@@ -158,7 +151,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         return;
       }
 
-      onLoginSuccess(data.user);
+      if (typeof onLoginSuccess === 'function') onLoginSuccess(data.user);
       const next = resolveHomePath(data?.user?.user_type || userType);
       navigate(next, { replace: true });
     } catch (err) {
@@ -174,7 +167,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
     }
     
     const isEmail = validateEmail(identifier);
-    const loginMethod = isEmail ? 'email' : 'username';
+    const method = isEmail ? 'email' : 'username';
 
     try {
       const response = await fetch('http://localhost:3000/api/login', {
@@ -186,26 +179,24 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         body: JSON.stringify({ 
           identifier: identifier,
           password: password,
-          loginMethod
+          loginMethod: method
         }),
       });
 
       const data = await response.json();
       if (response.ok) {
-        // Ensure we have the user_type from backend and store it locally
         const typeFromLogin = data?.user?.user_type;
         if (typeFromLogin) {
           setUserType(typeFromLogin);
           try { localStorage.setItem('user_type', typeFromLogin); } catch {}
         } else {
-          // Fallback: query backend again to resolve user_type explicitly
           const fallbackType = await checkUserType(identifier, password);
           if (fallbackType) {
             setUserType(fallbackType);
             try { localStorage.setItem('user_type', fallbackType); } catch {}
           }
         }
-        onLoginSuccess(data.user);
+        if (typeof onLoginSuccess === 'function') onLoginSuccess(data.user);
         const chosenType = data?.user?.user_type || localStorage.getItem('user_type') || userType;
         navigate(resolveHomePath(chosenType));
       } else {
@@ -241,38 +232,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         <div className={`${classes["form-container"]} ${classes["sign-up"]}`}>
           <form onSubmit={handleRegister}>
             <h1>צור חשבון</h1>
-            <SocialAuthButtons
-              variant="register"
-              onSuccess={async (user) => {
-                try {
-                  if (user?.user_type) localStorage.setItem('user_type', user.user_type);
-                } catch {}
-                // Wait so the popup can show the Hebrew success text
-                await new Promise(r => setTimeout(r, 2600));
-                // Ensure session is synced from backend
-                try {
-                  const resp = await fetch('http://localhost:3000/api/session/me', { credentials: 'include' });
-                  if (resp.ok) {
-                    const data = await resp.json();
-                    const serverUser = data?.user || user;
-                    if (typeof onLoginSuccess === 'function') onLoginSuccess(serverUser);
-                    const t = serverUser?.user_type || user?.user_type || localStorage.getItem('user_type');
-                    navigate(resolveHomePath(t), { replace: true });
-                  } else {
-                    if (typeof onLoginSuccess === 'function') onLoginSuccess(user);
-                    const t = user?.user_type || localStorage.getItem('user_type');
-                    navigate(resolveHomePath(t), { replace: true });
-                  }
-                } catch {
-                  if (typeof onLoginSuccess === 'function') onLoginSuccess(user);
-                  const t = user?.user_type || localStorage.getItem('user_type');
-                  navigate(resolveHomePath(t), { replace: true });
-                }
-              }}
-              onError={(err) => {
-                setError(err?.message || 'Social login failed');
-              }}
-            />
+            <SocialAuthButtons variant="register" />
             <span>או הרשמ במייל</span>
             <input 
               type="text" 
@@ -312,19 +272,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         <div className={`${classes["form-container"]} ${classes["sign-in"]}`}>
           <form onSubmit={handleLogin}>
             <h1>להיכנס</h1>
-            <SocialAuthButtons
-              onSuccess={(user) => {
-                try {
-                  if (user?.user_type) localStorage.setItem('user_type', user.user_type);
-                } catch {}
-                if (typeof onLoginSuccess === 'function') onLoginSuccess(user);
-                const t = user?.user_type || localStorage.getItem('user_type');
-                navigate(resolveHomePath(t), { replace: true });
-              }}
-              onError={(err) => {
-                setError(err?.message || 'Social login failed');
-              }}
-            />
+            <SocialAuthButtons />
             <span>או השתמש בסיסמת הדוא&#39;&#39;ל שלך</span>
             <input 
               type="text" 

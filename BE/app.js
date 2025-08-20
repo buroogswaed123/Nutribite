@@ -2,6 +2,10 @@
 // Core & Libraries
 // ========================
 const express = require('express');
+// Load env vars from .env (local dev)
+try {
+  require('dotenv').config();
+} catch (_) {}
 const mysql = require('mysql2');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
@@ -217,7 +221,7 @@ app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-  secret: 'someSecretHere123',
+  secret: process.env.SESSION_SECRET || 'someSecretHere123',
   resave: false,
   saveUninitialized: true,
   cookie: {
@@ -232,19 +236,8 @@ app.use(session({
 // ========================
 const authRoutes = require('./routes/auth');
 app.use('/api', authRoutes);
-// Mount OAuth routes only if env vars are present to avoid local dev crashes
-try {
-  const requiredOAuth = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_CALLBACK_URL', 'SESSION_SECRET'];
-  const hasAll = requiredOAuth.every((k) => process.env[k] && String(process.env[k]).trim());
-  if (hasAll) {
-    const oauthRoutes = require('./routes/oauth');
-    app.use('/auth', oauthRoutes);
-  } else {
-    console.warn('Google OAuth env vars missing. Skipping /auth route mounting in local dev.');
-  }
-} catch (e) {
-  console.warn('OAuth routes not mounted due to error or missing env:', e?.message || e);
-}
+
+
 const customersRoutes = require('./routes/customers');
 app.use('/api/customers', customersRoutes);
 const usersRoutes = require('./routes/users');

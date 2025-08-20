@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import "./Articles.css";
+import styles from "./articles.module.css";
 import QA from "./QA";
 
 function Articles() {
@@ -39,16 +39,16 @@ function Articles() {
   ];
 
   return (
-    <div className="articles">
+    <div className={styles.articles}>
       <h1>מאמרים</h1>
-      <div className="content">
+      <div className={styles.content}>
         {selectedArticle ? (
           showQA ? (
-            <div className="qa-section">
-              <div className="qa-header">
+            <div className={styles['qa-section']}>
+              <div className={styles['qa-header']}>
                 <button
                   onClick={() => setShowQA(false)}
-                  className="back-to-article"
+                  className={styles['back-to-article']}
                 >
                   חזרה למאמר
                 </button>
@@ -56,11 +56,11 @@ function Articles() {
               <QA articleId={selectedArticle.id} />
             </div>
           ) : (
-            <div className="article-full">
-              <div className="article-header">
+            <div className={styles['article-full']}>
+              <div className={styles['article-header']}>
                 <button
                   onClick={() => setSelectedArticle(null)}
-                  className="back-button"
+                  className={styles['back-button']}
                 >
                   חזרה לרשימת המאמרים
                 </button>
@@ -70,28 +70,28 @@ function Articles() {
                 </button> */}
               </div>
               <h2>{selectedArticle.title}</h2>
-              <div className="article-content">{selectedArticle.content}</div>
+              <div className={styles['article-content']}>{selectedArticle.content}</div>
             </div>
           )
         ) : (
-          <div className="articles-list">
+          <div className={styles['articles-list']}>
             {articles.map((article) => (
               <div
                 key={article.id}
-                className="article-preview"
+                className={styles['article-preview']}
                 onClick={() => setSelectedArticle(article)}
               >
-                <div className="article-image-container">
+                <div className={styles['article-image-container']}>
                   <img
                     src={article.image}
                     alt={article.title}
-                    className="article-image"
+                    className={styles['article-image']}
                   />
                 </div>
-                <div className="article-content-preview">
+                <div className={styles['article-content-preview']}>
                   <h3>{article.title}</h3>
                   <p>{article.preview}</p>
-                  <button className="read-more">קרא עוד</button>
+                  <button className={styles['read-more']}>קרא עוד</button>
                 </div>
               </div>
             ))}

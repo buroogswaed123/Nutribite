@@ -4,7 +4,7 @@ import { ArrowRight, BarChart3, Calendar, Gift } from "lucide-react";
 import { dietTypes } from "../../../../data/dietTypes";
 import styles from "./home.module.css";
 
-export default function AdminHome() {
+export default function CustomerHome() {
   const navigate = useNavigate();
   const featuresRef = useRef(null);
 

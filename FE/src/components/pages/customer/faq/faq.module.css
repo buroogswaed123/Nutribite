@@ -121,6 +121,8 @@
   font-size: 14px;
   background: #fff;
   color: var(--text);
+  /* Ensure input appears to the left of the button in RTL */
+  order: 2;
 }
 
 .input:focus {
@@ -139,6 +141,8 @@
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
   box-shadow: 0 6px 14px rgba(16, 185, 129, 0.25);
+  /* Make button appear on the far right in RTL */
+  order: 1;
 }
 
 .button:hover {

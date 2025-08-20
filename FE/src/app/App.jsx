@@ -147,7 +147,7 @@ function App() {
             <Route
               path="/caloriecalc"
               element={
-                <RequireAuth>
+                <RequireAuth allowGuest={true}>
                   <div className={classes.withNav}>
                     <Header />
                     <CalorieCalc />

@@ -4,89 +4,62 @@ import styles from '../../assets/styles/login.module.css';
 /**
  * SocialAuthButtons component
  * - Renders provider buttons (Google, Facebook, X)
- * - Each handler opens a popup to backend OAuth start route
- * - Listens for postMessage from popup and returns { user, token }
+ * - Each handler opens a popup that mimics a provider login screen
+ * - This is a frontend-only, non-functional stub: it never authenticates
  * - Reusable for both login and registration via props
  *
  * IMPORTANT:
  *  - Do NOT store social passwords. Backend should create a secure random password if the schema requires one.
  *  - Backend must implement provider routes and callback that postMessage back to opener.
  */
-
-const BACKEND_BASE = 'http://localhost:3000';
-
-// Public helper: check if a user exists by email
-export async function checkIfUserExists(email) {
-  if (!email) return false;
-  try {
-    const res = await fetch(`${BACKEND_BASE}/api/users/exists?email=${encodeURIComponent(email)}`, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' },
-      credentials: 'include',
-    });
-    if (!res.ok) return false;
-    const data = await res.json();
-    // Expected shape: { exists: boolean }
-    if (typeof data?.exists === 'boolean') return data.exists;
-    return !!data; // fallback
-  } catch (e) {
-    console.warn('checkIfUserExists failed; backend route may be missing.', e);
-    return false;
-  }
-}
-
-// Open OAuth popup and wait for postMessage
-function openAuthPopup(url, name = 'oauthPopup', width = 500, height = 600) {
+// Open a dummy popup that mimics a provider page but never authenticates
+function openDummyPopup(providerLabel, name = 'oauthPopup', width = 500, height = 600) {
   const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
   const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
   const features = `toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=${width},height=${height},top=${top},left=${left}`;
-  const popup = window.open(url, name, features);
-
-  if (!popup) return Promise.reject(new Error('Popup blocked. Please enable popups and try again.'));
-
-  return new Promise((resolve, reject) => {
-    const MAX_WAIT_MS = 120000; // 2 minutes
-    const timer = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(timer);
-        window.removeEventListener('message', onMessage);
-        reject(new Error('Login window was closed'));
-      }
-    }, 500);
-    const timeoutId = setTimeout(() => {
-      cleanup();
-      reject(new Error('OAuth timed out. Please try again.'));
-    }, MAX_WAIT_MS);
-
-    function cleanup() {
-      clearInterval(timer);
-      clearTimeout(timeoutId);
-      window.removeEventListener('message', onMessage);
-      try { popup.close(); } catch {}
-    }
-
-    function onMessage(event) {
-      // Security: accept only backend on common local origins
-      const allowed = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0):3000$/.test(event.origin);
-      if (!allowed) return;
-      const data = event.data || {};
-      if (data?.type === 'oauth-success') {
-        cleanup();
-        resolve(data); // { user, token }
-      } else if (data?.type === 'oauth-error') {
-        cleanup();
-        reject(new Error(data?.error || 'OAuth error'));
-      }
-    }
-
-    window.addEventListener('message', onMessage);
-  });
+  const popup = window.open('about:blank', name, features);
+  if (!popup) {
+    // Silently fail to keep UX that "it could work" without showing errors
+    return;
+  }
+  try {
+    const doc = popup.document;
+    doc.title = `${providerLabel} • Sign in`;
+    const html = `
+      <style>
+        :root { color-scheme: light dark; }
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji"; margin: 0; }
+        .bar { height: 54px; display: flex; align-items: center; padding: 0 16px; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
+        .logo { width: 28px; height: 28px; border-radius: 6px; background:#111; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; margin-right:10px; }
+        .brand { font-size: 14px; opacity: .9; }
+        .wrap { max-width: 420px; margin: 32px auto; padding: 0 18px; }
+        h1 { font-size: 22px; margin: 0 0 16px; }
+        p { line-height: 1.5; opacity: .86; }
+        .btn { display:inline-flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; border:1px solid rgba(0,0,0,.15); cursor:not-allowed; opacity:.6; }
+        .footer { position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 12px; opacity: .6; }
+      </style>
+      <div class="bar">
+        <div class="logo">${providerLabel[0] || '?'}</div>
+        <div class="brand">Continue with ${providerLabel}</div>
+      </div>
+      <div class="wrap">
+        <h1>Sign in to Nutribite</h1>
+        <p>This is a demo popup. Authentication is disabled. Buttons are disabled for demonstration purposes.</p>
+        <p><a class="btn" href="#" aria-disabled="true">Sign in</a></p>
+        <p style="margin-top: 28px; font-size: 12px; opacity: .7;">Close this window to return.</p>
+      </div>
+      <div class="footer">Demo only — No data sent</div>
+    `;
+    doc.body.innerHTML = html;
+  } catch {
+    // ignore cross-origin issues if any
+  }
 }
 
 const providers = {
-  google: { label: 'Google', startPath: '/auth/google', iconClass: 'fa-brands fa-google-plus-g' },
-  facebook: { label: 'Facebook', startPath: '/auth/facebook', iconClass: 'fa-brands fa-facebook-f' },
-  x: { label: 'X', startPath: '/auth/x', iconClass: 'fa-brands fa-x-twitter' },
+  google: { label: 'Google', iconClass: 'fa-brands fa-google-plus-g' },
+  facebook: { label: 'Facebook', iconClass: 'fa-brands fa-facebook-f' },
+  x: { label: 'X', iconClass: 'fa-brands fa-x-twitter' },
 };
 
 export default function Buttons({ onSuccess, onError, variant = 'login', className = '', classes: css }) {
@@ -100,59 +73,24 @@ export default function Buttons({ onSuccess, onError, variant = 'login', classNa
     return () => { isMounted.current = false; };
   }, []);
 
-  const handleResult = (payload) => {
-    const user = payload?.user;
-    const token = payload?.token;
-    const existed = Boolean(payload?.existed);
-    try {
-      if (token) localStorage.setItem('auth_token', token);
-      if (user?.user_type) localStorage.setItem('user_type', user.user_type);
-    } catch {}
-    if (typeof onSuccess === 'function') {
-      // Defer UX to parent (e.g., navigate immediately without flashing a toast)
-      return onSuccess(user, token, existed);
-    }
-    // Toast-like success message (only when parent doesn't handle success)
-    const msg = existed ? 'Welcome back! You are now signed in.' : 'Account created. You are now signed in.';
-    setSuccessMsg(msg);
+  // In demo-only mode there is no result or error; we just show a brief info message
+  const handleInfo = (text) => {
+    setSuccessMsg(text);
     setErrorMsg('');
-    window.clearTimeout((handleResult)._successTimer);
-    (handleResult)._successTimer = window.setTimeout(() => {
+    window.clearTimeout((handleInfo)._timer);
+    (handleInfo)._timer = window.setTimeout(() => {
       if (isMounted.current) setSuccessMsg('');
-    }, 3000);
+    }, 2000);
   };
 
-  const handleError = (err) => {
-    if (typeof onError === 'function') onError(err);
-    console.error('Social auth error:', err);
-    // Optional UX: toast/alert
-    setErrorMsg(err?.message || 'Social login failed');
-    setSuccessMsg('');
-    window.clearTimeout((handleError)._errorTimer);
-    (handleError)._errorTimer = window.setTimeout(() => {
-      if (isMounted.current) setErrorMsg('');
-    }, 3500);
-  };
-
-  const startOAuth = async (providerKey) => {
+  const startOAuth = (providerKey) => {
     const prov = providers[providerKey];
     if (!prov) return;
+    setIsLoading(true);
+    setErrorMsg('');
     try {
-      setIsLoading(true);
-      setErrorMsg('');
-      const url = `${BACKEND_BASE}${prov.startPath}?variant=${encodeURIComponent(variant)}`;
-      const payload = await openAuthPopup(url, `oauth_${providerKey}`);
-      if (!isMounted.current) return;
-      handleResult(payload);
-    } catch (e) {
-      // Popup blocked fallback: navigate current window to provider flow
-      if (e && /Popup blocked/i.test(e.message || '')) {
-        const url = `${BACKEND_BASE}${providers[providerKey].startPath}?variant=${encodeURIComponent(variant)}`;
-        window.location.href = url;
-        return;
-      }
-      if (!isMounted.current) return;
-      handleError(e);
+      openDummyPopup(prov.label, `oauth_${providerKey}`);
+      handleInfo(`Opened ${prov.label}`);
     } finally {
       if (isMounted.current) setIsLoading(false);
     }

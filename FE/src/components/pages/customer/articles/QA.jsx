@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
-import './QA.css';
+import styles from './qa.module.css';
 
-function QA({ articleId }) {
+/***
+ * QA JSX: component that contains questions and answers to articles in Article.jsx /articles page
+ */
+
+export default function QA({ articleId }) {
   const initialQAData = [
     {
       articleId: 1,
@@ -48,13 +52,13 @@ function QA({ articleId }) {
   };
 
   return (
-    <div className="qa-page" dir="rtl">
-      <div className="qa-content">
-        <div className="qa-header">
+    <div className={styles['qa-page']} dir="rtl">
+      <div className={styles['qa-content']}>
+        <div className={styles['qa-header']}>
           <h1>איך לרדת במשקל בלי דיאטה</h1>
         </div>
-        <div className="profile-section" style={{ display: 'flex', alignItems: 'center' }}>
-          <div className="profile-info" style={{ marginLeft: '20px' }}>
+        <div className={styles['profile-section']} style={{ display: 'flex', alignItems: 'center' }}>
+          <div className={styles['profile-info']} style={{ marginLeft: '20px' }}>
             <h2>היי, אני אוהר !</h2>
             <p>דיאטנית קלינית (תזונאית)</p>
             <p>מטפלת באכילה רגשית ושיפור</p>
@@ -64,25 +68,25 @@ function QA({ articleId }) {
             <p>הגוף, במטרה להשתחרר מדיאטות</p>
             <p>והתעסקות באוכל ומשקל.</p>
           </div>
-          <div className="profile-image" style={{ flexShrink: 0, marginRight: '20px', borderRadius: '50%', overflow: 'hidden', width: '120px', height: '120px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }}>
+          <div className={styles['profile-image']} style={{ flexShrink: 0, marginRight: '20px', borderRadius: '50%', overflow: 'hidden', width: '120px', height: '120px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }}>
             <img src="https://ynet-pic1.yit.co.il/cdn-cgi/image/f=auto,w=740,q=75/picserver5/crop_images/2021/08/08/Skz2wdTJt/Skz2wdTJt_0_0_2000_1333_0_x-large.jpg" alt="תמונת פרופיל" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         </div>
-        <div className="qa-list">
+        <div className={styles['qa-list']}>
           {articleQA?.questions.map((item) => (
-            <div key={item.id} className="qa-item">
-              <div className="question">
-                <span className="q-icon">ש</span>
+            <div key={item.id} className={styles['qa-item']}>
+              <div className={styles['question']}>
+                <span className={styles['q-icon']}>ש</span>
                 <p>{item.question}</p>
               </div>
-              <div className="answer">
-                <span className="a-icon">ת</span>
+              <div className={styles['answer']}>
+                <span className={styles['a-icon']}>ת</span>
                 <p>{item.answer}</p>
               </div>
             </div>
           ))}
         </div>
-        <div className="add-question-form">
+        <div className={styles['add-question-form']}>
           <h3>הוסף שאלה חדשה</h3>
           <input
             type="text"
@@ -102,5 +106,5 @@ function QA({ articleId }) {
   );
 }
 
-export default QA;
+
 

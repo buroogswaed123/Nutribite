@@ -55,7 +55,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
     setError("");
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError("הסיסמאות אינן תואמות");
       return;
     }
 
@@ -63,7 +63,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
       const user = await register(username, identifier, password, userType);
 
       if (!user) {
-        setError("Registration failed");
+        setError("הרשמה נכשלה");
         return;
       }
 
@@ -78,7 +78,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         setEmailError("כתובת הדוא\"ל כבר תפוס");
         setError("כתובת הדוא\"ל כבר תפוס");
       } else {
-        setError(err.message || "Registration failed");
+        setError(err.message || "הרשמה נכשלה");
       }
     }
   };
@@ -89,7 +89,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
     setError("");
 
     if (!identifier.trim()) {
-      setError("Please enter your identifier");
+      setError("אנא הזן דוא\"ל או שם משתמש");
       return;
     }
 
@@ -97,7 +97,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
       const user = await login(identifier, password);
 
       if (!user) {
-        setError("Invalid credentials");
+        setError("פרטי התחברות שגויים");
         return;
       }
 
@@ -106,7 +106,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
 
       navigate(resolveHomePath(user.user_type));
     } catch (err) {
-      setError(err.message || "Login failed");
+      setError(err.message || "התחברות נכשלה");
     }
   };
 

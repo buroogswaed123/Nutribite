@@ -24,6 +24,8 @@ import Header from "../components/layout/header/Header";
 import Articles from "../components/pages/customer/articles/Articles";
 import QA from "../components/pages/customer/articles/QA";
 import FAQ from "../components/pages/customer/faq/FAQ";
+import Recipes from "../components/pages/recipes/Recipes";
+import Menu from "../components/pages/menu/Menu";
 
 function QAWrapper() {
   const { articleId } = useParams();
@@ -190,6 +192,30 @@ function App() {
             
             <Route path="/password-reset" element={<PasswordReset />} />
             <Route path="*" element={<NotFound />} />
+            <Route
+  path="/recipes"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      <Header />
+      <Recipes />
+      <Footer />
+    </div>
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/menu"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      <Header />
+      <Menu />
+      <Footer />
+    </div>
+    </RequireAuth>
+  }
+/>
           </Routes>
         </div>
       </AuthContext.Provider>

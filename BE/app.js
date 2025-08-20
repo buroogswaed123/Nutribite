@@ -242,6 +242,21 @@ const customersRoutes = require('./routes/customers');
 app.use('/api/customers', customersRoutes);
 const usersRoutes = require('./routes/users');
 app.use('/api/users', usersRoutes);
+// Diet & Recipes routes
+try {
+  const dietRoutes = require('./routes/diet');
+  app.use('/api/diet', dietRoutes);
+  console.log('Mounted /api/diet routes');
+} catch (e) {
+  console.error('Failed to mount /api/diet routes:', e?.message || e);
+}
+try {
+  const recipesRoutes = require('./routes/recipes');
+  app.use('/api/recipes', recipesRoutes);
+  console.log('Mounted /api/recipes routes');
+} catch (e) {
+  console.error('Failed to mount /api/recipes routes:', e?.message || e);
+}
 // Questions/FAQ routes
 try {
   const questionsRoutes = require('./routes/faq');

@@ -7,7 +7,8 @@ const router = express.Router();
 // Sub-routers 
 const usersRouter = require('./users');
 const menuRouter = require('./menu');
-const systemRouter = require('./orders');
+const ordersRouter = require('./orders');
+const dataRouter = require('./data');
 const recipesRouter = require('./recipes');
 
 //diagnostic endpoint for the admin namespace
@@ -18,7 +19,8 @@ router.get('/health', (req, res) => {
 //Mount domain sub-routers under /api/admin/*
 router.use('/users', usersRouter);
 router.use('/menu', menuRouter);
-router.use('/system', systemRouter);
+router.use('/orders', ordersRouter);
+router.use('/data', dataRouter);
 router.use('/recipes', recipesRouter);
 
 

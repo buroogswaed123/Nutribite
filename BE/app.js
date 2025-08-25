@@ -244,6 +244,14 @@ const customersRoutes = require('./routes/customers');
 app.use('/api/customers', customersRoutes);
 const usersRoutes = require('./routes/users');
 app.use('/api/users', usersRoutes);
+// Courier routes
+try {
+  const courierRoutes = require('./routes/courier');
+  app.use('/api/courier', requireActiveUser, courierRoutes);
+  console.log('Mounted /api/courier routes');
+} catch (e) {
+  console.error('Failed to mount /api/courier routes:', e?.message || e);
+}
 // Diet & Recipes routes
 try {
   const dietRoutes = require('./routes/diet');

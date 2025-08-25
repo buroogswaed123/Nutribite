@@ -36,6 +36,12 @@ export async function checkUserType(userId) {
   throw err;
 }
 
+//check if user is admin
+export async function isAdmin(userId) {
+  const userType = await checkUserType(userId);
+  return userType === 'admin';
+}
+
 //validate email
 export function validateEmail(email) {
   return /\S+@\S+\.\S+/.test(email);
@@ -47,4 +53,24 @@ export function isBannedError(err) {
   const status = err?.response?.status;
   const msg = (err?.response?.data?.message || err?.response?.data?.error || err?.message || '').toString().toLowerCase();
   return status === 403 && msg.includes('bann'); // matches 'ban', 'banned'
+}
+
+// Normalize and check if a question/item is public
+// Accepts booleans, 1/0, and 'true'/'false' strings
+export function isPublicQuestion(q) {
+  const v = q && q.public;
+  if (v === true || v === 1) return true;
+  if (v === false || v === 0) return false;
+  if (typeof v === 'string') return v.toLowerCase() === 'true';
+  return !!v;
+}
+
+// admin makes question public
+export async function makeQuestionPublic(questionId, userId) {
+  const admin = await isAdmin(userId);
+  if (!admin) {
+    throw new Error('You are not authorized to make a question public');
+  }
+  const { data } = await axios.patch(`/api/questions/${questionId}/visibility`, { public: true });
+  return data;
 }

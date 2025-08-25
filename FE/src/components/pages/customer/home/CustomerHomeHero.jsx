@@ -1,6 +1,5 @@
 import styles from './home.module.css';
 import { useNavigate } from "react-router-dom";
-import { useRef } from "react";
 import { ArrowRight } from "lucide-react";
 
 /***
@@ -8,18 +7,14 @@ import { ArrowRight } from "lucide-react";
  * @returns {JSX.Element} - The CustomerHomeHero component that shows in the customer home page.
  */
 
-export default function CustomerHomeHero() {
+export default function CustomerHomeHero({ scrollToFeatures }) {
 
      const navigate = useNavigate();
-     const featuresRef = useRef(null);
 
      const handleGetStarted = () => {
         navigate("/meal-planner");
       };
     
-      const scrollToFeatures = () => {
-        featuresRef.current?.scrollIntoView({ behavior: "smooth" });
-      };
     return (
         <section className={styles.heroSection}>
         <div className={styles.container}>

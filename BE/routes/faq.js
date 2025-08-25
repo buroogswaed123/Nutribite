@@ -31,13 +31,24 @@ router.post('/', async (req, res) => {
 // 2. Get questions (optionally only answered via query param)
 // GET /api/questions?answered=true
 router.get('/', async (req, res) => {
-  const { answered } = req.query;
+  const { answered, public: pub } = req.query;
   try {
     let sql = 'SELECT * FROM questions';
     const params = [];
+    const where = [];
+
     if (typeof answered !== 'undefined') {
-      sql += ' WHERE answered = ?';
-      params.push(answered === 'true' ? 1 : 0);
+      where.push('answered = ?');
+      params.push(String(answered) === 'true' ? 1 : 0);
+    }
+    if (typeof pub !== 'undefined') {
+      // escape column name `public` in case of naming conflicts
+      where.push('`public` = ?');
+      params.push(String(pub) === 'true' ? 1 : 0);
+    }
+
+    if (where.length) {
+      sql += ' WHERE ' + where.join(' AND ');
     }
     sql += ' ORDER BY created_at DESC';
     const [rows] = await conn.promise().query(sql, params);
@@ -76,6 +87,32 @@ router.put('/:id/answer', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'DB error' });
+  }
+});
+
+// 4. Update question visibility (admin): set `public` true/false
+// PATCH /api/questions/:id/visibility { public: true|false }
+router.patch('/:id/visibility', async (req, res) => {
+  const questionId = Number(req.params.id);
+  if (!Number.isFinite(questionId)) {
+    return res.status(400).json({ message: 'Invalid question id' });
+  }
+
+  const body = req.body || {};
+  if (!('public' in body)) {
+    return res.status(400).json({ message: 'Missing public flag' });
+  }
+
+  const pub = body.public;
+  const pubVal = (pub === true || pub === 1 || String(pub) === 'true') ? 1 : 0;
+
+  try {
+    await conn.promise().query('UPDATE questions SET `public` = ? WHERE question_id = ?', [pubVal, questionId]);
+    const [rows] = await conn.promise().query('SELECT * FROM questions WHERE question_id = ?', [questionId]);
+    return res.json(rows[0] || { success: true, question_id: questionId, public: !!pubVal });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: 'DB error' });
   }
 });
 

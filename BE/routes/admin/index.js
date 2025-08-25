@@ -1,15 +1,14 @@
-
 //mounts the admin sub-routers. This keeps admin/auth mounted separately in app.js
 // so we can keep login unauthenticated while still enforcing admin checks in the handler
 
 const express = require('express');
 const router = express.Router();
 
-// Sub-routers (each file should export an Express router)
+// Sub-routers 
 const usersRouter = require('./users');
-const contentRouter = require('./content');
-const moderationRouter = require('./moderation');
+const menuRouter = require('./menu');
 const systemRouter = require('./system');
+const recipesRouter = require('./recipes');
 
 //diagnostic endpoint for the admin namespace
 router.get('/health', (req, res) => {
@@ -18,9 +17,9 @@ router.get('/health', (req, res) => {
 
 //Mount domain sub-routers under /api/admin/*
 router.use('/users', usersRouter);
-router.use('/content', contentRouter);
-router.use('/moderation', moderationRouter);
+router.use('/menu', menuRouter);
 router.use('/system', systemRouter);
+router.use('/recipes', recipesRouter);
 
 
 module.exports = router;

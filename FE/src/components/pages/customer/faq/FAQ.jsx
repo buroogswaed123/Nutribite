@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { isPublicQuestion } from '../../../../utils/functions';
 import styles from './faq.module.css';
 
 function FAQ({ currentUser }) {
@@ -14,9 +15,9 @@ function FAQ({ currentUser }) {
   const isAdmin = userType === 'admin';
   const isCustomer = userType === 'customer';
   // Debug: verify received currentUser
+
+ 
   useEffect(() => {
-    // Remove or silence after verifying
-    // eslint-disable-next-line no-console
     console.log('FAQ currentUser:', currentUser);
   }, [currentUser]);
 
@@ -161,6 +162,7 @@ function FAQ({ currentUser }) {
 
       <div className={styles.list}>
         {Array.isArray(items) && items
+          .filter(isPublicQuestion)
           .filter(i => {
             const q = (searchTerm || '').toLowerCase().trim();
             if (!q) return true;

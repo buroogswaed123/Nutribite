@@ -40,3 +40,11 @@ export async function checkUserType(userId) {
 export function validateEmail(email) {
   return /\S+@\S+\.\S+/.test(email);
 }
+
+// Detect a banned-account error coming from the backend
+// We treat HTTP 403 with a message that includes 'banned' (case-insensitive) as banned
+export function isBannedError(err) {
+  const status = err?.response?.status;
+  const msg = (err?.response?.data?.message || err?.response?.data?.error || err?.message || '').toString().toLowerCase();
+  return status === 403 && msg.includes('bann'); // matches 'ban', 'banned'
+}

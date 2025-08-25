@@ -7,7 +7,7 @@ const router = express.Router();
 // Sub-routers 
 const usersRouter = require('./users');
 const menuRouter = require('./menu');
-const systemRouter = require('./system');
+const systemRouter = require('./orders');
 const recipesRouter = require('./recipes');
 
 //diagnostic endpoint for the admin namespace

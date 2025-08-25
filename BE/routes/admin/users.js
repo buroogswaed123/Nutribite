@@ -100,7 +100,7 @@ router.patch('/:id', async (req, res) => {
 // Schedule a soft-ban to take effect in 24 hours.
 // - We DO NOT set status = 'banned' immediately.
 // - We store ban_reason, banned_by, and set ban_effective_at = NOW() + 1 day.
-// - banned_at remains NULL until the ban actually takes effect (optionally flipped lazily elsewhere).
+// - banned_at remains NULL until the ban actually takes effect 
 // Body: { reason?: string }
 router.post('/:id/ban', async (req, res) => {
   try {

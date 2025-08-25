@@ -126,8 +126,6 @@ const initDatabase = () => {
       return;
     }
 
-    console.log('Users table created successfully');
-
     // Ensure profile_image column exists
     db.query(
       "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'profile_image'",
@@ -138,9 +136,7 @@ const initDatabase = () => {
           db.query("ALTER TABLE users ADD COLUMN profile_image VARCHAR(255) NULL", (altErr) => {
             if (altErr) {
               console.error('Error adding profile_image column:', formatDbError(altErr));
-            } else {
-              console.log('Added users.profile_image column');
-            }
+            } 
           });
         }
       }
@@ -153,7 +149,6 @@ const initDatabase = () => {
         return;
       }
 
-      console.log('Password resets table created successfully');
       console.log('Database initialized successfully');
     });
   });
@@ -237,6 +232,13 @@ app.use(session({
 const authRoutes = require('./routes/auth');
 app.use('/api', authRoutes);
 
+// Admin routes: mount auth publicly, and protect the rest
+const requireActiveUser = require('./middleware/requireActiveUser');
+const requireAdmin = require('./middleware/requireAdmin');
+const adminAuthRoutes = require('./routes/admin/auth');
+app.use('/api/admin/auth', adminAuthRoutes); // no requireAdmin on /login
+const adminIndexRoutes = require('./routes/admin');
+app.use('/api/admin', requireActiveUser, requireAdmin, adminIndexRoutes);
 
 const customersRoutes = require('./routes/customers');
 app.use('/api/customers', customersRoutes);
@@ -256,6 +258,14 @@ try {
   console.log('Mounted /api/recipes routes');
 } catch (e) {
   console.error('Failed to mount /api/recipes routes:', e?.message || e);
+}
+// Public menu routes
+try {
+  const menuRoutes = require('./routes/menu');
+  app.use('/api/menu', menuRoutes);
+  console.log('Mounted /api/menu routes');
+} catch (e) {
+  console.error('Failed to mount /api/menu routes:', e?.message || e);
 }
 // Questions/FAQ routes
 try {

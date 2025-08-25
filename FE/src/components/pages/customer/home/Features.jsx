@@ -6,8 +6,7 @@ import { BarChart3, Calendar, Gift } from "lucide-react";
  * Features
  * @returns {JSX.Element} - The Features component that shows in the customer home page.
  */
-export default function Features() {
-     const featuresRef = useRef(null);
+export default function Features({ featuresRef }) {
      return(
        <section ref={featuresRef} className={styles.featuresSection}>
                <div className={styles.container}>

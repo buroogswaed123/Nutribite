@@ -2,6 +2,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const db = require('../../dbSingleton');
+const requireActiveUser = require('../../middleware/requireActiveUser');
 const router = express.Router();
 
 // Minimal helpers from BE/auth.js
@@ -130,7 +131,7 @@ router.post('/logout', async (req, res) => {
 
 // GET /api/admin/auth/session
 // returns current admin session details 
-router.get('/session', (req, res) => {
+router.get('/session', requireActiveUser, (req, res) => {
   const user = req.user || null;
   if (!user) {
     return res.status(401).json({ authenticated: false });

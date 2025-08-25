@@ -29,22 +29,33 @@ router.get('/', async (req, res) => {
   try {
     const sql = `
       SELECT 
-        p.*
+        p.product_id,
+        p.recipe_id,
+        p.price,
+        p.stock,
+        r.name,
+        r.description,
+        r.calories,
+        r.picture,
+        r.diet_type_id,
+        r.category_id,
+        (SELECT dt.name FROM diet_type dt WHERE dt.diet_id = r.diet_type_id LIMIT 1) AS diet_name,
+        (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category_name
       FROM products p
       INNER JOIN recipes r ON r.recipe_id = p.recipe_id
       WHERE r.deleted_at IS NULL
       ORDER BY p.product_id DESC
     `;
     const rows = await query(sql);
-    return res.json(rows);
+    return res.json({ items: rows });
   } catch (err) {
     console.error('PUBLIC MENU LIST ERROR:', err);
     return res.status(500).json({ message: 'Error listing products', error: err.message });
   }
 });
 
-// GET /api/menu/:id
-router.get('/:id', async (req, res) => {
+// GET /api/menu/:id (numeric only)
+router.get('/:id(\\d+)', async (req, res) => {
   const productId = Number(req.params.id);
   if (!Number.isFinite(productId)) return res.status(400).json({ message: 'Invalid product id' });
 
@@ -132,7 +143,18 @@ router.get('/search', async (req, res) => {
     `;
     const selectSql = `
       SELECT 
-        p.*
+        p.product_id,
+        p.recipe_id,
+        p.price,
+        p.stock,
+        r.name,
+        r.description,
+        r.calories,
+        r.picture,
+        r.diet_type_id,
+        r.category_id,
+        (SELECT dt.name FROM diet_type dt WHERE dt.diet_id = r.diet_type_id LIMIT 1) AS diet_name,
+        (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category_name
       FROM products p
       INNER JOIN recipes r ON r.recipe_id = p.recipe_id
       ${whereSql}

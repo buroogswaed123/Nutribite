@@ -5,6 +5,8 @@ const express = require('express');
 const router = express.Router();
 const dbSingleton = require('../dbSingleton');
 const conn = dbSingleton.getConnection();
+const requireActiveUser = require('../middleware/requireActiveUser');
+const requireAdmin = require('../middleware/requireAdmin');
 
 // Promise-based query helper
 function query(sql, params = []) {
@@ -127,6 +129,47 @@ router.get('/search', async (req, res) => {
   } catch (err) {
     console.error('ADMIN RECIPES SEARCH ERROR:', err);
     return res.status(500).json({ message: 'Error searching recipes', error: err.message });
+  }
+});
+
+
+// PATCH /api/recipes/bulk_price
+// Admin-only: update price for all products linked to the given recipe IDs
+router.patch('/bulk_price', requireActiveUser, requireAdmin, async (req, res) => {
+  try {
+    const { recipeIds, newPrice } = req.body || {};
+
+    // Validate inputs
+    if (!Array.isArray(recipeIds) || recipeIds.length === 0) {
+      return res.status(400).json({ message: 'recipeIds must be a non-empty array' });
+    }
+    const ids = recipeIds
+      .map((x) => Number(x))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (ids.length === 0) {
+      return res.status(400).json({ message: 'recipeIds must contain valid numeric IDs' });
+    }
+    const priceNum = Number(newPrice);
+    if (!Number.isFinite(priceNum) || priceNum < 0) {
+      return res.status(400).json({ message: 'newPrice must be a non-negative number' });
+    }
+
+    // Build placeholders for IN clause
+    const placeholders = ids.map(() => '?').join(',');
+    const sql = `UPDATE products SET price = ? WHERE recipe_id IN (${placeholders})`;
+
+    const params = [priceNum, ...ids];
+    const [result] = await conn.promise().query(sql, params);
+
+    return res.json({
+      success: true,
+      updatedCount: result?.affectedRows || 0,
+      recipeIds: ids,
+      newPrice: priceNum,
+    });
+  } catch (err) {
+    console.error('BULK PRICE UPDATE ERROR:', err);
+    return res.status(500).json({ message: 'Failed to update prices', error: err.message });
   }
 });
 

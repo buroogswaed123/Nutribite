@@ -42,6 +42,54 @@ export async function isAdmin(userId) {
   return userType === 'admin';
 }
 
+// Get current session user (via /api/me)
+export async function getSessionUser() {
+  try {
+    const { data } = await axios.get('/api/me');
+    return data; // expected to be full user row
+  } catch (err) {
+    // Not logged in or error
+    return null;
+  }
+}
+
+// Fetch recipes with optional query params (server may ignore unknown params; we also filter client-side)
+export async function fetchRecipes({ search = '', categoryId = 'all', dietId = 'all', minPrice, maxPrice, minCalories, maxCalories } = {}) {
+  // Menu items live under /api/menu. Use /search when any filter is active.
+  const hasFilters = (search && search.trim()) || categoryId !== 'all' || dietId !== 'all' ||
+    minPrice != null || maxPrice != null || minCalories != null || maxCalories != null;
+  const params = {};
+  if (search && search.trim()) params.q = search.trim();
+  if (categoryId !== 'all') params.category = categoryId;
+  if (dietId !== 'all') params.dietType = dietId;
+  if (minPrice != null && minPrice !== '') params.minPrice = Number(minPrice);
+  if (maxPrice != null && maxPrice !== '') params.maxPrice = Number(maxPrice);
+  if (minCalories != null && minCalories !== '') params.minCalories = Number(minCalories);
+  if (maxCalories != null && maxCalories !== '') params.maxCalories = Number(maxCalories);
+  const path = hasFilters ? '/api/menu/search' : '/api/menu';
+  const { data } = await axios.get(path, { params });
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+// Fetch diet types for filters
+export async function fetchDietTypes() {
+  const { data } = await axios.get('/api/diet/types');
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+// Bulk update recipe prices (backend should implement this endpoint)
+export async function bulkUpdateRecipePrices({ recipeIds, newPrice }) {
+  if (!Array.isArray(recipeIds) || recipeIds.length === 0) {
+    throw new Error('No recipes selected');
+  }
+  if (newPrice == null || isNaN(Number(newPrice))) {
+    throw new Error('Invalid new price');
+  }
+  const payload = { recipeIds, newPrice: Number(newPrice) };
+  const { data } = await axios.patch('/api/recipes/bulk_price', payload);
+  return data;
+}
+
 //validate email
 export function validateEmail(email) {
   return /\S+@\S+\.\S+/.test(email);

@@ -84,3 +84,72 @@
    border-radius: 12px;
    text-align: center;
  }
+
+ /* Grouped search bar */
+ .group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+ .groupItem {
+   display: flex;
+   align-items: center;
+   gap: 6px;
+ }
+
+ .group input,
+.group select {
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  height: 36px;
+  line-height: 20px;
+}
+
+.compact {
+  height: 32px !important;
+  padding: 6px 8px !important;
+}
+
+ .groupItem label {
+   font-size: 0.9rem;
+   color: #374151;
+   white-space: nowrap;
+ }
+
+ .groupItem span {
+   color: #9ca3af;
+ }
+
+ .divider {
+  width: 1px;
+  height: 28px;
+  background: #e5e7eb;
+}
+
+/* Utility: narrower numeric fields */
+.num {
+  width: 80px;
+}
+
+/* Stack two rows (price above calories) */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

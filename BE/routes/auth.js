@@ -120,6 +120,24 @@ router.post('/login', async (req, res) => {
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ message: 'Invalid credentials' });
 
+    // Block banned accounts from logging in (including scheduled bans)
+    const isBanned = user.status && String(user.status).toLowerCase() === 'banned';
+    const effective = user.ban_effective_at && new Date(user.ban_effective_at) <= new Date();
+    if (isBanned || effective) {
+      // Lazy flip to banned if effective time passed
+      if (!isBanned && effective) {
+        try {
+          await runQuery(
+            "UPDATE users SET status = 'banned', banned_at = NOW() WHERE user_id = ? AND status <> 'banned'",
+            [user.user_id]
+          );
+        } catch (e) {
+          console.error('Lazy flip on login failed:', e);
+        }
+      }
+      return res.status(403).json({ error: 'Account is banned' });
+    }
+
     if (!req.session) {
       console.error('Session not configured!');
       return res.status(500).json({ message: 'Session not configured' });

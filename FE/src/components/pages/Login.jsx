@@ -106,7 +106,8 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
 
       navigate(resolveHomePath(user.user_type));
     } catch (err) {
-      setError(err.message || "התחברות נכשלה");
+      // If the hook normalized a banned account error, show the Hebrew message
+      setError(err?.message || "התחברות נכשלה");
     }
   };
 

@@ -84,6 +84,7 @@ export default function Header() {
   const navLinks = [
     { name: 'שאלות ותשובות', path: '/faq' },
     { name: 'תוכניות ארוחה', path: '/meal-planner' },
+    { name: 'תפריט', path: '/menu' },
     { name: 'מתכונים', path: '/recipes' },
     { name: 'צור קשר', path: '/contact' },
     {name : 'מאמרים', path : '/articles'}

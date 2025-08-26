@@ -83,7 +83,7 @@ export default function Header() {
   // Navigation links (Hebrew labels)
   const navLinks = [
     { name: 'שאלות ותשובות', path: '/faq' },
-    { name: 'תוכניות ארוחה', path: '/meal-planner' },
+    { name: 'תוכניות ארוחה', path: '/plan-maker' },
     { name: 'תפריט', path: '/menu' },
     { name: 'מתכונים', path: '/recipes' },
     { name: 'צור קשר', path: '/contact' },

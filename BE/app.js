@@ -300,6 +300,15 @@ try {
   console.error('Failed to mount /api/questions routes:', e?.message || e);
 }
 
+try {
+  const planRoutes = require('./routes/plan');
+  const requireActiveUser = require('./middleware/requireActiveUser');
+  app.use('/api/plan', requireActiveUser, planRoutes);
+  console.log('Mounted /api/plan routes');
+} catch (e) {
+  console.error('Failed to mount /api/plan routes:', e?.message || e);
+}
+
 // Serve uploaded files (profile images, etc.)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

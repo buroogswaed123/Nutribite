@@ -16,7 +16,7 @@ import  CourierProfile from "../components/pages/courier/profile/Profile";
 
 //Regular imports
 import Login from "../components/pages/Login";
-import CalorieCalc from "../components/pages/CalorieCalc";
+import Plan from "../components/pages/customer/plan/Plan";  
 import PasswordReset from "../components/pages/PasswordReset";
 import NotFound from "../components/pages/NotFound";
 import Footer from "../components/layout/footer/Footer";
@@ -28,6 +28,7 @@ import Recipes from "../components/pages/recipes/Recipes";
 import RecipeDetail from "../components/pages/recipes/RecipeDetail";
 import Menu from "../components/pages/menu/Menu";
 import Contact from "../components/pages/contact/ContactUs";
+import PlanMaker from "../components/pages/customer/plan/CalorieCalc";
 
 function QAWrapper() {
   const { articleId } = useParams();
@@ -123,6 +124,18 @@ function App() {
   }
 />
 <Route
+  path="/plan-maker"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      <Header />
+      <PlanMaker />
+      <Footer />
+    </div>
+    </RequireAuth>
+  }
+/>
+<Route
   path="/customerprofile"
   element={
     <RequireAuth>
@@ -161,12 +174,12 @@ function App() {
     
              
             <Route
-              path="/caloriecalc"
+              path="/plan"
               element={
                 <RequireAuth allowGuest={true}>
                   <div className={classes.withNav}>
                     <Header />
-                    <CalorieCalc />
+                    <Plan />
                     <Footer />
                   </div>
                 </RequireAuth>

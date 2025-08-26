@@ -29,6 +29,12 @@ module.exports = async function requireActiveUser(req, res, next) {
   try {
     // If upstream auth already populated req.user, check it
     if (req.user) {
+      // Update last_seen for simple presence tracking
+      try {
+        await runQuery('UPDATE users SET last_seen = NOW() WHERE user_id = ?', [req.user.user_id]);
+      } catch (e) {
+        console.error('Failed to update last_seen (req.user):', e);
+      }
       const isBanned = req.user.status && String(req.user.status).toLowerCase() === 'banned';
       const effective = req.user.ban_effective_at && new Date(req.user.ban_effective_at) <= new Date();
       if (isBanned || effective) {
@@ -61,6 +67,12 @@ module.exports = async function requireActiveUser(req, res, next) {
     if (!user) return next();
 
     req.user = user;
+    // Update last_seen for simple presence tracking
+    try {
+      await runQuery('UPDATE users SET last_seen = NOW() WHERE user_id = ?', [user.user_id]);
+    } catch (e) {
+      console.error('Failed to update last_seen (session user):', e);
+    }
     const isBanned = user.status && String(user.status).toLowerCase() === 'banned';
     const effective = user.ban_effective_at && new Date(user.ban_effective_at) <= new Date();
     if (isBanned || effective) {

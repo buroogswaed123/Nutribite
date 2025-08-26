@@ -1,0 +1,398 @@
+.profileWrapper {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 8px 16px 48px;
+  }
+  
+  .header {
+    display: flex;
+    flex-direction: row;
+    direction: rtl;
+    gap: 24px;
+    align-items: center;
+  }
+  
+  /* Variant: place avatar on the right, details on its left (still right side of page) */
+  .headerRight {
+    grid-template-columns: max-content 140px; /* shrink left column to content */
+    gap: 4px; /* bring username even closer to the photo */
+  }
+  .headerRight .avatar {
+    grid-column: 2;
+    justify-self: end;
+  }
+  .headerRight .userMeta {
+    grid-column: 1;
+    text-align: right;
+    align-self: center; /* vertically align with the avatar */
+    justify-self: end; /* hug the photo */
+    width: max-content; /* shrink to content width */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end; /* align username flush to the avatar */
+  }
+  
+  /* In headerRight, make username the closest element to the avatar */
+  .headerRight .topRow {
+    display: flex;
+    flex-direction: row-reverse; /* username nearest to avatar (on the right) */
+    gap: 8px;
+  }
+  
+  .avatar {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #e5e7eb;
+    background: #f3f4f6;
+    cursor: pointer;
+  }
+  
+  .userMeta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .topRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .username {
+    font-size: 22px;
+    font-weight: 600;
+  }
+  
+  .settingsBtn {
+    margin-inline-start: auto;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    cursor: pointer;
+  }
+  
+  .name {
+    font-size: 16px;
+    color: #374151;
+  }
+  
+  /* Small icon button used next to username for settings */
+  .iconBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    color: #374151;
+    cursor: pointer;
+  }
+  .iconBtn:hover {
+    background: #f3f4f6;
+  }
+  
+  /* Round icon button */
+  .iconCircleBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 9999px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    color: #374151;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .iconCircleBtn:hover {
+    background: #ffffff;
+    color: #111827;
+  }
+  
+  .tabs {
+    gap: 48px;
+    margin-top: 28px;
+    border-top: 1px solid #e5e7eb;
+  }
+  
+  /* RTL helpers */
+  .tabsRtl {
+    direction: rtl;
+    flex-direction: row-reverse; /* place first tab on the right */
+    justify-content: flex-start; /* keep spacing consistent from right side */
+  }
+  
+  /* Whole page RTL mode */
+  .rtlPage {
+    direction: rtl;
+    text-align: right;
+  }
+  
+  /* When in RTL mode, place avatar on the right and user info on the left */
+  .rtlPage .header {
+    grid-template-columns: 1fr 140px;
+  }
+  .rtlPage .avatar {
+    grid-column: 2;
+    justify-self: end;
+  }
+  .rtlPage .userMeta {
+    grid-column: 1;
+    text-align: right;
+  }
+  
+  /* Tabs alignment from the right in RTL page */
+  .rtlPage .tabs {
+    direction: rtl;
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+  }
+  
+  .tab {
+    padding: 10px 18px;
+    margin-top: 16px;
+    color: #374151;
+    cursor: pointer;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-radius: 9999px; /* pill */
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  
+  .tab:hover {
+    background: #ffffff;
+    color: #111827;
+  }
+  
+  .tabActive {
+    color: #ffffff;
+    background: #111827;
+    border-color: #111827;
+    font-weight: 600;
+  }
+  
+  /* Keep active tab colors on hover */
+  .tabActive:hover {
+    background: #111827;
+    color: #ffffff;
+  }
+  
+  .content {
+    margin-top: 24px;
+  }
+  
+  .expand {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transform: translateY(-4px);
+    transition: max-height 0.35s ease, opacity 0.25s ease, transform 0.35s ease;
+  }
+  
+  .expandOpen {
+    max-height: 1200px; /* enough for list */
+    opacity: 1;
+    transform: translateY(0);
+  }
+  
+  .subTabs {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    direction: rtl;
+    margin: 8px 0 12px;
+  }
+  
+  .subTab {
+    padding: 6px 12px;
+    border-radius: 9999px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    color: #374151;
+    font-size: 14px;
+  }
+  
+  .subTabActive {
+    background: #111827;
+    border-color: #111827;
+    color: #fff;
+    font-weight: 600;
+  }
+  
+  .rtlText {
+    direction: rtl;
+    text-align: right;
+  }
+  
+  /* Small rounded subscription info box */
+  .subscriptionBox {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px;
+    background: #ffffff;
+    border: 1px solid #d1fae5; /* emerald-100 to match other cards */
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(16, 185, 129, 0.08);
+    max-width: 520px;
+    color: #065f46; /* emerald-800 */
+  }
+  
+  .changeBtn {
+    padding: 10px 14px;
+    border-radius: 9999px;
+    border: 1px solid #10b981; /* emerald-500 */
+    background: #10b981;
+    color: #ffffff;
+    cursor: pointer;
+  }
+  .changeBtn:hover {
+    background: #059669; /* emerald-600 */
+    border-color: #059669;
+  }
+  
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  
+  .card {
+    background: #f9fafb;
+    border: 1px solid #eef0f3;
+    border-radius: 8px;
+    aspect-ratio: 1 / 1;
+  }
+  
+  /* My Orders section */
+  .ordersSection {
+    margin-top: 4px;
+  }
+  
+  .formGrid {
+    display: grid;
+    gap: 12px;
+    max-width: 420px;
+    margin-top: 12px;
+  }
+  
+  .formField {
+    display: grid;
+    gap: 6px;
+  }
+  
+  .textInput, .textArea {
+    padding: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #111827;
+  }
+  
+  .textInput:focus, .textArea:focus {
+    outline: none;
+    border-color: #111827;
+    box-shadow: 0 0 0 3px rgba(17,24,39,0.1);
+  }
+  
+  .primaryBtn {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #111827;
+    color: #ffffff;
+    border: 1px solid #111827;
+    cursor: pointer;
+  }
+  
+  .primaryBtn:hover {
+    background: #0b1220;
+    border-color: #0b1220;
+  }
+  
+  /* Modal for avatar preview and upload */
+  .modalBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    width: min(92vw, 420px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  }
+  
+  .modalActions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
+  
+  .fileLabel {
+    display: inline-block;
+    padding: 8px 12px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  
+  @media (max-width: 640px) {
+    .header {
+      grid-template-columns: 96px 1fr;
+      gap: 16px;
+    }
+    .avatar {
+      width: 96px;
+      height: 96px;
+    }
+    .topRow {
+      flex-wrap: wrap;
+    }
+    .tabs {
+      gap: 16px;
+    }
+  }
+  
+  .form {
+      display: grid;
+      gap: 12px;
+  }
+  
+  .formField {
+      display: grid;
+      gap: 6px;
+  }
+  
+  .formLegend {
+      padding: 0 6px;
+  }
+  
+  .formGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+  }
+  
+  .formInput {
+      padding: 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #f9fafb;
+      color: #111827;
+  }

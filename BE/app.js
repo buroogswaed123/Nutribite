@@ -142,6 +142,22 @@ const initDatabase = () => {
       }
     );
 
+    // Ensure last_seen column exists (for simple presence)
+    db.query(
+      "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'last_seen'",
+      (colErr, rows) => {
+        if (colErr) {
+          console.error('Error checking last_seen column:', formatDbError(colErr));
+        } else if (rows && rows[0] && rows[0].cnt === 0) {
+          db.query("ALTER TABLE users ADD COLUMN last_seen TIMESTAMP NULL DEFAULT NULL", (altErr) => {
+            if (altErr) {
+              console.error('Error adding last_seen column:', formatDbError(altErr));
+            } 
+          });
+        }
+      }
+    );
+
     db.query(createPasswordResetsTable, (err) => {
       if (err) {
         console.error('Error creating password_resets table:', err);

@@ -125,7 +125,7 @@ function App() {
   element={
     <RequireAuth>
     <div className={classes.withNav}>
-      <Header />
+      
       <AdminProfile />
       <Footer />
     </div>

@@ -27,6 +27,7 @@ import FAQ from "../components/pages/customer/faq/FAQ";
 import Recipes from "../components/pages/recipes/Recipes";
 import RecipeDetail from "../components/pages/recipes/RecipeDetail";
 import Menu from "../components/pages/menu/Menu";
+import Contact from "../components/pages/contact/ContactUs";
 
 function QAWrapper() {
   const { articleId } = useParams();
@@ -104,6 +105,18 @@ function App() {
     <div className={classes.withNav}>
       <Header />
       <CourierHome />
+      <Footer />
+    </div>
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/contact"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      <Header />
+      <Contact />
       <Footer />
     </div>
     </RequireAuth>

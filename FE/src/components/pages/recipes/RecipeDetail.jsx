@@ -37,9 +37,9 @@ export default function RecipeDetail() {
     return () => { cancelled = true };
   }, [id]);
 
-  if (loading) return <div style={{ padding: 16 }}>טוען...</div>;
-  if (error) return <div style={{ padding: 16, color: '#b91c1c' }}>{error}</div>;
-  if (!recipe) return <div style={{ padding: 16 }}>המתכון לא נמצא</div>;
+  if (loading) return <div className={styles.pad16}>טוען...</div>;
+  if (error) return <div className={`${styles.pad16} ${styles.errorText}`}>{error}</div>;
+  if (!recipe) return <div className={styles.pad16}>המתכון לא נמצא</div>;
 
   const imageUrl = ensureImageUrl(recipe.picture || recipe.imageUrl || '');
   const instructions = recipe.instructions || recipe.directions || '';
@@ -58,9 +58,9 @@ export default function RecipeDetail() {
   }
 
   return (
-    <div className={styles.recipes} style={{ maxWidth: 900, margin: '0 auto' }}>
-      <button className={styles.btn} onClick={() => navigate(-1)} style={{ marginBottom: 12 }}>חזרה</button>
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+    <div className={styles.detail}>
+      <button className={`${styles.btn} ${styles.mb12}`} onClick={() => navigate(-1)}>חזרה</button>
+      <div className={styles.panel}>
         {imageUrl && (
           <img
             src={imageUrl}
@@ -68,37 +68,37 @@ export default function RecipeDetail() {
             loading="lazy"
             decoding="async"
             onClick={() => setIsImgOpen(true)}
-            style={{ width: '100%', maxHeight: 220, objectFit: 'cover', cursor: 'zoom-in' }}
+            className={styles.detailImage}
           />
         )}
-        <div style={{ padding: 16 }}>
-          <h1 style={{ marginTop: 0 }}>{recipe.name}</h1>
-          {description && <p style={{ color: '#475569' }}>{description}</p>}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, margin: '8px 0' }}>
+        <div className={styles.detailInner}>
+          <h1 className={styles.detailTitle}>{recipe.name}</h1>
+          {description && <p className={styles.detailDesc}>{description}</p>}
+          <div className={styles.detailMeta}>
             {recipe.calories != null && <span className={styles.calories}>{recipe.calories} קלוריות</span>}
             {recipe.servings != null && <span>מנות: {recipe.servings}</span>}
             {(recipe.diet_type || recipe.diet_name) && <span>דיאטה: {recipe.diet_type || recipe.diet_name}</span>}
             {(recipe.category || recipe.category_name) && <span>קטגוריה: {recipe.category || recipe.category_name}</span>}
           </div>
           {ingredientsArr.length > 0 ? (
-            <div style={{ marginTop: 12 }}>
+            <div className={styles.mt12}>
               <h3>מרכיבים</h3>
-              <ul style={{ paddingInlineStart: 20 }}>
+              <ul className={styles.list}>
                 {ingredientsArr.map((ing, idx) => (
                   <li key={idx}>{ing}</li>
                 ))}
               </ul>
             </div>
           ) : (recipe.ingredients ? (
-            <div style={{ marginTop: 12 }}>
+            <div className={styles.mt12}>
               <h3>מרכיבים</h3>
-              <p style={{ whiteSpace: 'pre-wrap' }}>{String(recipe.ingredients)}</p>
+              <p className={styles.preWrap}>{String(recipe.ingredients)}</p>
             </div>
           ) : null)}
           {instructions && (
-            <div style={{ marginTop: 12 }}>
+            <div className={styles.mt12}>
               <h3>הוראות הכנה</h3>
-              <p style={{ whiteSpace: 'pre-wrap' }}>{instructions}</p>
+              <p className={styles.preWrap}>{instructions}</p>
             </div>
           )}
         </div>
@@ -112,7 +112,7 @@ export default function RecipeDetail() {
               <button className={styles.closeBtn} onClick={() => setIsImgOpen(false)}>×</button>
             </div>
             <div className={styles.modalBody}>
-              <img src={imageUrl} alt={recipe.name} style={{ width: '100%', height: 'auto', display: 'block' }} />
+              <img src={imageUrl} alt={recipe.name} className={styles.modalImgFull} />
             </div>
             <div className={styles.modalFooter}>
               <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => setIsImgOpen(false)}>סגור</button>

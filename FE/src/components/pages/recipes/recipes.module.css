@@ -208,3 +208,113 @@
     columns: 1;
   }
 }
+
+/* ===== Recipes list (cards) ===== */
+.cardsGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.cardNarrow {
+  width: 220px;
+}
+
+.cardImageNarrow {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cardTitle {
+  margin: 8px 0 4px 0;
+  font-size: 1rem;
+}
+
+.cardDesc {
+  margin: 0 0 8px 0;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
+/* Meta row for calories/diet/category */
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.errorText {
+  color: #b91c1c;
+}
+
+/* Utilities */
+.pad16 { padding: 16px; }
+.mb12 { margin-bottom: 12px; }
+.mt12 { margin-top: 12px; }
+
+/* Modal content helpers */
+.modalImg {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.modalImgFull {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.preWrap {
+  white-space: pre-wrap;
+}
+
+/* ===== Recipe detail page ===== */
+.detail {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.detailImage {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  cursor: zoom-in;
+}
+
+.detailInner {
+  padding: 16px;
+}
+
+.detailTitle {
+  margin-top: 0;
+}
+
+.detailDesc {
+  color: #475569;
+}
+
+.detailMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 8px 0;
+  align-items: center;
+}
+
+.list {
+  padding-inline-start: 20px;
+}
+
+/* Simple panel/card container */
+.panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}

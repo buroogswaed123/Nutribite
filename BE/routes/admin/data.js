@@ -63,10 +63,42 @@ router.get('/customers', async (req, res) => {
   }
 });
 
-//get all users
+//get users (optionally recent with limit)
 router.get('/users', async (req, res) => {
   try {
-    const [rows] = await runQuery('SELECT * FROM users');
+    const { limit } = req.query;
+    if (limit) {
+      // Provide aliases to match FE expectations
+      const lim = Math.max(1, Math.min(parseInt(limit, 10) || 5, 50));
+      const sql = `
+        SELECT 
+          user_id,
+          username,
+          email,
+          user_type,
+          account_creation_time AS created_at,
+          last_seen,
+          CASE WHEN last_seen IS NOT NULL AND last_seen >= (NOW() - INTERVAL 2 MINUTE) THEN 1 ELSE 0 END AS is_online
+        FROM users
+        ORDER BY account_creation_time DESC
+        LIMIT ?
+      `;
+      const [rows] = await runQuery(sql, [lim]);
+      return res.json(rows);
+    }
+    const sqlAll = `
+      SELECT 
+        user_id,
+        username,
+        email,
+        user_type,
+        account_creation_time AS created_at,
+        last_seen,
+        CASE WHEN last_seen IS NOT NULL AND last_seen >= (NOW() - INTERVAL 2 MINUTE) THEN 1 ELSE 0 END AS is_online
+      FROM users
+      ORDER BY account_creation_time DESC
+    `;
+    const [rows] = await runQuery(sqlAll);
     return res.json(rows);
   } catch (err) {
     console.error('ADMIN USERS GET ERROR:', err);
@@ -159,6 +191,50 @@ router.get('/metrics/revenue_daily', async (req, res) => {
   } catch (err) {
     console.error('ADMIN METRICS REVENUE DAILY GET ERROR:', err);
     return res.status(500).json({ message: 'Error getting revenue daily', error: err.message });
+  }
+});
+
+// Aggregate dashboard stats for admin home
+router.get('/stats', async (req, res) => {
+  try {
+    const [usersCountRows] = await runQuery('SELECT COUNT(*) AS total_users FROM users');
+
+    // Replace with a real active-users metric if/when you add it.
+    const activeUsers = usersCountRows?.[0]?.total_users || 0;
+
+    const [byTypeRows] = await runQuery(`
+      SELECT user_type, COUNT(*) AS cnt
+      FROM users
+      GROUP BY user_type
+    `);
+    const usersByType = { customer: 0, admin: 0, courier: 0 };
+    (byTypeRows || []).forEach(r => {
+      if (r.user_type && usersByType.hasOwnProperty(r.user_type)) {
+        usersByType[r.user_type] = Number(r.cnt) || 0;
+      }
+    });
+
+    let ordersToday = 0;
+    try {
+      const [ordersTodayRows] = await runQuery(`
+        SELECT COUNT(*) AS orders_today
+        FROM orders
+        WHERE DATE(set_delivery_time) = CURRENT_DATE()
+      `);
+      ordersToday = ordersTodayRows?.[0]?.orders_today || 0;
+    } catch (_) {
+      ordersToday = 0;
+    }
+
+    return res.json({
+      total_users: usersCountRows?.[0]?.total_users || 0,
+      active_users: activeUsers,
+      users_by_type: usersByType,
+      orders_today: ordersToday
+    });
+  } catch (err) {
+    console.error('ADMIN STATS GET ERROR:', err);
+    return res.status(500).json({ message: 'Error getting admin stats', error: err.message });
   }
 });
 

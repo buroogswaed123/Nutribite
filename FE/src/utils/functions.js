@@ -122,3 +122,25 @@ export async function makeQuestionPublic(questionId, userId) {
   const { data } = await axios.patch(`/api/questions/${questionId}/visibility`, { public: true });
   return data;
 }
+
+// =============================
+// Admin dashboard helpers
+// =============================
+
+// Returns dashboard stats object
+export async function fetchDashboardStatsAPI() {
+  const { data } = await axios.get('/api/admin/data/stats');
+  return data;
+}
+
+// Returns recent users array; accepts optional limit (default 5)
+export async function fetchRecentUsersAPI({ limit = 5 } = {}) {
+  const { data } = await axios.get('/api/admin/data/users', { params: { limit } });
+  return data;
+}
+
+// Returns all users (no limit)
+export async function fetchAllUsersAPI() {
+  const { data } = await axios.get('/api/admin/data/users');
+  return data;
+}

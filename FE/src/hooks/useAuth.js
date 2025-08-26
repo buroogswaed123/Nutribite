@@ -1,6 +1,15 @@
 // imports functions from utils and "translates" them to be used in the components
 
-import { login, register, checkUserType, validateEmail, isBannedError } from "../utils/functions";
+import { 
+  login, 
+  register, 
+  checkUserType, 
+  validateEmail, 
+  isBannedError,
+  fetchDashboardStatsAPI,
+  fetchRecentUsersAPI,
+  fetchAllUsersAPI
+} from "../utils/functions";
 
 // exports useAuth hook
  export function useAuth() {
@@ -27,11 +36,27 @@ import { login, register, checkUserType, validateEmail, isBannedError } from "..
     return await checkUserType(userId);
   };
 
+  // Admin dashboard helpers
+  const fetchDashboardStats = async () => {
+    return await fetchDashboardStatsAPI();
+  };
+
+  const fetchRecentUsers = async (limit = 5) => {
+    return await fetchRecentUsersAPI({ limit });
+  };
+
+  const fetchAllUsers = async () => {
+    return await fetchAllUsersAPI();
+  };
+
   // Provide aliases to match existing component usage
   return {
     doLogin,
     doRegister,
     getUserType,
+    fetchDashboardStats,
+    fetchRecentUsers,
+    fetchAllUsers,
     login: doLogin,
     register: doRegister,
     checkUserType: getUserType,

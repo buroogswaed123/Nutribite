@@ -17,6 +17,24 @@ export default function Menu() {
     return `http://localhost:3000/uploads/${cleaned}`
   }
 
+  // Map known English category names to Hebrew for display
+  const translateCategoryName = (name) => {
+    if (!name) return ''
+    const key = String(name).trim().toLowerCase()
+    const map = {
+      breakfast: 'ארוחת בוקר',
+      lunch: 'ארוחת צהריים',
+      dinner: 'ארוחת ערב',
+      dessert: 'קינוחים',
+      drinks: 'משקאות',
+      snack: 'חטיפים',
+    }
+  
+    const hebrewRegex = /[\u0590-\u05FF]/
+    if (hebrewRegex.test(name)) return name
+    return map[key] || name
+  }
+
   const [recipes, setRecipes] = useState([])
   const [dietTypes, setDietTypes] = useState([])
   const [categories, setCategories] = useState([])
@@ -89,7 +107,9 @@ export default function Menu() {
             uniq.set(r.category_id, r.category_name)
           }
         }
-        setCategories([...uniq.entries()].map(([id, name]) => ({ id, name })))
+        setCategories(
+          [...uniq.entries()].map(([id, name]) => ({ id, name: translateCategoryName(name) }))
+        )
       } catch (e) {
         if (!cancelled) setError(e.message || 'שגיאה בטעינת מתכונים')
       } finally {
@@ -136,7 +156,14 @@ export default function Menu() {
   }
 
   const onViewRecipe = (recipe) => {
-    navigate('/recipes', { state: { recipe } })
+    const slug = String(recipe?.name || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\u0590-\u05FF\s-]/g, '')
+      .replace(/\s+/g, '-');
+    const id = recipe?.recipe_id || recipe?.id
+    // Redirect to Recipes with query params so it opens the modal
+    navigate(`/recipes?recipeId=${id}&slug=${slug}`)
   }
 
   // Admin action handlers (stubs)

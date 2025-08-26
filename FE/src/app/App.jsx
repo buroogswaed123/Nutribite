@@ -25,6 +25,7 @@ import Articles from "../components/pages/customer/articles/Articles";
 import QA from "../components/pages/customer/articles/QA";
 import FAQ from "../components/pages/customer/faq/FAQ";
 import Recipes from "../components/pages/recipes/Recipes";
+import RecipeDetail from "../components/pages/recipes/RecipeDetail";
 import Menu from "../components/pages/menu/Menu";
 
 function QAWrapper() {
@@ -175,6 +176,16 @@ function App() {
                 <div className={classes.withNav}>
                   <Header />
                   <QAWrapper />
+                  <Footer />
+                </div>
+              }
+            />
+            <Route
+              path="/recipes/:slug/:id"
+              element={
+                <div className={classes.withNav}>
+                  <Header />
+                  <RecipeDetail />
                   <Footer />
                 </div>
               }

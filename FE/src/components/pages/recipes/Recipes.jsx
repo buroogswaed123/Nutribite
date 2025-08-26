@@ -1,113 +1,323 @@
 import styles from './recipes.module.css'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useAuth } from '../../../hooks/useAuth'
+
+// Ensure image paths work like in Menu.jsx
+const ensureImageUrl = (val) => {
+  if (!val) return ''
+  const cleaned = String(val).replace(/^\/+/, '')
+  if (/^https?:\/\//i.test(cleaned)) return cleaned
+  if (/^uploads\//i.test(cleaned)) return `http://localhost:3000/${cleaned}`
+  return `http://localhost:3000/uploads/${cleaned}`
+}
 
 export default function Recipes() {
-    const [recipes, setRecipes] = useState([])
-    const [dietTypes, setDietTypes] = useState([])
-    const [categories, setCategories] = useState([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState('')
+  const { fetchPublicRecipes, fetchPublicRecipe } = useAuth();
+  const [recipes, setRecipes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [openId, setOpenId] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [loadingItem, setLoadingItem] = useState(false);
+  const [search, setSearch] = useState('');
+  const [calories, setCalories] = useState(''); // max calories
+  const [diet, setDiet] = useState('');
+  const [category, setCategory] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-    const [search, setSearch] = useState('')
-    const [categoryId, setCategoryId] = useState('all')
-    const [dietId, setDietId] = useState('all')
-    const navigate = useNavigate()
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError('');
+        // Use public endpoints (not admin) to avoid 403
+        const data = await fetchPublicRecipes();
+        if (!cancelled) setRecipes(Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'שגיאה');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true };
+  }, []);
 
-    useEffect(() => {
-        let cancelled = false
-        async function load() {
-            try {
-                setLoading(true)
-                setError('')
-                const [recipesRes, dietRes] = await Promise.all([
-                    fetch('/api/recipes', { credentials: 'include' }),
-                    fetch('/api/diet/types', { credentials: 'include' }),
-                ])
-                if (!recipesRes.ok) throw new Error('שגיאה בטעינת מתכונים')
-                if (!dietRes.ok) throw new Error('שגיאה בטעינת סוגי דיאטה')
-                const recipesJson = await recipesRes.json()
-                const dietJson = await dietRes.json()
-                if (cancelled) return
-                const items = Array.isArray(recipesJson.items) ? recipesJson.items : []
-                setRecipes(items)
-                setDietTypes(Array.isArray(dietJson.items) ? dietJson.items : [])
-                // derive categories from recipes join (category_id + category_name)
-                const uniq = new Map()
-                for (const r of items) {
-                    if (r.category_id && r.category_name) {
-                        uniq.set(r.category_id, r.category_name)
-                    }
-                }
-                setCategories([...uniq.entries()].map(([id, name]) => ({ id, name })))
-            } catch (e) {
-                if (!cancelled) setError(e.message || 'שגיאה בטעינה')
-            } finally {
-                if (!cancelled) setLoading(false)
-            }
-        }
-        load()
-        return () => { cancelled = true }
-    }, [])
-
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        return recipes.filter(r => {
-            const matchesSearch = q ? [r.name, r.description].filter(Boolean).some(t => t.toLowerCase().includes(q)) : true
-            const matchesCategory = categoryId === 'all' ? true : Number(r.category_id) === Number(categoryId)
-            const matchesDiet = dietId === 'all' ? true : Number(r.diet_type_id) === Number(dietId)
-            return matchesSearch && matchesCategory && matchesDiet
-        })
-    }, [recipes, search, categoryId, dietId])
-
-    const onShowRecipe = (recipe) => {
-        navigate('/menu', { state: { recipe } })
+  // Build filter options
+  const { dietOptions, categoryOptions } = useMemo(() => {
+    const diets = new Set();
+    const cats = new Set();
+    for (const r of recipes) {
+      const d = r.diet_type || r.diet_name;
+      const c = r.category || r.category_name;
+      if (d) diets.add(String(d));
+      if (c) cats.add(String(c));
     }
+    return {
+      dietOptions: Array.from(diets).sort(),
+      categoryOptions: Array.from(cats).sort(),
+    };
+  }, [recipes]);
 
-    return (
-        <div className={styles.recipes}>
-            {error && <div style={{color:'#b91c1c', marginBottom: 8}}>{error}</div>}
-            {loading && <div style={{marginBottom: 8}}>טוען מתכונים...</div>}
-            <div className={styles.filters}>
-                <input
-                    type="text"
-                    className={styles.search}
-                    placeholder="חיפוש מתכונים..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                />
-                <select className={styles.select} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-                    <option value="all">כל הקטגוריות</option>
-                    {categories.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                </select>
-                <select className={styles.select} value={dietId} onChange={(e) => setDietId(e.target.value)}>
-                    <option value="all">כל סוגי הדיאטה</option>
-                    {dietTypes.map(dt => (
-                        <option key={dt.diet_id || dt.id} value={dt.diet_id || dt.id}>{dt.name}</option>
-                    ))}
-                </select>
-            </div>
+  // Hebrew display labels for category/diet while preserving values
+  const displayCategory = (v) => {
+    if (!v) return '';
+    const key = String(v).toLowerCase().replace(/\s+/g, '_');
+    const map = {
+      breakfast: 'ארוחת בוקר',
+      lunch: 'ארוחת צהריים',
+      dinner: 'ארוחת ערב',
+      dessert: 'קינוחים',
+      snack: 'חטיפים',
+      snacks: 'חטיפים',
+      salad: 'סלטים',
+      salads: 'סלטים',
+      soup: 'מרקים',
+      soups: 'מרקים',
+      drinks: 'משקאות',
+      beverages: 'משקאות',
+      main: 'מנה עיקרית',
+      mains: 'מנות עיקריות',
+      side: 'תוספות',
+      sides: 'תוספות',
+      baking: 'מאפים',
+      baked_goods: 'מאפים'
+    };
+    return map[key] || v;
+  };
 
-            <div className={styles.grid}>
-                {filtered.map(r => (
-                    <div key={r.recipe_id} className={styles.card}>
-                        <img src={r.picture || r.imageUrl} alt={r.name} className={styles.cardImg} />
-                        <div className={styles.cardBody}>
-                            <h3 className={styles.cardTitle}>{r.name}</h3>
-                            <p className={styles.cardDesc}>{r.description}</p>
-                            <div className={styles.cardMeta}>
-                                <span className={styles.calories}>{r.calories} קלוריות</span>
-                                <button className={styles.btn} onClick={() => onShowRecipe(r)}>הצג מתכון</button>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-                {filtered.length === 0 && (
-                    <div className={styles.empty}>לא נמצאו מתכונים תואמים</div>
-                )}
+  const displayDiet = (v) => {
+    if (!v) return '';
+    const key = String(v).toLowerCase().replace(/\s+/g, '_');
+    const map = {
+      vegan: 'טבעוני',
+      vegetarian: 'צמחוני',
+      keto: 'קטו',
+      paleo: 'פליאו',
+      gluten_free: 'ללא גלוטן',
+      glutenfree: 'ללא גלוטן',
+      dairy_free: 'ללא מוצרי חלב',
+      low_carb: 'דל פחמימות',
+      low_fat: 'דל שומן',
+      mediterranean: 'ים תיכונית',
+      pescatarian: 'פסקטריאני',
+      kosher: 'כשר',
+      halal: 'חלאל'
+    };
+    return map[key] || v;
+  };
+
+  // Filtered list
+  const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    const maxCal = calories ? parseInt(calories, 10) : null;
+    return recipes.filter(r => {
+      const nameOk = !s || String(r.name || '').toLowerCase().includes(s);
+      const cal = r.calories != null ? Number(r.calories) : null;
+      const calOk = !maxCal || (cal != null && cal <= maxCal) || (String(r.calories || '').includes(s) && !calories);
+      const dietVal = r.diet_type || r.diet_name || '';
+      const catVal = r.category || r.category_name || '';
+      const dietOk = !diet || String(dietVal) === diet;
+      const catOk = !category || String(catVal) === category;
+      return nameOk && calOk && dietOk && catOk;
+    });
+  }, [recipes, search, calories, diet, category]);
+
+  // Helper to slugify names for URLs
+  const slugify = (str) => String(str || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
+
+  // Open modal by URL (?recipeId=...&slug=...)
+  useEffect(() => {
+    const rid = searchParams.get('recipeId');
+    if (!rid) return;
+    (async () => {
+      setOpenId(rid);
+      setSelected(null);
+      setLoadingItem(true);
+      try {
+        const full = await fetchPublicRecipe(rid);
+        setSelected(full?.item || full);
+      } catch (e) {
+        setSelected(null);
+      } finally {
+        setLoadingItem(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  if (loading) return <div style={{ padding: 16 }}>טוען...</div>;
+  if (error) return <div style={{ padding: 16, color: '#b91c1c' }}>{error}</div>;
+
+  return (
+    <div>
+      <h1>מתכונים</h1>
+      {/* Filters */}
+      <div className={styles.filters}>
+        <input
+          className={styles.search}
+          placeholder="חפש בשם..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <input
+          className={styles.search}
+          placeholder="קלוריות מקס׳"
+          inputMode="numeric"
+          value={calories}
+          onChange={(e) => setCalories(e.target.value.replace(/[^0-9]/g, ''))}
+        />
+        <select className={styles.select} value={category} onChange={(e) => setCategory(e.target.value)}>
+          <option value="">כל הקטגוריות</option>
+          {categoryOptions.map(opt => (
+            <option key={opt} value={opt}>{displayCategory(opt)}</option>
+          ))}
+        </select>
+        <select className={styles.select} value={diet} onChange={(e) => setDiet(e.target.value)}>
+          <option value="">כל סוגי הדיאטה</option>
+          {dietOptions.map(opt => (
+            <option key={opt} value={opt}>{displayDiet(opt)}</option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        {filtered.map((recipe) => (
+          <div key={recipe.id || recipe.recipe_id} style={{ width: 220 }}>
+            <img
+              src={ensureImageUrl(recipe.picture || recipe.imageUrl || recipe.image)}
+              alt={recipe.name}
+              loading="lazy"
+              decoding="async"
+              style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }}
+              onClick={async () => {
+                const id = recipe.id || recipe.recipe_id;
+                setOpenId(id);
+                setSelected(null);
+                setLoadingItem(true);
+                try {
+                  const full = await fetchPublicRecipe(id);
+                  setSelected(full?.item || full);
+                } catch (e) {
+                  setSelected(null);
+                } finally {
+                  setLoadingItem(false);
+                }
+                const slug = slugify(recipe.name);
+                setSearchParams({ recipeId: String(id), slug });
+              }}
+            />
+            <h3>{recipe.name}</h3>
+            <p style={{ color: '#475569' }}>{recipe.description || recipe.shortDescription || recipe.summary || recipe.summary}</p>
+            <button className={styles.btn} onClick={async () => {
+              const id = recipe.id || recipe.recipe_id;
+              setOpenId(id);
+              setSelected(null);
+              setLoadingItem(true);
+              try {
+                const full = await fetchPublicRecipe(id);
+                setSelected(full?.item || full);
+              } catch (e) {
+                setSelected(null);
+              } finally {
+                setLoadingItem(false);
+              }
+              const slug = slugify(recipe.name);
+              setSearchParams({ recipeId: String(id), slug });
+            }}>קרא עוד</button>
+          </div>
+        ))}
+      </div>
+
+      {openId && (
+        <div className={styles.modalOverlay} onClick={() => { setOpenId(null); setSelected(null); }}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>{selected?.name || 'מתכון'}</h3>
+              <button className={styles.closeBtn} onClick={() => { setOpenId(null); setSelected(null); setSearchParams({}); }}>×</button>
             </div>
+            <div className={styles.modalBody}>
+              {loadingItem ? (
+                <div>טוען...</div>
+              ) : selected ? (
+                <div>
+                  {(() => {
+                    const img = ensureImageUrl(selected.picture || selected.imageUrl || selected.image);
+                    return img ? (
+                      <img src={img} alt={selected.name} style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 8 }} />
+                    ) : null;
+                  })()}
+                  {selected.description && <p style={{ marginTop: 12, color: '#475569' }}>{selected.description}</p>}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 8 }}>
+                    {selected.calories != null && <span className={styles.calories}>{selected.calories} קלוריות</span>}
+                    {(selected.diet_type || selected.diet_name) && <span>דיאטה: {selected.diet_type || selected.diet_name}</span>}
+                    {(selected.category || selected.category_name) && <span>קטגוריה: {selected.category || selected.category_name}</span>}
+                  </div>
+
+                  {(() => {
+                    // Build ingredients array from string/array
+                    let ingredientsArr = [];
+                    if (Array.isArray(selected.ingredients)) {
+                      ingredientsArr = selected.ingredients;
+                    } else if (typeof selected.ingredients === 'string') {
+                      const s = selected.ingredients.trim();
+                      if (s.startsWith('[')) {
+                        try { ingredientsArr = JSON.parse(s); } catch {}
+                      }
+                      if (ingredientsArr.length === 0) {
+                        ingredientsArr = s.split(/\r?\n|,\s*/).map(x => x.trim()).filter(Boolean);
+                      }
+                    }
+
+                    // Build instructions steps
+                    let steps = [];
+                    if (typeof selected.instructions === 'string') {
+                      const raw = selected.instructions.trim();
+                      steps = raw.split(/\r?\n+/).map(x => x.trim()).filter(Boolean);
+                    }
+
+                    return (
+                      <div style={{ marginTop: 16 }}>
+                        {ingredientsArr.length > 0 && (
+                          <div className={styles.section}>
+                            <h4 className={styles.sectionTitle}>מרכיבים</h4>
+                            <ul className={styles.columnsList}>
+                              {ingredientsArr.map((ing, idx) => (
+                                <li key={idx}>{ing}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {steps.length > 0 && (
+                          <div className={styles.section}>
+                            <h4 className={styles.sectionTitle}>הוראות הכנה</h4>
+                            <ol className={styles.columnsList}>
+                              {steps.map((st, idx) => (
+                                <li key={idx}>{st}</li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div style={{ color: '#b91c1c' }}>שגיאה בטעינת מתכון</div>
+              )}
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => { setOpenId(null); setSelected(null); setSearchParams({}); }}>סגור</button>
+            </div>
+          </div>
         </div>
-    )
+      )}
+
+    </div>
+  )
 }

@@ -144,3 +144,32 @@ export async function fetchAllUsersAPI() {
   const { data } = await axios.get('/api/admin/data/users');
   return data;
 }
+
+
+//fetch all recipes (admin scope)
+export async function fetchAllRecipesAPI() {
+  const { data } = await axios.get('/api/admin/recipes');
+  return data;
+}
+
+//fetch a specific recipe (admin scope)
+export async function fetchRecipeAPI(recipeId) {
+  const { data } = await axios.get(`/api/admin/recipes/${recipeId}`);
+  return data;
+}
+
+// =============================
+// Public recipes (customer-facing)
+// =============================
+// Fetch all public recipes
+export async function fetchPublicRecipesAPI() {
+  const { data } = await axios.get('/api/recipes', { withCredentials: false });
+  // server may return array or { items }
+  return Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+}
+
+// Fetch a single public recipe by id
+export async function fetchPublicRecipeAPI(recipeId) {
+  const { data } = await axios.get(`/api/recipes/${recipeId}`, { withCredentials: false });
+  return data?.item || data;
+}

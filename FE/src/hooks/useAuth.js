@@ -8,7 +8,11 @@ import {
   isBannedError,
   fetchDashboardStatsAPI,
   fetchRecentUsersAPI,
-  fetchAllUsersAPI
+  fetchAllUsersAPI,
+  fetchAllRecipesAPI,
+  fetchRecipeAPI,
+  fetchPublicRecipesAPI,
+  fetchPublicRecipeAPI
 } from "../utils/functions";
 
 // exports useAuth hook
@@ -49,6 +53,23 @@ import {
     return await fetchAllUsersAPI();
   };
 
+  const fetchAllRecipes = async () => {
+    return await fetchAllRecipesAPI();
+  };
+
+  const fetchRecipe = async (recipeId) => {
+    return await fetchRecipeAPI(recipeId);
+  };
+
+  // Public-facing recipes
+  const fetchPublicRecipes = async () => {
+    return await fetchPublicRecipesAPI();
+  };
+
+  const fetchPublicRecipe = async (recipeId) => {
+    return await fetchPublicRecipeAPI(recipeId);
+  };
+
   // Provide aliases to match existing component usage
   return {
     doLogin,
@@ -57,6 +78,10 @@ import {
     fetchDashboardStats,
     fetchRecentUsers,
     fetchAllUsers,
+    fetchAllRecipes,
+    fetchRecipe,
+    fetchPublicRecipes,
+    fetchPublicRecipe,
     login: doLogin,
     register: doRegister,
     checkUserType: getUserType,

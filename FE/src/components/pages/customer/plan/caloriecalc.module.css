@@ -1,0 +1,159 @@
+.root {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  background-color: #f8f9fa;
+}
+
+.title {
+  text-align: center;
+  margin-bottom: 2rem;
+  font-size: 2rem;
+  color: #2c3e50;
+}
+
+.container {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.formControl {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.button {
+  background-color: #3498db;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.button:hover {
+  background-color: #2980b9;
+}
+
+.button:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}
+
+.results {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 12px;
+}
+
+.resultItem {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background-color: white;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  color: #2c3e50;
+}
+
+.resultItem strong {
+  color: #3498db;
+  font-weight: bold;
+}
+
+@media (max-width: 600px) {
+  .root {
+    padding: 1rem;
+  }
+  
+  .container {
+    padding: 1rem;
+  }
+  
+  .results {
+    padding: 1rem;
+  }
+  
+  .resultItem {
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 1rem;
+  }
+  
+  .results {
+    padding: 1rem;
+  }
+}
+.resultsBox {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.resultsTitle {
+  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+.loseWeight {
+  color: #e74c3c;
+}
+
+.gainWeight {
+  color: #27ae60;
+}
+
+.note {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: #7f8c8d;
+}
+
+.buttonRow {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+}
+
+.primaryButton,
+.secondaryButton {
+  flex: 1;
+  margin: 0 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: 0.3s ease;
+}
+
+.primaryButton {
+  background-color: #3498db;
+  color: white;
+}
+
+.primaryButton:hover {
+  background-color: #2980b9;
+}
+
+.secondaryButton {
+  background-color: #ecf0f1;
+  color: #2c3e50;
+}
+
+.secondaryButton:hover {
+  background-color: #d0d3d4;
+}

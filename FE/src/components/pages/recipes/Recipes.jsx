@@ -1,6 +1,6 @@
 import styles from './recipes.module.css'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../../hooks/useAuth'
 
 // Ensure image paths work like in Menu.jsx
@@ -25,7 +25,6 @@ export default function Recipes() {
   const [diet, setDiet] = useState('');
   const [category, setCategory] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -150,8 +149,8 @@ export default function Recipes() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  if (loading) return <div style={{ padding: 16 }}>טוען...</div>;
-  if (error) return <div style={{ padding: 16, color: '#b91c1c' }}>{error}</div>;
+  if (loading) return <div className={styles.pad16}>טוען...</div>;
+  if (error) return <div className={`${styles.pad16} ${styles.errorText}`}>{error}</div>;
 
   return (
     <div>
@@ -185,15 +184,15 @@ export default function Recipes() {
         </select>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+      <div className={styles.cardsGrid}>
         {filtered.map((recipe) => (
-          <div key={recipe.id || recipe.recipe_id} style={{ width: 220 }}>
+          <div key={recipe.id || recipe.recipe_id} className={styles.cardNarrow}>
             <img
               src={ensureImageUrl(recipe.picture || recipe.imageUrl || recipe.image)}
               alt={recipe.name}
               loading="lazy"
               decoding="async"
-              style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }}
+              className={styles.cardImageNarrow}
               onClick={async () => {
                 const id = recipe.id || recipe.recipe_id;
                 setOpenId(id);
@@ -211,8 +210,8 @@ export default function Recipes() {
                 setSearchParams({ recipeId: String(id), slug });
               }}
             />
-            <h3>{recipe.name}</h3>
-            <p style={{ color: '#475569' }}>{recipe.description || recipe.shortDescription || recipe.summary || recipe.summary}</p>
+            <h3 className={styles.cardTitle}>{recipe.name}</h3>
+            <p className={styles.cardDesc}>{recipe.description || recipe.shortDescription || recipe.summary || recipe.summary}</p>
             <button className={styles.btn} onClick={async () => {
               const id = recipe.id || recipe.recipe_id;
               setOpenId(id);
@@ -248,11 +247,11 @@ export default function Recipes() {
                   {(() => {
                     const img = ensureImageUrl(selected.picture || selected.imageUrl || selected.image);
                     return img ? (
-                      <img src={img} alt={selected.name} style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 8 }} />
+                      <img src={img} alt={selected.name} className={styles.modalImg} />
                     ) : null;
                   })()}
-                  {selected.description && <p style={{ marginTop: 12, color: '#475569' }}>{selected.description}</p>}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 8 }}>
+                  {selected.description && <p className={`${styles.mt12} ${styles.detailDesc}`}>{selected.description}</p>}
+                  <div className={styles.metaRow}>
                     {selected.calories != null && <span className={styles.calories}>{selected.calories} קלוריות</span>}
                     {(selected.diet_type || selected.diet_name) && <span>דיאטה: {selected.diet_type || selected.diet_name}</span>}
                     {(selected.category || selected.category_name) && <span>קטגוריה: {selected.category || selected.category_name}</span>}
@@ -281,7 +280,7 @@ export default function Recipes() {
                     }
 
                     return (
-                      <div style={{ marginTop: 16 }}>
+                      <div className={styles.section}>
                         {ingredientsArr.length > 0 && (
                           <div className={styles.section}>
                             <h4 className={styles.sectionTitle}>מרכיבים</h4>
@@ -308,7 +307,7 @@ export default function Recipes() {
                   })()}
                 </div>
               ) : (
-                <div style={{ color: '#b91c1c' }}>שגיאה בטעינת מתכון</div>
+                <div className={styles.errorText}>שגיאה בטעינת מתכון</div>
               )}
             </div>
             <div className={styles.modalFooter}>

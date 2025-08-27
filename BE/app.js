@@ -267,6 +267,8 @@ try {
   console.log('Mounted /api/courier routes');
 } catch (e) {
   console.error('Failed to mount /api/courier routes:', e?.message || e);
+  if (e && e.stack) console.error('Stack:', e.stack);
+  try { console.error('Full error object:', JSON.stringify(e)); } catch (_) { /* ignore */ }
 }
 // Diet & Recipes routes
 try {
@@ -307,6 +309,8 @@ try {
   console.log('Mounted /api/plan routes');
 } catch (e) {
   console.error('Failed to mount /api/plan routes:', e?.message || e);
+  if (e && e.stack) console.error('Stack:', e.stack);
+  try { console.error('Full error object:', JSON.stringify(e)); } catch (_) { /* ignore */ }
 }
 
 // Serve uploaded files (profile images, etc.)
@@ -340,6 +344,16 @@ const server = app.listen(PORT, () => {
 // ========================
 // Graceful shutdown
 // ========================
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  try { console.error('Details:', formatDbError(reason)); } catch (_) {}
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  try { console.error('Details:', formatDbError(err)); } catch (_) {}
+});
+
 process.on('SIGTERM', () => {
   console.log('Received SIGTERM. Shutting down...');
   server.close(() => {

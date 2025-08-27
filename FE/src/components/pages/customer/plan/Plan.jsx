@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { fetchRecipes, getSessionUser } from '../../../../utils/functions';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { fetchRecipes, getSessionUser, getCurrentCustomerId } from '../../../../utils/functions';
 
 // Resolve images like Menu.jsx (recipes often carry picture/imageUrl)
 function resolveImageUrl(raw) {
@@ -66,7 +66,6 @@ const api = {
 export default function Plan() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
-  const [user, setUser] = useState(null);
 
   const [plan, setPlan] = useState(null); // includes items array
   const [swapFor, setSwapFor] = useState(null); // item to be swapped
@@ -78,7 +77,10 @@ export default function Plan() {
   const [recipesLoading, setRecipesLoading] = useState(false);
 
   // Initial load: user session -> plan load/create
+  const didRunRef = useRef(false);
   useEffect(() => {
+    if (didRunRef.current) return; // guard StrictMode double-invoke
+    didRunRef.current = true;
     (async () => {
       try {
         setLoading(true);
@@ -89,15 +91,17 @@ export default function Plan() {
           setLoading(false);
           return;
         }
-        setUser(u);
+
+        // Resolve correct customer_id
+        const customerId = await getCurrentCustomerId();
 
         // Load plans for this customer; if none, create an empty plan
-        const plans = await api.listPlans(u.user_id || u.id || u.customer_id);
+        const plans = await api.listPlans(customerId);
         let planId = null;
         if (Array.isArray(plans) && plans.length > 0) {
           planId = plans[0].plan_id; // latest first as per backend ORDER BY
         } else {
-          const { plan_id } = await api.createPlan({ customer_id: u.user_id || u.id || u.customer_id });
+          const { plan_id } = await api.createPlan({ customer_id: customerId });
           planId = plan_id;
         }
         const full = await api.getPlan(planId);
@@ -263,9 +267,9 @@ export default function Plan() {
               {/* Body */}
               <div style={{ padding: 12, display:'grid', gap: 10 }}>
                 <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
-                  <div title="חלבון" style={{ fontSize: 12, color:'#6b7280' }}>חלבון: {it.protein ?? '—'}g</div>
-                  <div title="פחמימות" style={{ fontSize: 12, color:'#6b7280' }}>פחמימות: {it.carbs ?? '—'}g</div>
-                  <div title="שומנים" style={{ fontSize: 12, color:'#6b7280' }}>שומנים: {it.fats ?? '—'}g</div>
+                  <div title="חלבון" style={{ fontSize: 12, color:'#6b7280' }}>חלבון: {it.protein_g ?? '—'}g</div>
+                  <div title="פחמימות" style={{ fontSize: 12, color:'#6b7280' }}>פחמימות: {it.carbs_g ?? '—'}g</div>
+                  <div title="שומנים" style={{ fontSize: 12, color:'#6b7280' }}>שומנים: {it.fats_g ?? '—'}g</div>
                 </div>
 
                 <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>

@@ -24,7 +24,6 @@ export default function Profile() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [custId, setCustId] = useState(null);
   
 
   const username = currentUser?.username || 'User';
@@ -66,7 +65,6 @@ export default function Profile() {
       .then((res) => res.json())
       .then((data) => {
         setCustomerName(data.name || '');
-        if (typeof data.cust_id !== 'undefined') setCustId(data.cust_id);
         // subscription removed
       })
       .catch(() => {});

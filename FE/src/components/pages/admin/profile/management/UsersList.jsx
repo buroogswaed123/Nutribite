@@ -5,21 +5,16 @@ import { ArrowUpDown } from 'lucide-react';
 
 export default function UsersList() {
     const [recentUsers, setRecentUsers] = useState([]);
-    const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-     const { fetchDashboardStats, fetchAllUsers } = useAuth();
+     const { fetchAllUsers } = useAuth();
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState('online'); // 'online' | 'type'
     useEffect(() => {
         let mounted = true;
         (async () => {
           try {
-            const [statsData, usersData] = await Promise.all([
-              fetchDashboardStats(),
-              fetchAllUsers()
-            ]);
+            const usersData = await fetchAllUsers();
             if (!mounted) return;
-            setStats(statsData || {});
             setRecentUsers(Array.isArray(usersData) ? usersData : []);
           } catch (err) {
             console.error('AdminHome data load error:', err);
@@ -37,7 +32,7 @@ export default function UsersList() {
           }
         }, 30000);
         return () => { mounted = false; clearInterval(interval); };
-      }, []);
+      }, [fetchAllUsers]);
 
   const filteredAndSorted = () => {
     const q = query.trim().toLowerCase();
@@ -70,6 +65,9 @@ export default function UsersList() {
     return (
         <div className={styles.recentSection}>
         <h2 className={styles.sectionTitle}>משתמשים</h2>
+        {loading && (
+          <p className={styles.noData}>טוען נתונים...</p>
+        )}
         {/* Controls */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
           <input

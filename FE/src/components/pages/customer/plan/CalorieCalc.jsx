@@ -1,5 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
+// Plan creation is handled in Plan.jsx when needed
 import { useNavigate } from "react-router-dom";
 
 export default function CalorieCalculator() {
@@ -22,7 +23,7 @@ export default function CalorieCalculator() {
   };
 
   // Simple calorie calculation (Mifflin-St Jeor)
-  const calculateCalories = () => {
+  const calculateCalories = async () => {
     const { age, gender, height, weight, activity_level } = form;
     let bmr = 0;
 
@@ -49,10 +50,7 @@ export default function CalorieCalculator() {
     setResult({ calories, protein, fat, carbs });
     setModalOpen(true);
 
-    // Save to DB
-    axios.post("/api/nutritionplan", form)
-      .then(res => console.log("Saved plan:", res.data))
-      .catch(err => console.error(err));
+    // Do not create plan here. The Plan page will handle creating if missing.
   };
 
   return (

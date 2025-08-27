@@ -27,7 +27,7 @@ export default function AdminHome() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [fetchDashboardStats]);
   const username = currentUser?.username || 'Admin';
 
   if (loading) {

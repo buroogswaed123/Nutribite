@@ -1,6 +1,6 @@
 //all routes user_type courier could use
 const express = require('express');
-const db = require('../../dbSingleton');
+const db = require('../dbSingleton');
 const router = express.Router();
 
 //helper

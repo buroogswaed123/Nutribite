@@ -95,18 +95,19 @@ router.post("/", async (req, res) => {
         return res.status(400).json({ message: "User is not a customer" });
       }
 
-      // 2) Check if already in customers table
-      conn.query("SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1", [user_id], (err2, existing) => {
+      // 2) Atomic upsert to avoid race duplicates. Requires UNIQUE KEY on customers.user_id
+      // Trick: set cust_id = LAST_INSERT_ID(cust_id) so result.insertId returns the existing cust_id on duplicate
+      const sql = `
+        INSERT INTO customers (user_id)
+        VALUES (?)
+        ON DUPLICATE KEY UPDATE cust_id = LAST_INSERT_ID(cust_id)
+      `;
+      conn.query(sql, [user_id], (err2, result) => {
         if (err2) return sendError(res, err2);
-        if (existing && existing.length) {
-          return res.status(409).json({ message: "Customer already exists" });
-        }
-
-        // 3) Insert into customers (adjust columns as needed)
-        conn.query("INSERT INTO customers (user_id) VALUES (?)", [user_id], (err3, result) => {
-          if (err3) return sendError(res, err3);
-          res.status(201).json({ message: "Customer added", cust_id: result.insertId });
-        });
+        const custId = result && result.insertId ? result.insertId : null;
+        if (!custId) return sendError(res, new Error('Failed to resolve cust_id after upsert'));
+        const created = (result.affectedRows === 1); // insert occurred
+        return res.status(created ? 201 : 200).json({ message: created ? 'Customer added' : 'Customer already exists', cust_id: custId });
       });
     });
   } catch (e) {

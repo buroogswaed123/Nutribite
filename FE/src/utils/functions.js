@@ -69,11 +69,6 @@ export async function getCurrentCustomerId() {
   } catch (err) {
     if (err?.response?.status !== 404) throw err;
   }
-
-  // Only create if not found
-  const { data: created } = await axios.post('/api/customers', { user_id: userId });
-  getCurrentCustomerId._cache = created.cust_id;
-  return created.cust_id;
 }
 
 // Fetch recipes with optional query params (server may ignore unknown params; we also filter client-side)
@@ -196,3 +191,34 @@ export async function fetchPublicRecipeAPI(recipeId) {
   const { data } = await axios.get(`/api/recipes/${recipeId}`, { withCredentials: false });
   return data?.item || data;
 }
+
+//for calorie calculator
+const activityMultipliers = {
+  עצמוני: 1.2,
+  קל: 1.375,
+  בינוני: 1.55,
+  פעיל: 1.725,
+  "פעיל מאוד": 1.9,
+};
+
+export function calculateBMR({ age, gender, height, weight }) {
+  if (gender === "זכר") {
+    return 10 * weight + 6.25 * height - 5 * age + 5;
+  }
+  return 10 * weight + 6.25 * height - 5 * age - 161;
+}
+
+export function calculateMacros({ bmr, activity_level }) {
+  const calories = Math.round(bmr * activityMultipliers[activity_level]);
+  const protein = Math.round((calories * 0.25) / 4); // 25% protein
+  const fat = Math.round((calories * 0.25) / 9);     // 25% fat
+  const carbs = Math.round((calories * 0.5) / 4);    // 50% carbs
+
+  return { calories, protein, fat, carbs };
+}
+
+export function calculateCalories(form) {
+  const bmr = calculateBMR(form);
+  return calculateMacros({ bmr, activity_level: form.activity_level });
+}
+

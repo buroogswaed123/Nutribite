@@ -1,97 +1,171 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
-// Plan creation is handled in Plan.jsx when needed
 import { useNavigate } from "react-router-dom";
+import { calculateCalories } from "../../../../utils/functions";
+import { getCurrentCustomerId } from "../../../../utils/functions";
+import styles from "./caloriecalc.module.css";
 
 export default function CalorieCalculator() {
   const navigate = useNavigate();
 
+  const [customer, setCustomer] = useState(null);
   const [form, setForm] = useState({
-    age: "",
     gender: "זכר",
     height: "",
     weight: "",
     activity_level: "עצמוני",
     diet_type_id: 1,
+    birthdate: "",
   });
 
   const [result, setResult] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCustomer = async () => {
+      try {
+        const cust_id = await getCurrentCustomerId();
+        const { data } = await axios.get(`/api/customers/${cust_id}`);
+        setCustomer(data);
+
+        setForm((prev) => ({
+          ...prev,
+          gender: data.gender || prev.gender,
+          birthdate: data.birthdate || "",
+        }));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCustomer();
+  }, []);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // Simple calorie calculation (Mifflin-St Jeor)
-  const calculateCalories = async () => {
-    const { age, gender, height, weight, activity_level } = form;
-    let bmr = 0;
-
-    if (gender === "זכר") {
-      bmr = 10 * weight + 6.25 * height - 5 * age + 5;
-    } else {
-      bmr = 10 * weight + 6.25 * height - 5 * age - 161;
-    }
-
-    // Activity multiplier
-    const activityMultipliers = {
-      עצמוני: 1.2,
-      קל: 1.375,
-      בינוני: 1.55,
-      פעיל: 1.725,
-      "פעיל מאוד": 1.9,
-    };
-
-    const calories = Math.round(bmr * activityMultipliers[activity_level]);
-    const protein = Math.round(calories * 0.25 / 4); // 25% protein
-    const fat = Math.round(calories * 0.25 / 9);     // 25% fat
-    const carbs = Math.round(calories * 0.5 / 4);    // 50% carbs
-
-    setResult({ calories, protein, fat, carbs });
-    setModalOpen(true);
-
-    // Do not create plan here. The Plan page will handle creating if missing.
+  const getAge = () => {
+    if (!form.birthdate) return null;
+    const birth = new Date(form.birthdate);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age;
   };
 
+  const handleSubmit = async () => {
+    let age = getAge();
+    if (!age) {
+      alert("נא להזין תאריך לידה");
+      return;
+    }
+
+    // Save birthdate if missing
+    if (!customer.birthdate) {
+      await axios.put(`/api/customers/${customer.cust_id}`,
+       { birthdate: form.birthdate },{ withCredentials: true });
+    }
+
+    const caloriesData = calculateCalories({
+      age,
+      gender: form.gender,
+      height: Number(form.height),
+      weight: Number(form.weight),
+      activity_level: form.activity_level,
+    });
+
+    setResult(caloriesData);
+    setModalOpen(true);
+
+    // Save nutrition plan
+    await axios.post("/api/nutritionplan", {
+      customer_id: customer.cust_id,
+      age,
+      gender: form.gender,
+      height_cm: form.height,
+      weight_kg: form.weight,
+      activity_lvl: form.activity_level,
+      diet_type_id: form.diet_type_id,
+      calories_per_day: caloriesData.calories,
+      protein_g: caloriesData.protein,
+      carbs_g: caloriesData.carbs,
+      fats_g: caloriesData.fat,
+      start_date: new Date(),
+    });
+  };
+
+  if (loading) return <p>Loading...</p>;
+
   return (
-    <div className="max-w-md mx-auto p-4 bg-white rounded shadow">
-      <h2 className="text-xl font-bold mb-4">חישוב קלוריות</h2>
-
-      <div className="space-y-2">
-        <input
-          type="number"
-          name="age"
-          placeholder="גיל"
-          value={form.age}
+    <div className={styles.container}>
+      <h2 className={styles.title}>חישוב קלוריות</h2>
+  
+      {/* Birthdate */}
+      {!form.birthdate && (
+        <div className={styles.inputGroup}>
+          <label className={styles.label}>תאריך לידה</label>
+          <input
+            type="date"
+            name="birthdate"
+            value={form.birthdate}
+            onChange={handleChange}
+            className={styles.input}
+          />
+        </div>
+      )}
+  
+      {/* Gender */}
+      <div className={styles.inputGroup}>
+        <label className={styles.label}>מין</label>
+        <select
+          name="gender"
+          value={form.gender}
           onChange={handleChange}
-          className="w-full border p-2 rounded"
-        />
-
-        <select name="gender" value={form.gender} onChange={handleChange} className="w-full border p-2 rounded">
+          className={styles.select}
+        >
           <option value="זכר">זכר</option>
           <option value="נקבה">נקבה</option>
           <option value="אחר">אחר</option>
         </select>
-
+      </div>
+  
+      {/* Height */}
+      <div className={styles.inputGroup}>
+        <label className={styles.label}>גובה (ס״מ)</label>
         <input
           type="number"
           name="height"
-          placeholder="גובה (ס״מ)"
           value={form.height}
           onChange={handleChange}
-          className="w-full border p-2 rounded"
+          className={styles.input}
         />
-
+      </div>
+  
+      {/* Weight */}
+      <div className={styles.inputGroup}>
+        <label className={styles.label}>משקל (ק״ג)</label>
         <input
           type="number"
           name="weight"
-          placeholder="משקל (ק״ג)"
           value={form.weight}
           onChange={handleChange}
-          className="w-full border p-2 rounded"
+          className={styles.input}
         />
-
-        <select name="activity_level" value={form.activity_level} onChange={handleChange} className="w-full border p-2 rounded">
+      </div>
+  
+      {/* Activity level */}
+      <div className={styles.inputGroup}>
+        <label className={styles.label}>רמת פעילות</label>
+        <select
+          name="activity_level"
+          value={form.activity_level}
+          onChange={handleChange}
+          className={styles.select}
+        >
           <option value="עצמוני">עצמוני</option>
           <option value="קל">קל</option>
           <option value="בינוני">בינוני</option>
@@ -99,34 +173,47 @@ export default function CalorieCalculator() {
           <option value="פעיל מאוד">פעיל מאוד</option>
         </select>
       </div>
-
-      <button
-        onClick={calculateCalories}
-        className="mt-4 w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
-      >
+  
+      {/* Diet type */}
+      <div className={styles.inputGroup}>
+        <label className={styles.label}>סוג דיאטה</label>
+        <select
+          name="diet_type_id"
+          value={form.diet_type_id}
+          onChange={handleChange}
+          className={styles.select}
+        >
+          <option value={1}>דיאטה רגילה</option>
+          <option value={2}>דיאטה קטוגנית</option>
+          <option value={3}>דיאטה טבעונית</option>
+        </select>
+      </div>
+  
+      {/* Submit button */}
+      <button onClick={handleSubmit} className={styles.button}>
         חשב
       </button>
-
+  
       {/* Modal */}
       {modalOpen && result && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded shadow-lg max-w-sm w-full">
-            <h3 className="text-lg font-bold mb-4">תוצאות החישוב</h3>
-            <p>קלוריות: {result.calories}</p>
-            <p>חלבון: {result.protein} גרם</p>
-            <p>שומן: {result.fat} גרם</p>
-            <p>פחמימות: {result.carbs} גרם</p>
-
-            <div className="mt-4 flex justify-between">
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modalContent}>
+            <h3 className={styles.modalTitle}>תוצאות החישוב</h3>
+            <div className={styles.modalRow}>קלוריות: {result.calories}</div>
+            <div className={styles.modalRow}>חלבון: {result.protein} גרם</div>
+            <div className={styles.modalRow}>שומן: {result.fat} גרם</div>
+            <div className={styles.modalRow}>פחמימות: {result.carbs} גרם</div>
+  
+            <div className={styles.modalButtons}>
               <button
                 onClick={() => setModalOpen(false)}
-                className="bg-gray-300 p-2 rounded hover:bg-gray-400"
+                className={`${styles.modalButton} ${styles.close}`}
               >
                 סגור
               </button>
               <button
                 onClick={() => navigate("/plan")}
-                className="bg-green-500 text-white p-2 rounded hover:bg-green-600"
+                className={`${styles.modalButton} ${styles.plan}`}
               >
                 צור תוכנית
               </button>
@@ -135,5 +222,5 @@ export default function CalorieCalculator() {
         </div>
       )}
     </div>
-  );
+  )
 }

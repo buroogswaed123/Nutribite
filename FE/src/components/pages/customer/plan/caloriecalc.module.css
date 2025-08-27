@@ -1,159 +1,127 @@
-.root {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
-  background-color: #f8f9fa;
+.container {
+  max-width: 400px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background-color: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  font-family: Arial, sans-serif;
 }
 
 .title {
   text-align: center;
-  margin-bottom: 2rem;
-  font-size: 2rem;
-  color: #2c3e50;
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: #1f2937;
 }
 
-.container {
-  background-color: white;
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.formControl {
-  width: 100%;
+.inputGroup {
   margin-bottom: 1rem;
+}
+
+.label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input:focus,
+.select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
 }
 
 .button {
-  background-color: #3498db;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
+  width: 100%;
+  padding: 0.75rem;
   font-size: 1rem;
-  transition: background-color 0.2s;
+  color: #ffffff;
+  background: linear-gradient(to right, #3b82f6, #2563eb);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
 }
 
 .button:hover {
-  background-color: #2980b9;
+  background: linear-gradient(to right, #2563eb, #1e40af);
 }
 
-.button:disabled {
-  background-color: #bdc3c7;
-  cursor: not-allowed;
+/* Modal */
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
 }
 
-.results {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  background-color: #f8f9fa;
-  border-radius: 12px;
-}
-
-.resultItem {
-  margin-bottom: 1rem;
-  padding: 0.75rem;
-  background-color: white;
-  border-radius: 6px;
-  font-size: 1.1rem;
-  color: #2c3e50;
-}
-
-.resultItem strong {
-  color: #3498db;
-  font-weight: bold;
-}
-
-@media (max-width: 600px) {
-  .root {
-    padding: 1rem;
-  }
-  
-  .container {
-    padding: 1rem;
-  }
-  
-  .results {
-    padding: 1rem;
-  }
-  
-  .resultItem {
-    margin-bottom: 0.75rem;
-    padding: 0.5rem;
-  }
-}
-
-@media (max-width: 600px) {
-  .container {
-    padding: 1rem;
-  }
-  
-  .results {
-    padding: 1rem;
-  }
-}
-.resultsBox {
-  margin-top: 2rem;
-  padding: 1.5rem;
+.modalContent {
   background-color: #ffffff;
+  padding: 2rem;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
 }
 
-.resultsTitle {
-  text-align: center;
-  font-size: 1.5rem;
+.modalTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
   margin-bottom: 1rem;
-  color: #2c3e50;
+  text-align: center;
 }
 
-.loseWeight {
-  color: #e74c3c;
+.modalRow {
+  margin-bottom: 0.5rem;
+  text-align: center;
 }
 
-.gainWeight {
-  color: #27ae60;
-}
-
-.note {
+.modalButtons {
   margin-top: 1rem;
-  font-size: 0.9rem;
-  color: #7f8c8d;
-}
-
-.buttonRow {
   display: flex;
   justify-content: space-between;
-  margin-top: 1.5rem;
 }
 
-.primaryButton,
-.secondaryButton {
-  flex: 1;
-  margin: 0 0.5rem;
-  padding: 0.75rem 1rem;
+.modalButton {
+  padding: 0.5rem 1rem;
   border-radius: 8px;
   border: none;
-  font-size: 1rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: 0.3s ease;
+  transition: background 0.2s;
 }
 
-.primaryButton {
-  background-color: #3498db;
+.modalButton.close {
+  background-color: #d1d5db;
+}
+
+.modalButton.close:hover {
+  background-color: #9ca3af;
+}
+
+.modalButton.plan {
+  background-color: #10b981;
   color: white;
 }
 
-.primaryButton:hover {
-  background-color: #2980b9;
-}
-
-.secondaryButton {
-  background-color: #ecf0f1;
-  color: #2c3e50;
-}
-
-.secondaryButton:hover {
-  background-color: #d0d3d4;
+.modalButton.plan:hover {
+  background-color: #059669;
 }

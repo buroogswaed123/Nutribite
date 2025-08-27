@@ -42,7 +42,7 @@ export default function Recipes() {
       }
     })();
     return () => { cancelled = true };
-  }, [fetchPublicRecipes]);
+  }, []);
 
   // Build filter options
   const { dietOptions, categoryOptions } = useMemo(() => {
@@ -131,6 +131,7 @@ export default function Recipes() {
 
   // Open modal by URL (?recipeId=...&slug=...)
   useEffect(() => {
+    let cancelled = false;
     const rid = searchParams.get('recipeId');
     if (!rid) return;
     (async () => {
@@ -139,14 +140,15 @@ export default function Recipes() {
       setLoadingItem(true);
       try {
         const full = await fetchPublicRecipe(rid);
-        setSelected(full?.item || full);
+        if (!cancelled) setSelected(full?.item || full);
       } catch (e) {
-        setSelected(null);
+        if (!cancelled) setSelected(null);
       } finally {
-        setLoadingItem(false);
+        if (!cancelled) setLoadingItem(false);
       }
     })();
-  }, [searchParams, fetchPublicRecipe]);
+    return () => { cancelled = true };
+  }, [searchParams]);
 
   if (loading) return <div className={styles.pad16}>טוען...</div>;
   if (error) return <div className={`${styles.pad16} ${styles.errorText}`}>{error}</div>;
@@ -238,7 +240,7 @@ export default function Recipes() {
               <h3 className={styles.modalTitle}>{selected?.name || 'מתכון'}</h3>
               <button className={styles.closeBtn} onClick={() => { setOpenId(null); setSelected(null); setSearchParams({}); }}>×</button>
             </div>
-            <div className={styles.modalBody}>
+            <div className={`${styles.modalBody} ${styles.rtl}`}>
               {loadingItem ? (
                 <div>טוען...</div>
               ) : selected ? (
@@ -283,7 +285,7 @@ export default function Recipes() {
                         {ingredientsArr.length > 0 && (
                           <div className={styles.section}>
                             <h4 className={styles.sectionTitle}>מרכיבים</h4>
-                            <ul className={styles.columnsList}>
+                            <ul className={`${styles.columnsList} ${styles.rtlList}`}>
                               {ingredientsArr.map((ing, idx) => (
                                 <li key={idx}>{ing}</li>
                               ))}
@@ -294,7 +296,7 @@ export default function Recipes() {
                         {steps.length > 0 && (
                           <div className={styles.section}>
                             <h4 className={styles.sectionTitle}>הוראות הכנה</h4>
-                            <ol className={styles.columnsList}>
+                            <ol className={styles.rtlList}>
                               {steps.map((st, idx) => (
                                 <li key={idx}>{st}</li>
                               ))}

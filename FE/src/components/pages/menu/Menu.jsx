@@ -17,6 +17,27 @@ export default function Menu() {
     return `http://localhost:3000/uploads/${cleaned}`
   }
 
+  // Allow only digit characters in numeric text inputs
+  const onlyDigits = (v) => {
+    const s = String(v ?? '')
+    return s.replace(/[^0-9]/g, '')
+  }
+
+  // Allow digits and a single decimal point (for prices)
+  const onlyDecimal = (v) => {
+    let s = String(v ?? '')
+    // keep only digits and dots
+    s = s.replace(/[^0-9.]/g, '')
+    // collapse multiple dots to a single dot (keep the first)
+    if (s.indexOf('.') !== -1) {
+      const [head, ...rest] = s.split('.')
+      s = head + '.' + rest.join('').replace(/\./g, '')
+    }
+    // normalize leading dot to 0.
+    if (s.startsWith('.')) s = '0' + s
+    return s
+  }
+
   // Map known English category names to Hebrew for display
   const translateCategoryName = (name) => {
     if (!name) return ''
@@ -239,16 +260,16 @@ export default function Menu() {
           <span className={styles.divider} />
           <span className={styles.groupItem}>
             <label>קלוריות</label>
-            <input className={`${styles.num} ${styles.compact}`} type="number" value={calMin} onChange={(e)=>setCalMin(e.target.value)} placeholder="מ-" />
+            <input className={`${styles.num} ${styles.compact}`} type="number" value={calMin} onChange={(e)=>setCalMin(onlyDigits(e.target.value))} placeholder="מ-" />
             <span>-</span>
-            <input className={`${styles.num} ${styles.compact}`} type="number" value={calMax} onChange={(e)=>setCalMax(e.target.value)} placeholder="עד" />
+            <input className={`${styles.num} ${styles.compact}`} type="number" value={calMax} onChange={(e)=>setCalMax(onlyDigits(e.target.value))} placeholder="עד" />
           </span>
           <span className={styles.divider} />
           <span className={styles.groupItem}>
             <label>מחיר</label>
-            <input className={`${styles.num} ${styles.compact}`} type="number" value={priceMin} onChange={(e)=>setPriceMin(e.target.value)} placeholder="מ-" />
+            <input className={`${styles.num} ${styles.compact}`} type="number" value={priceMin} onChange={(e)=>setPriceMin(onlyDecimal(e.target.value))} placeholder="מ-" />
             <span>-</span>
-            <input className={`${styles.num} ${styles.compact}`} type="number" value={priceMax} onChange={(e)=>setPriceMax(e.target.value)} placeholder="עד" />
+            <input className={`${styles.num} ${styles.compact}`} type="number" value={priceMax} onChange={(e)=>setPriceMax(onlyDecimal(e.target.value))} placeholder="עד" />
           </span>
         </div>
         <div className={styles.row}>
@@ -277,9 +298,9 @@ export default function Menu() {
           <>
             <div style={{display:'flex', alignItems:'center', gap:8}}>
               <label>מלאי מ-</label>
-              <input type="number" value={stockMin} onChange={(e)=>setStockMin(e.target.value)} style={{width:80}}/>
+              <input type="number" value={stockMin} onChange={(e)=>setStockMin(onlyDigits(e.target.value))} style={{width:80}}/>
               <label>עד</label>
-              <input type="number" value={stockMax} onChange={(e)=>setStockMax(e.target.value)} style={{width:80}}/>
+              <input type="number" value={stockMax} onChange={(e)=>setStockMax(onlyDigits(e.target.value))} style={{width:80}}/>
             </div>
             <button className={styles.btn} onClick={onAdd}>הוסף מתכון</button>
           </>
@@ -293,7 +314,7 @@ export default function Menu() {
             סימון הכל (בסינון הנוכחי)
           </label>
           <span>נבחרו: {selectedIds.size}</span>
-          <input type="number" placeholder="מחיר חדש ₪" value={bulkPrice} onChange={(e)=>setBulkPrice(e.target.value)} style={{width:120}}/>
+          <input type="number" placeholder="מחיר חדש ₪" value={bulkPrice} onChange={(e)=>setBulkPrice(onlyDecimal(e.target.value))} style={{width:120}}/>
           <button className={styles.btn}
             disabled={selectedIds.size === 0 || !bulkPrice}
             onClick={onBulkPriceUpdate}
@@ -339,23 +360,29 @@ export default function Menu() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
+            className={styles.rtl}
             style={{ background: '#fff', borderRadius: 8, maxWidth: 720, width: '95%', padding: 16, boxShadow: '0 10px 30px rgba(0,0,0,0.2)'}}
           >
-            <div style={{display:'flex', gap:16, flexWrap:'wrap'}}>
-              <img src={resolveImageUrl(selected.picture || selected.imageUrl)} alt={selected.name} style={{width: 260, height: 200, objectFit: 'cover', borderRadius: 8}} onError={(e)=>{ e.currentTarget.style.display='none' }} />
-              <div style={{flex:1, minWidth: 240}}>
-                <h2 style={{marginTop:0}}>{selected.name}</h2>
-                <div style={{marginBottom:8}}>
-                  <span style={{marginInlineEnd:12}}>{selected.calories} קלוריות</span>
-                  {selected.diet_name && <span style={{marginInlineEnd:12}}>דיאטה: {selected.diet_name}</span>}
+            <div className={styles.detail}>
+              <img
+                src={resolveImageUrl(selected.picture || selected.imageUrl)}
+                alt={selected.name}
+                className={styles.detailImg}
+                onError={(e)=>{ e.currentTarget.style.display='none' }}
+              />
+              <div className={styles.detailBody}>
+                <h2 className={styles.title}>{selected.name}</h2>
+                <div className={styles.metaRow}>
+                  <span>קלוריות: {selected.calories}</span>
+                  {selected.diet_name && <span>דיאטה: {selected.diet_name}</span>}
                   {selected.category_name && <span>קטגוריה: {selected.category_name}</span>}
                 </div>
-                <div style={{marginBottom:8}}>מחיר: {selected.price != null ? `${selected.price} ₪` : '—'}</div>
+                <div>מחיר: {selected.price != null ? `${selected.price}₪` : '—'}</div>
                 {isAdmin && (
-                  <div style={{marginBottom:8}}>מלאי: {selected.stock != null ? selected.stock : '—'}</div>
+                  <div>מלאי: {selected.stock != null ? selected.stock : '—'}</div>
                 )}
                 <p style={{whiteSpace:'pre-wrap'}}>{selected.description}</p>
-                <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop:12}}>
+                <div className={styles.actions} style={{display:'flex', gap:8, flexWrap:'wrap'}}>
                   {isAdmin ? (
                     <>
                       <button className={styles.btn} onClick={() => onEdit(selected)}>ערוך</button>

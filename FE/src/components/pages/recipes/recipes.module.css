@@ -154,6 +154,20 @@
   padding: 16px;
 }
 
+/* RTL utilities for Hebrew content */
+.rtl {
+  direction: rtl;
+  text-align: right;
+}
+
+.rtlList {
+  direction: rtl;
+  text-align: right;
+  list-style-position: inside; /* place bullets/numbers on the right within content flow */
+  padding-inline-start: 0;
+  padding-inline-end: 0;
+}
+
 .modalFooter {
   display: flex;
   gap: 8px;

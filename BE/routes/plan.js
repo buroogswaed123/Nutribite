@@ -161,6 +161,12 @@ router.post('/', requireActiveUser, async (req, res) => {
     const customerIdNum = Number(data.customer_id);
     if (!Number.isFinite(customerIdNum)) return bad(res, 'customer_id is required');
 
+    // Ensure required defaults for DB constraints
+    // Default start_date to today if not provided
+    const todayIso = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const startDate = data.start_date ?? todayIso;
+    const endDate = data.end_date ?? null;
+
     const [result] = await conn.promise().query(
       `
       INSERT INTO nutritionplan
@@ -179,8 +185,8 @@ router.post('/', requireActiveUser, async (req, res) => {
         data.protein_g ?? null,
         data.carbs_g ?? null,
         data.fats_g ?? null,
-        data.start_date ?? null,
-        data.end_date ?? null
+        startDate,
+        endDate
       ]
     );
 

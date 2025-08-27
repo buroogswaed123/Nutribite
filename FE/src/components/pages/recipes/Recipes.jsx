@@ -42,7 +42,7 @@ export default function Recipes() {
       }
     })();
     return () => { cancelled = true };
-  }, []);
+  }, [fetchPublicRecipes]);
 
   // Build filter options
   const { dietOptions, categoryOptions } = useMemo(() => {
@@ -146,8 +146,7 @@ export default function Recipes() {
         setLoadingItem(false);
       }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, fetchPublicRecipe]);
 
   if (loading) return <div className={styles.pad16}>טוען...</div>;
   if (error) return <div className={`${styles.pad16} ${styles.errorText}`}>{error}</div>;

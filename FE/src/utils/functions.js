@@ -53,6 +53,29 @@ export async function getSessionUser() {
   }
 }
 
+export async function getCurrentCustomerId() {
+  if (getCurrentCustomerId._cache) return getCurrentCustomerId._cache;
+
+  const session = await getSessionUser();
+  const userId = session?.user_id || session?.id;
+  if (!userId) throw new Error('Not logged in');
+
+  try {
+    const { data } = await axios.get(`/api/customers/by-user/${userId}`);
+    if (data?.cust_id) {
+      getCurrentCustomerId._cache = data.cust_id;
+      return data.cust_id;
+    }
+  } catch (err) {
+    if (err?.response?.status !== 404) throw err;
+  }
+
+  // Only create if not found
+  const { data: created } = await axios.post('/api/customers', { user_id: userId });
+  getCurrentCustomerId._cache = created.cust_id;
+  return created.cust_id;
+}
+
 // Fetch recipes with optional query params (server may ignore unknown params; we also filter client-side)
 export async function fetchRecipes({ search = '', categoryId = 'all', dietId = 'all', minPrice, maxPrice, minCalories, maxCalories } = {}) {
   // Menu items live under /api/menu. Use /search when any filter is active.

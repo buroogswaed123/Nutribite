@@ -19,6 +19,7 @@ export default function Settings() {
     const [floor, setFloor] = useState('');
     const [cityCode, setCityCode] = useState('');
     const [paypal, setPaypal] = useState(''); // UI only for now
+    const [birthdate, setBirthdate] = useState('');
 
     // Load customer and address
     useEffect(() => {
@@ -38,6 +39,14 @@ export default function Settings() {
                 setName(customer.name || '');
                 setPhone(customer.phone_number || '');
                 setPaypal(customer.paypal_email || '');
+                // normalize birthdate to yyyy-mm-dd for <input type="date">
+                if (customer.birthdate) {
+                    const d = String(customer.birthdate);
+                    const iso = d.length >= 10 ? d.slice(0,10) : d;
+                    setBirthdate(iso);
+                } else {
+                    setBirthdate('');
+                }
                 // Try load address
                 if (customer.cust_id) {
                     const resAddr = await fetch(`http://localhost:3000/api/customers/${customer.cust_id}/address`, { credentials: 'include' });
@@ -66,9 +75,19 @@ export default function Settings() {
             setSaving(true);
             setError('');
             setSuccess('');
+            // Validate birthdate is not in the future
+            if (birthdate) {
+                const todayStr = new Date().toISOString().slice(0,10);
+                if (birthdate > todayStr) {
+                    setSaving(false);
+                    setError('תאריך הלידה לא יכול להיות עתידי');
+                    return;
+                }
+            }
             const body = {
                 name,
                 phone_number: phone,
+                birthdate: birthdate || null,
                 city,
                 street,
                 house_Num: houseNum,
@@ -98,6 +117,17 @@ export default function Settings() {
             <form className={styles.form} dir="rtl" onSubmit={onSubmit}>
                 <label htmlFor="name">שם</label>
                 <input className={styles.formInput} type="text" id="name" name="name" value={name} onChange={(e)=>setName(e.target.value)} />
+
+                <label htmlFor="birthdate">תאריך לידה</label>
+                <input
+                  className={styles.formInput}
+                  type="date"
+                  id="birthdate"
+                  name="birthdate"
+                  value={birthdate}
+                  max={new Date().toISOString().slice(0,10)}
+                  onChange={(e)=>setBirthdate(e.target.value)}
+                />
 
                 <fieldset className={styles.formField}>
                     <legend className={styles.formLegend}>כתובת</legend>

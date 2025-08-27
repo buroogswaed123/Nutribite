@@ -29,6 +29,21 @@ router.get("/", (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
+// Get a single customer by cust_id
+router.get('/:cust_id', (req, res) => {
+  try {
+    const conn = getConn();
+    const sql = "SELECT c.*, DATE_FORMAT(c.birthdate, '%Y-%m-%d') AS birthdate FROM customers c WHERE c.cust_id = ? LIMIT 1";
+    conn.query(sql, [req.params.cust_id], (err, rows) => {
+      if (err) return sendError(res, err);
+      if (!rows || rows.length === 0) return res.status(404).json({ message: 'Customer not found' });
+      return res.json(rows[0]);
+    });
+  } catch (e) { sendError(res, e); }
+});
+
+// (moved '/:cust_id' below address route to avoid shadowing)
+
 // Get address by customer id
 router.get('/:cust_id/address', (req, res) => {
   try {
@@ -55,7 +70,7 @@ router.get("/by-user/:user_id", (req, res) => {
   try {
     const conn = getConn();
     conn.query(
-      "SELECT * FROM customers WHERE user_id = ? LIMIT 1",
+      "SELECT c.*, DATE_FORMAT(c.birthdate, '%Y-%m-%d') AS birthdate FROM customers c WHERE user_id = ? LIMIT 1",
       [req.params.user_id],
       (err, rows) => {
         if (err) return sendError(res, err);
@@ -121,6 +136,7 @@ router.put('/:cust_id', (req, res) => {
   const { cust_id } = req.params;
   // Accept paypal_email and also alias 'paypal' from FE
   const { name, phone_number, phone, subscription, paypal_email, paypal } = req.body;
+  const { birthdate } = req.body;
   const { city, street, house_Num, floor, city_code } = req.body;
 
   // Build dynamic SET only for provided customer fields
@@ -134,6 +150,7 @@ router.put('/:cust_id', (req, res) => {
   if (typeof paypal_email !== 'undefined') { setClauses.push('paypal_email = ?'); params.push(paypal_email); }
   // Alias support: 'paypal' key maps to paypal_email
   if (typeof paypal !== 'undefined' && typeof paypal_email === 'undefined') { setClauses.push('paypal_email = ?'); params.push(paypal); }
+  if (typeof birthdate !== 'undefined') { setClauses.push('birthdate = ?'); params.push(birthdate); }
 
   // Address fields presence check
   const addressUpdates = {};

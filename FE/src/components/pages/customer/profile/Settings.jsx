@@ -20,6 +20,9 @@ export default function Settings() {
     const [cityCode, setCityCode] = useState('');
     const [paypal, setPaypal] = useState(''); // UI only for now
     const [birthdate, setBirthdate] = useState('');
+    // Allergies
+    const [allergies, setAllergies] = useState([]); // [{comp_id, name}]
+    const [allergyInput, setAllergyInput] = useState('');
 
     // Load customer and address
     useEffect(() => {
@@ -58,6 +61,12 @@ export default function Settings() {
                         setFloor(addr.floor || '');
                         setCityCode(addr.city_code || '');
                     }
+                    // Load allergies
+                    const resAll = await fetch(`http://localhost:3000/api/customers/${customer.cust_id}/allergies`, { credentials: 'include' });
+                    if (resAll.ok) {
+                        const list = await resAll.json();
+                        setAllergies(Array.isArray(list) ? list : []);
+                    }
                 }
             } catch (e) {
                 setError(e.message || 'שגיאה');
@@ -67,6 +76,49 @@ export default function Settings() {
         };
         load();
     }, [currentUser?.user_id]);
+
+    // Add allergy by name
+    const addAllergy = async (name) => {
+        const trimmed = String(name || '').trim();
+        if (!trimmed || !custId) return;
+        // check duplicate in UI
+        if (allergies.some(a => a.name.toLowerCase() === trimmed.toLowerCase())) {
+            setAllergyInput('');
+            return;
+        }
+        try {
+            const res = await fetch(`http://localhost:3000/api/customers/${custId}/allergies`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: trimmed }),
+            });
+            if (!res.ok) {
+                try { const j = await res.json(); throw new Error(j?.message || 'הוספת אלרגיה נכשלה'); } catch { throw new Error('הוספת אלרגיה נכשלה'); }
+            }
+            const item = await res.json();
+            setAllergies(prev => [...prev, item]);
+            setAllergyInput('');
+        } catch (e) {
+            setError(e.message || 'שגיאה');
+        }
+    };
+
+    const removeAllergy = async (comp_id) => {
+        if (!custId) return;
+        try {
+            const res = await fetch(`http://localhost:3000/api/customers/${custId}/allergies/${comp_id}`, {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+            if (!res.ok) {
+                try { const j = await res.json(); throw new Error(j?.message || 'מחיקה נכשלה'); } catch { throw new Error('מחיקה נכשלה'); }
+            }
+            setAllergies(prev => prev.filter(a => String(a.comp_id) !== String(comp_id)));
+        } catch (e) {
+            setError(e.message || 'שגיאה');
+        }
+    };
 
     const onSubmit = async (e) => {
         e.preventDefault();
@@ -160,6 +212,36 @@ export default function Settings() {
 
                 <label htmlFor="phone">טלפון</label>
                 <input className={styles.formInput} type="tel" id="phone" name="phone" value={phone} onChange={(e)=>setPhone(e.target.value)} />
+
+                <fieldset className={styles.formField}>
+                    <legend className={styles.formLegend}>אלרגיות</legend>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <input
+                                className={styles.formInput}
+                                type="text"
+                                placeholder="הקלידו אלרגיה ולחצו אנטר"
+                                value={allergyInput}
+                                onChange={(e)=>setAllergyInput(e.target.value)}
+                                onKeyDown={(e)=>{
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        addAllergy(allergyInput);
+                                    }
+                                }}
+                            />
+                            <button type="button" className={styles.primaryBtn} onClick={()=>addAllergy(allergyInput)}>הוסף</button>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {allergies.map(a => (
+                                <span key={a.comp_id} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 8px', background:'#eef0f3', borderRadius:9999 }}>
+                                    {a.name}
+                                    <button type="button" onClick={()=>removeAllergy(a.comp_id)} style={{ border:'none', background:'transparent', cursor:'pointer' }} aria-label={`הסר ${a.name}`}>×</button>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                </fieldset>
 
                 {loading && <span>טוען…</span>}
                 {error && <span style={{ color: '#b91c1c' }}>{error}</span>}

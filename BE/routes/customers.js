@@ -29,20 +29,71 @@ router.get("/", (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
-// Get a single customer by cust_id
-router.get('/:cust_id', (req, res) => {
+// ---- Allergies Management ----
+// Get allergies list for a customer
+router.get('/:cust_id/allergies', (req, res) => {
   try {
     const conn = getConn();
-    const sql = "SELECT c.*, DATE_FORMAT(c.birthdate, '%Y-%m-%d') AS birthdate FROM customers c WHERE c.cust_id = ? LIMIT 1";
+    const sql = `
+      SELECT ca.comp_id, c.name
+      FROM customer_allergies ca
+      JOIN components c ON c.comp_id = ca.comp_id
+      WHERE ca.customer_id = ?
+      ORDER BY c.name ASC
+    `;
     conn.query(sql, [req.params.cust_id], (err, rows) => {
       if (err) return sendError(res, err);
-      if (!rows || rows.length === 0) return res.status(404).json({ message: 'Customer not found' });
-      return res.json(rows[0]);
+      return res.json(rows || []);
     });
   } catch (e) { sendError(res, e); }
 });
 
-// (moved '/:cust_id' below address route to avoid shadowing)
+// Add an allergy for a customer by component name (creates component if needed)
+router.post('/:cust_id/allergies', (req, res) => {
+  try {
+    const { name } = req.body || {};
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ message: 'Allergy name is required' });
+    }
+    const compName = String(name).trim();
+    const conn = getConn();
+
+    // Ensure a component exists for this name. Requires UNIQUE KEY on components.name for ideal behavior.
+    const insertCompSql = `
+      INSERT INTO components (name)
+      VALUES (?)
+      ON DUPLICATE KEY UPDATE comp_id = LAST_INSERT_ID(comp_id)
+    `;
+    conn.query(insertCompSql, [compName], (compErr, compRes) => {
+      if (compErr) return sendError(res, compErr);
+      const compId = compRes && compRes.insertId ? compRes.insertId : null;
+      if (!compId) return sendError(res, new Error('Failed to resolve comp_id for allergy'));
+
+      // Link customer to component (avoid duplicates)
+      const linkSql = `INSERT IGNORE INTO customer_allergies (customer_id, comp_id) VALUES (?, ?)`;
+      conn.query(linkSql, [req.params.cust_id, compId], (linkErr, linkRes) => {
+        if (linkErr) return sendError(res, linkErr);
+        const created = (linkRes && linkRes.affectedRows > 0);
+        return res.status(created ? 201 : 200).json({ comp_id: compId, name: compName });
+      });
+    });
+  } catch (e) { sendError(res, e); }
+});
+
+// Remove an allergy mapping
+router.delete('/:cust_id/allergies/:comp_id', (req, res) => {
+  try {
+    const conn = getConn();
+    const sql = `DELETE FROM customer_allergies WHERE customer_id = ? AND comp_id = ?`;
+    conn.query(sql, [req.params.cust_id, req.params.comp_id], (err, result) => {
+      if (err) return sendError(res, err);
+      if (!result || result.affectedRows === 0) {
+        return res.status(404).json({ message: 'Allergy not found for this customer' });
+      }
+      return res.json({ message: 'Allergy removed' });
+    });
+  } catch (e) { sendError(res, e); }
+});
 
 // Get address by customer id
 router.get('/:cust_id/address', (req, res) => {
@@ -60,6 +111,19 @@ router.get('/:cust_id/address', (req, res) => {
       if (!rows || rows.length === 0 || !rows[0] || rows[0].address_id == null) {
         return res.status(404).json({ message: 'Address not found' });
       }
+      return res.json(rows[0]);
+    });
+  } catch (e) { sendError(res, e); }
+});
+
+// Get a single customer by cust_id (placed after '/:cust_id/address' to avoid shadowing)
+router.get('/:cust_id', (req, res) => {
+  try {
+    const conn = getConn();
+    const sql = "SELECT c.*, DATE_FORMAT(c.birthdate, '%Y-%m-%d') AS birthdate FROM customers c WHERE c.cust_id = ? LIMIT 1";
+    conn.query(sql, [req.params.cust_id], (err, rows) => {
+      if (err) return sendError(res, err);
+      if (!rows || rows.length === 0) return res.status(404).json({ message: 'Customer not found' });
       return res.json(rows[0]);
     });
   } catch (e) { sendError(res, e); }

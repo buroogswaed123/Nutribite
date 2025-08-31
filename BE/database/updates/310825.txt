@@ -1,0 +1,573 @@
+query 1:
+INSERT INTO products (recipe_id, name)
+SELECT r.recipe_id, r.name
+FROM recipes r
+LEFT JOIN products p ON p.recipe_id = r.recipe_id
+WHERE p.recipe_id IS NULL;
+
+
+
+query 2:
+
+INSERT INTO products (recipe_id, name, diet_type_id, category_id)
+SELECT r.recipe_id, r.name, r.diet_type_id, r.category_id
+FROM recipes r
+LEFT JOIN products p ON p.recipe_id = r.recipe_id
+WHERE p.recipe_id IS NULL;
+
+
+query 3:
+INSERT INTO components (name) VALUES
+('ביצים'),
+('רוטב עגבניות'),
+('שמן זית'),
+('מלח'),
+('פלפל'),
+('אבוקדו'),
+('שיבולת שועל'),
+('חלב'),
+('חלב סויה'),
+('קמח כוסמין'),
+('דבש'),
+('יוגורט טבעי'),
+('גבינת שמנת'),
+('חמאה'),
+('אבקת חלבון'),
+('לחם כפרי'),
+('גבינת צפתית'),
+('ירקות טריים'),
+('לחם מלא'),
+('פלפל אדום'),
+('קישוא'),
+('אגוזים קצוצים'),
+('אורז'),
+('עוף'),
+('קינואה'),
+('פירות'),
+('מנגו'),
+('אספרסו'),
+('קפה שחור'),
+('חמאת בוטנים'),
+('קקאו'),
+('שוקולד מריר'),
+('שקדים'),
+('קוקוס מגורר'),
+('דפי לזניה'),
+('טופו'),
+('תבלינים'),
+('חלב קוקוס'),
+('מי ורדים'),
+('קמומיל'),
+('לואיזה'),
+('קרח'),
+('גבינה צהובה'),
+('חסה'),
+('עגבניה'),
+('פרכיות אורז'),
+('גזר'),
+('סלרי'),
+('מלפפון'),
+('טחינה גולמית'),
+('תמרים'),
+('אגוזי מלך'),
+('חלב שקדים'),
+('גבינת ריקוטה'),
+('ביסקוויטים'),
+('חלמונים'),
+('וניל'),
+('קמח שקדים'),
+('ממתיק אריתריטול'),
+('שמן קוקוס'),
+('חלב דל שומן'),
+('בננה'),
+('תותים'),
+('אוכמניות'),
+('בטטה'),
+('שעועית ירוקה'),
+('גבינה לבנה 5%'),
+('חזה הודו פרוס'),
+('פלפל קטן'),
+('עשבי תיבול'),
+('רוטב סויה'),
+('קמח חומוס'),
+('לימון טרי'),
+('אספרגוס'),
+('חזה עוף'),
+('חזה הודו'),
+('פילה סלמון'),
+('קרם שמנת');
+
+
+query 4:
+-- 1. שקשוקה (product_id = 2)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(2, 33), (2, 34), (2, 35), (2, 36), (2, 37);
+
+-- 2. ביצים עלומות עם אבוקדו (product_id = 3)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(3, 33), (3, 38), (3, 36), (3, 37), (3, 35);
+
+-- 3. שיבולת שועל עם פירות (product_id = 4)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(4, 39), (4, 40), (4, 41), (4, 58), (4, 94), (4, 95), (4, 96);
+
+-- 4. פנקייק מקמח כוסמין (product_id = 5)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(5, 33), (5, 42), (5, 40), (5, 43), (5, 35);
+
+-- 5. יוגורט עם גרנולה ודבש (product_id = 6)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(6, 44), (6, 43), (6, 54);
+
+-- 6. חביתה קטוגנית עם גבינת שמנת (product_id = 7)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(7, 33), (7, 45), (7, 46), (7, 36), (7, 37);
+
+-- 7. פנקייק חלבון (product_id = 8)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(8, 33), (8, 47), (8, 40), (8, 35);
+
+-- 8. לחם כפרי עם גבינה צמחונית (product_id = 9)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(9, 48), (9, 49), (9, 50);
+
+-- 9. טוסט טבעוני עם אבוקדו (product_id = 10)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(10, 51), (10, 38), (10, 36), (10, 37);
+
+-- 10. ביצים עם ירקות בסגנון פליאו (product_id = 11)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(11, 33), (11, 52), (11, 53), (11, 50);
+
+
+query 5:
+-- 11. יוגורט יווני עם דבש ואגוזים (product_id = 12)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(12, 44), (12, 43), (12, 54);
+
+-- 12. אורז עם ירקות ועוף (product_id = 145)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(145, 55), (145, 56), (145, 50);
+
+-- 13. סלט קינואה עם טופו (product_id = 146)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(146, 57), (146, 68), (146, 50);
+
+-- 14. פסטה מלאה עם ירקות (product_id = 147)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(147, 50), (147, 34); -- assuming רוטב עגבניות
+
+-- 15. סלט עוף עם אבוקדו (product_id = 148)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(148, 56), (148, 38), (148, 50);
+
+-- 16. חזה עוף מוקפץ עם ירקות (product_id = 149)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(149, 107), (149, 50);
+
+-- 17. סלמון אפוי עם ברוקולי (product_id = 150)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(150, 109), (150, 50); -- assuming ברוקולי is part of ירקות טריים
+
+-- 18. חזה הודו עם קינואה (product_id = 151)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(151, 108), (151, 57);
+
+-- 19. סלמון עם אפונה ירוקה (product_id = 152)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(152, 109), (152, 98); -- assuming אפונה ירוקה is covered by שעועית ירוקה
+
+-- 20. ביצים עם תרד ועגבניות (product_id = 153)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(153, 33), (153, 50), (153, 37); -- תרד + עגבניות included in ירקות טריים
+
+query 6:
+-- 21. חזה עוף עם אבוקדו (product_id = 154)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(154, 107), (154, 38), (154, 35); -- adding שמן זית
+
+-- 22. סלמון עם ירקות קלויים (product_id = 155)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(155, 109), (155, 50);
+
+-- 23. חביתה עם גבינת שמנת ותרד (product_id = 156)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(156, 33), (156, 45), (156, 50);
+
+-- 24. קציצות עדשים עם אורז (product_id = 157)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(157, 55), (157, 69); -- עדשים = תבלינים/assumed component?
+
+-- 25. סלט קינואה עם ירקות (product_id = 158)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(158, 57), (158, 50);
+
+-- 26. פסטה עם ירקות וגבינת מוצרלה (product_id = 159)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(159, 50), (159, 34); -- רוטב עגבניות assumed
+
+-- 27. קארי ירקות עם טופו (product_id = 160)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(160, 50), (160, 68), (160, 69);
+
+-- 28. סלט קינואה עם ירקות (product_id = 161)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(161, 57), (161, 50);
+
+-- 29. מוקפץ טופו עם ירקות (product_id = 162)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(162, 68), (162, 50), (162, 35); -- שמן זית
+
+-- 30. סטייק בקר עם ירקות (product_id = 163)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(163, 64), (163, 50); -- assuming beef component = 64? adjust if needed
+
+-- 31. חזה עוף עם בטטה (product_id = 164)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(164, 107), (164, 97);
+
+-- 32. סלט טונה עם ירקות (product_id = 165)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(165, 102), (165, 50); -- assuming טונה = 102?
+
+-- 33. עוף בגריל עם ירקות (product_id = 166)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(166, 56), (166, 50), (166, 35);
+
+-- 34. סלמון אפוי עם אורז (product_id = 167)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(167, 109), (167, 55), (167, 102); -- עשבי תיבול
+
+-- 35. מרק ירקות עם לחם (product_id = 168)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(168, 50), (168, 48); -- לחם מחיטה מלאה = לחם כפרי?
+
+-- 36. אטריות קישוא עם עוף (product_id = 169)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(169, 107), (169, 53), (169, 34); -- רוטב עגבניות assumed
+
+-- 37. מוקפץ בקר עם ברוקולי (product_id = 170)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(170, 64), (170, 50), (170, 35);
+
+-- 38. סלמון בגריל עם אספרגוס (product_id = 171)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(171, 109), (171, 106), (171, 35); -- שמן זית
+
+-- 39. קציצות הודו עם קינואה (product_id = 172)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(172, 108), (172, 57), (172, 69); -- תבלינים
+
+-- 40. סטייק טונה בגריל (product_id = 173)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(173, 102), (173, 50); -- ירקות לסלט
+
+-- 41. חביתה עם תרד וגבינה (product_id = 174)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(174, 33), (174, 50), (174, 75); -- גבינה צהובה
+
+-- 42. המבורגר קטו בלפטס חסה (product_id = 175)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(175, 64), (175, 76), (175, 75), (175, 77); -- beef, חסה, גבינה, עגבניה
+
+-- 43. סלמון ברוטב שמנת (product_id = 176)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(176, 109), (176, 110); -- שמנת
+
+-- 44. חציל עם גבינה (product_id = 177)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(177, 102), (177, 75), (177, 35); -- חציל assumed = 102, שמן זית
+
+-- 45. מוקפץ ירקות עם אורז (product_id = 178)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(178, 55), (178, 50), (178, 35);
+
+-- 46. לזניה עם גבינה ותרד (product_id = 179)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(179, 67), (179, 50), (179, 75), (179, 34); -- דפי לזניה, תרד, גבינה, רוטב עגבניות
+
+-- 47. פלפלים ממולאים קינואה (product_id = 180)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(180, 52), (180, 57), (180, 50);
+
+-- 48. קארי עדשים טבעוני (product_id = 181)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(181, 55), (181, 69), (181, 70); -- עדשים, תבלינים, חלב קוקוס
+
+-- 49. מוקפץ טופו טבעוני (product_id = 182)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(182, 68), (182, 50), (182, 35);
+
+-- 50. תבשיל חומוס (product_id = 183)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(183, 83), (183, 50), (183, 69); -- חומוס, ירקות, תבלינים
+
+query 6:
+-- 51. סטייק בגריל עם ירקות (product_id = 184)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(184, 64), (184, 50);
+
+-- 52. עוף עם בטטה (product_id = 185)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(185, 107), (185, 97), (185, 35);
+
+-- 53. סלמון עם שעועית ירוקה (product_id = 186)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(186, 109), (186, 98), (186, 35);
+
+-- 54. עוגת שוקולד טבעונית (product_id = 187)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(187, 42), (187, 63), (187, 92), (187, 43); -- קמח, קקאו, שמן קוקוס, דבש
+
+-- 55. עוגיות שיבולת שועל טבעוניות (product_id = 188)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(188, 39), (188, 62), (188, 65), (188, 43); -- שיבולת שועל, חמאת בוטנים, אגוזים, סירופ מייפל? (assume דבש = 43)
+
+-- 56. פודינג צ׳יה טבעוני (product_id = 189)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(189, 74), (189, 85), (189, 58); -- זרעי צ׳יה = 74? h/ חלב שקדים, פירות יער
+
+-- 57. פנקייק גבינה (product_id = 190)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(190, 86), (190, 42), (190, 33), (190, 43); -- גבינת ריקוטה, קמח, ביצים, סוכר
+
+-- 58. עוגת גבינה קלאסית (product_id = 191)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(191, 44), (191, 33), (191, 87), (191, 46); -- גבינה לבנה, ביצים, ביסקוויטים, חמאה
+
+-- 59. קרם ברולה (product_id = 192)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(192, 46), (192, 89), (192, 43), (192, 88); -- שמנת מתוקה, וניל, סוכר, חלמונים
+
+-- 60. עוגיות שקדים קטוגניות (product_id = 193)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(193, 90), (193, 33), (193, 91); -- קמח שקדים, ביצים, ממתיק אריתריטול
+
+-- 61. שוקולד מריר קטוגני (product_id = 194)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(194, 63), (194, 92), (194, 91); -- קקאו, שמן קוקוס, ממתיק
+
+-- 62. עוגת גבינה קטוגנית (product_id = 195)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(195, 45), (195, 33), (195, 65); -- גבינת שמנת, ביצים, שקדים טחונים
+
+-- 63. מוס שוקולד פליאו (product_id = 196)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(196, 63), (196, 70), (196, 43); -- קקאו, חלב קוקוס, דבש
+
+-- 64. עוגיות קוקוס פליאו (product_id = 197)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(197, 66), (197, 33), (197, 43); -- קוקוס מגורר, ביצים, דבש
+
+-- 65. בראוניז בטטה פליאו (product_id = 198)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(198, 97), (198, 63), (198, 43), (198, 65); -- בטטה, קקאו, דבש, שקדים
+
+-- 66. מוס פירות יער (product_id = 199)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(199, 58), (199, 46), (199, 91); -- פירות יער, שמנת מתוקה, ממתיק
+
+-- 67. עוגת שקדים דלת פחמימה (product_id = 200)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(200, 90), (200, 33), (200, 91); -- קמח שקדים, ביצים, ממתיק
+
+-- 68. פודינג וניל דל פחמימה (product_id = 201)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(201, 46), (201, 91), (201, 89); -- שמנת, ממתיק, תמצית וניל
+
+-- 69. יוגורט עם פירות (product_id = 202)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(202, 44), (202, 58), (202, 94), (202, 95); -- יוגורט דל שומן, תפוח, בננה, תותים
+
+-- 70. ג׳לי דיאט (product_id = 203)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(203, 42), (203, 85); -- אבקת ג׳לי דיאט, מים assumed = 85?
+
+-- 71. פירות חתוכים (product_id = 204)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(204, 94), (204, 58), (204, 95); -- תפוח, אגס, בננה, תותים
+
+-- 72. בקלאווה (product_id = 205)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(205, 67), (205, 84), (205, 43), (205, 46); -- בצק פילו, אגוזים, דבש, חמאה
+
+-- 73. מלבי (product_id = 206)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(206, 40), (206, 34), (206, 43), (206, 71); -- חלב, קורנפלור, סוכר, מי ורדים
+
+-- 74. עוגיות ביסקוטי (product_id = 207)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(207, 42), (207, 43), (207, 65), (207, 33); -- קמח, סוכר, שקדים, ביצים
+
+-- 75. חטיפי גרנולה טבעוניים (product_id = 208)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(208, 39), (208, 58), (208, 84), (208, 43); -- שיבולת שועל, פירות יבשים, אגוזים, סירופ מייפל
+
+-- 76. פופקורן טבעי (product_id = 209)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(209, 42), (209, 92), (209, 36); -- גרעיני תירס, שמן קוקוס, מלח
+
+-- 77. קרקרים טבעוניים (product_id = 210)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(210, 104), (210, 35), (210, 69); -- קמח חומוס, שמן זית, תבלינים
+
+-- 78. ביצים קשות (product_id = 211)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(211, 33), (211, 36), (211, 37);
+
+-- 79. חטיפי גבינה (product_id = 212)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(212, 75), (212, 50);
+
+-- 80. פשטידת ירקות קטנה (product_id = 213)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(213, 53), (213, 45), (213, 33);
+
+-- 81. אגוזי מקדמיה (product_id = 214)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(214, 81); -- אגוזי מקדמיה
+
+-- 82. חטיפי חמאת בוטנים קטוגניים (product_id = 215)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(215, 62), (215, 63), (215, 92); -- חמאת בוטנים, קקאו, שמן קוקוס
+
+-- 83. צ׳יפס גבינה (product_id = 216)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(216, 75);
+
+-- 84. חטיפי תמרים ואגוזים (product_id = 217)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(217, 83), (217, 84), (217, 66); -- תמרים, אגוזי מלך, קוקוס מגורר
+
+-- 85. ירקות חתוכים עם טחינה (product_id = 218)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(218, 50), (218, 82);
+
+-- 86. צ׳יפס בטטה (product_id = 219)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(219, 97), (219, 35); -- בטטה ושמן זית
+
+-- 87. חטיפי שקדים (product_id = 220)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(220, 65);
+
+-- 88. רול גבינה והודו (product_id = 221)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(221, 75), (221, 108); -- גבינה צהובה והודו
+
+-- 89. מיני ירקות עם גבינת שמנת (product_id = 222)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(222, 50), (222, 45);
+
+-- 90. פירות יער טריים (product_id = 223)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(223, 96), (223, 95), (223, 94);
+
+-- 91. חטיף אורז מלא (product_id = 224)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(224, 78);
+
+-- 92. מקלות ירקות (product_id = 225)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(225, 50);
+
+-- 93. חומוס עם פיתה (product_id = 226)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(226, 83), (226, 48);
+
+-- 94. זיתים מתובלים (product_id = 227)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(227, 34);
+
+-- 95. טחינה עם ירקות (product_id = 228)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(228, 82), (228, 50);
+
+-- 96. שייק ירוק (product_id = 229)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(229, 50), (229, 85); -- ירקות + חלב שקדים
+
+-- 97. חלב שיבולת שועל (product_id = 230)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(230, 40), (230, 39); -- חלב ושיבולת שועל
+
+-- 98. תה צמחים (product_id = 231)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(231, 72), (231, 73); -- קמומיל ולואיזה
+
+-- 99. שוקו חם (product_id = 232)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(232, 64), (232, 40); -- שוקולד מריר וחלב
+
+-- 100. לאסי מנגו (product_id = 233)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(233, 44), (233, 59); -- יוגורט ומנגו
+
+
+
+query 7:
+-- 101. קפה לאטה (product_id = 234)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(234, 60), (234, 40); -- אספרסו + חלב
+
+-- 102. קפה בולטפרוף (product_id = 235)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(235, 61), (235, 92); -- קפה שחור + שמן קוקוס
+
+-- 103. שייק שקדים קטוגני (product_id = 236)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(236, 85), (236, 47); -- חלב שקדים + אבקת חלבון
+
+-- 104. מים עם לימון ונענע (product_id = 237)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(237, 105), (237, 74); -- לימון טרי + קרח (or נענע if comp_id exists)
+
+-- 105. שייק פירות יער (product_id = 238)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(238, 96), (238, 40); -- אוכמניות + חלב
+
+-- 106. חלב קוקוס (product_id = 239)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(239, 70); -- חלב קוקוס
+
+-- 107. מים עם ג׳ינג׳ר (product_id = 240)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(240, 74); -- קרח + ג׳ינג׳ר (add comp_id for ג׳ינג׳ר if exists)
+
+-- 108. שייק חלבון וניל (product_id = 241)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(241, 47), (241, 89), (241, 40); -- אבקת חלבון + וניל + חלב
+
+-- 109. קפה שחור (product_id = 242)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(242, 61); -- קפה שחור
+
+-- 110. סודה עם לימון (product_id = 243)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(243, 105); -- לימון טרי
+
+-- 111. מים מינרליים (product_id = 244)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(244, 74); -- קרח (or מים if separate comp_id)
+
+-- 112. תה ירוק (product_id = 245)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(245, 72); -- קמומיל? or תה ירוק comp_id
+
+-- 113. קפה אספרסו (product_id = 246)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(246, 60); -- אספרסו
+
+-- 114. מיץ תפוזים סחוט טרי (product_id = 247)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(247, 105); -- לימון טרי? or תפוזים comp_id
+
+-- 115. קפה טורקי (product_id = 248)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(248, 61); -- קפה שחור
+
+-- 116. לימונדה טבעית (product_id = 249)
+INSERT INTO product_contains_components (product_id, comp_id) VALUES
+(249, 105); -- לימון טרי
+
+

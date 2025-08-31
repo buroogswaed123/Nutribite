@@ -85,14 +85,7 @@ export default function Plan() {
       try {
         setLoading(true);
         setErr('');
-        const u = await getSessionUser();
-        if (!u) {
-          setErr('יש להתחבר כדי לראות תוכנית');
-          setLoading(false);
-          return;
-        }
-
-        // Resolve correct customer_id
+        // Resolve correct customer_id (this will also rely on session; if unavailable, it will throw)
         const customerId = await getCurrentCustomerId();
 
         // Load plans for this customer; if none, create an empty plan
@@ -112,7 +105,13 @@ export default function Plan() {
         const items = await fetchRecipes({});
         setRecipes(items);
       } catch (e) {
-        setErr(e.message || 'שגיאה בטעינת התוכנית');
+        // If unauthorized, prompt login
+        const msg = e?.message || '';
+        if (/401|403/.test(msg) || /unauthor/i.test(msg)) {
+          setErr('יש להתחבר כדי לראות תוכנית');
+        } else {
+          setErr(msg || 'שגיאה בטעינת התוכנית');
+        }
       } finally {
         setRecipesLoading(false);
         setLoading(false);
@@ -355,9 +354,9 @@ export default function Plan() {
                   <span style={{ marginInlineEnd:12 }}>{selectedItem.calories} קלוריות למנה</span>
                 </div>
                 <div style={{ marginBottom:8 }}>
-                  <span style={{ marginInlineEnd:12 }}>חלבון: {selectedItem.protein ?? '—'}g</span>
-                  <span style={{ marginInlineEnd:12 }}>פחמימות: {selectedItem.carbs ?? '—'}g</span>
-                  <span>שומנים: {selectedItem.fats ?? '—'}g</span>
+                  <span style={{ marginInlineEnd:12 }}>חלבון: {selectedItem.protein_g ?? '—'}g</span>
+                  <span style={{ marginInlineEnd:12 }}>פחמימות: {selectedItem.carbs_g ?? '—'}g</span>
+                  <span>שומנים: {selectedItem.fats_g ?? '—'}g</span>
                 </div>
                 <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12 }}>
                   <button

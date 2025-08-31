@@ -140,7 +140,7 @@ INSERT INTO product_contains_components (product_id, comp_id) VALUES
 (11, 33), (11, 52), (11, 53), (11, 50);
 
 
-query 5:
+--query 5:
 -- 11. יוגורט יווני עם דבש ואגוזים (product_id = 12)
 INSERT INTO product_contains_components (product_id, comp_id) VALUES
 (12, 44), (12, 43), (12, 54);
@@ -181,7 +181,7 @@ INSERT INTO product_contains_components (product_id, comp_id) VALUES
 INSERT INTO product_contains_components (product_id, comp_id) VALUES
 (153, 33), (153, 50), (153, 37); -- תרד + עגבניות included in ירקות טריים
 
-query 6:
+--query 6:
 -- 21. חזה עוף עם אבוקדו (product_id = 154)
 INSERT INTO product_contains_components (product_id, comp_id) VALUES
 (154, 107), (154, 38), (154, 35); -- adding שמן זית
@@ -302,7 +302,7 @@ INSERT INTO product_contains_components (product_id, comp_id) VALUES
 INSERT INTO product_contains_components (product_id, comp_id) VALUES
 (183, 83), (183, 50), (183, 69); -- חומוס, ירקות, תבלינים
 
-query 6:
+--query 6:
 -- 51. סטייק בגריל עם ירקות (product_id = 184)
 INSERT INTO product_contains_components (product_id, comp_id) VALUES
 (184, 64), (184, 50);
@@ -505,7 +505,7 @@ INSERT INTO product_contains_components (product_id, comp_id) VALUES
 
 
 
-query 7:
+--query 7:
 -- 101. קפה לאטה (product_id = 234)
 INSERT INTO product_contains_components (product_id, comp_id) VALUES
 (234, 60), (234, 40); -- אספרסו + חלב

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import styles from './header.module.css';
 import { AuthContext } from '../../../app/App';
+import { getCurrentCustomerId } from '../../../utils/functions';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -80,14 +81,37 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Dynamic plan link: if user (customer) has any plan -> /plan, else /plan-maker
+  const [planLink, setPlanLink] = useState('/plan-maker');
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!isLoggedIn || getUserType().toLowerCase() !== 'customer') {
+          if (!cancelled) setPlanLink('/plan-maker');
+          return;
+        }
+        const customerId = await getCurrentCustomerId();
+        const qs = customerId ? `?customer_id=${encodeURIComponent(customerId)}` : '';
+        const res = await fetch(`http://localhost:3000/api/plan${qs}`, { credentials: 'include' });
+        if (!res.ok) throw new Error('plan check failed');
+        const rows = await res.json();
+        if (!cancelled) setPlanLink(Array.isArray(rows) && rows.length > 0 ? '/plan' : '/plan-maker');
+      } catch {
+        if (!cancelled) setPlanLink('/plan-maker');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isLoggedIn, currentUser]);
+
   // Navigation links (Hebrew labels)
   const navLinks = [
     { name: 'שאלות ותשובות', path: '/faq' },
-    { name: 'תוכניות ארוחה', path: '/plan-maker' },
+    { name: 'תוכניות ארוחה', path: planLink },
     { name: 'תפריט', path: '/menu' },
     { name: 'מתכונים', path: '/recipes' },
     { name: 'צור קשר', path: '/contact' },
-    {name : 'מאמרים', path : '/articles'}
+    { name: 'מאמרים', path: '/articles' }
   ];
 
   // Apply transparent on home top, solid when scrolled or on other routes

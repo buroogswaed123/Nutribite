@@ -69,6 +69,14 @@ export async function getCurrentCustomerId() {
   } catch (err) {
     if (err?.response?.status !== 404) throw err;
   }
+
+  // If not found, auto-create customer (idempotent with UNIQUE on customers.user_id)
+  const { data: createData } = await axios.post('/api/customers', { user_id: userId });
+  if (createData?.cust_id) {
+    getCurrentCustomerId._cache = createData.cust_id;
+    return createData.cust_id;
+  }
+  throw new Error('Failed to resolve customer id');
 }
 
 // Fetch recipes with optional query params (server may ignore unknown params; we also filter client-side)

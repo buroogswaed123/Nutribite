@@ -48,8 +48,9 @@ export default function CalorieCalculator() {
   };
 
   const getAge = () => {
-    if (!form.birthdate) return null;
-    const birth = new Date(form.birthdate);
+    const bd = (customer && customer.birthdate) ? customer.birthdate : form.birthdate;
+    if (!bd) return null;
+    const birth = new Date(bd);
     const today = new Date();
     let age = today.getFullYear() - birth.getFullYear();
     const m = today.getMonth() - birth.getMonth();
@@ -81,20 +82,20 @@ export default function CalorieCalculator() {
     setResult(caloriesData);
     setModalOpen(true);
 
-    // Save nutrition plan
-    await axios.post("/api/nutritionplan", {
+    // Save nutrition plan (backend route: /api/plan)
+    await axios.post("/api/plan", {
       customer_id: customer.cust_id,
       age,
       gender: form.gender,
-      height_cm: form.height,
-      weight_kg: form.weight,
-      activity_lvl: form.activity_level,
+      height_cm: Number(form.height),
+      weight_kg: Number(form.weight),
+      activity_level: form.activity_level,
       diet_type_id: form.diet_type_id,
       calories_per_day: caloriesData.calories,
       protein_g: caloriesData.protein,
       carbs_g: caloriesData.carbs,
       fats_g: caloriesData.fat,
-      start_date: new Date(),
+      // start_date omitted; server defaults to today
     });
   };
 
@@ -104,8 +105,8 @@ export default function CalorieCalculator() {
     <div className={styles.container}>
       <h2 className={styles.title}>חישוב קלוריות</h2>
   
-      {/* Birthdate */}
-      {!form.birthdate && (
+      {/* Birthdate: only ask if customer has no saved DoB */}
+      {!customer?.birthdate && (
         <div className={styles.inputGroup}>
           <label className={styles.label}>תאריך לידה</label>
           <input
@@ -113,6 +114,7 @@ export default function CalorieCalculator() {
             name="birthdate"
             value={form.birthdate}
             onChange={handleChange}
+            max={new Date().toISOString().slice(0,10)}
             className={styles.input}
           />
         </div>

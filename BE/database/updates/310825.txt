@@ -571,3 +571,167 @@ INSERT INTO product_contains_components (product_id, comp_id) VALUES
 (249, 105); -- לימון טרי
 
 
+query 8:
+-- Find duplicates
+SELECT user_id, COUNT(*) c
+FROM customers
+GROUP BY user_id
+HAVING c > 1;
+
+--Keep lowest cust_id per user_id, delete others
+DELETE c1 FROM customers c1
+JOIN customers c2
+  ON c1.user_id = c2.user_id
+ AND c1.cust_id > c2.cust_id;
+
+-- Add uniqueness
+ALTER TABLE customers ADD UNIQUE KEY uq_customers_user_id (user_id);
+
+query 9:
+ALTER TABLE recipes
+  ADD COLUMN protein_g DECIMAL(6,2) NULL AFTER calories,
+  ADD COLUMN carbs_g   DECIMAL(6,2) NULL AFTER protein_g,
+  ADD COLUMN fats_g    DECIMAL(6,2) NULL AFTER carbs_g;
+
+
+query 10:
+-- =====================
+-- Recipes 1–50
+-- =====================
+
+UPDATE recipes SET protein_g = 12, carbs_g = 10, fats_g = 15 WHERE recipe_id = 1;  -- Shakshuka
+UPDATE recipes SET protein_g = 14, carbs_g = 8, fats_g = 16 WHERE recipe_id = 2;   -- Poached eggs with avocado
+UPDATE recipes SET protein_g = 10, carbs_g = 45, fats_g = 6 WHERE recipe_id = 3;   -- Oatmeal with fruits
+UPDATE recipes SET protein_g = 14, carbs_g = 40, fats_g = 8 WHERE recipe_id = 4;   -- Spelt flour pancakes
+UPDATE recipes SET protein_g = 12, carbs_g = 35, fats_g = 9 WHERE recipe_id = 5;   -- Yogurt with granola and honey
+UPDATE recipes SET protein_g = 20, carbs_g = 3, fats_g = 33 WHERE recipe_id = 6;   -- Keto omelette with cream cheese
+UPDATE recipes SET protein_g = 28, carbs_g = 12, fats_g = 14 WHERE recipe_id = 7;  -- Protein pancakes
+UPDATE recipes SET protein_g = 18, carbs_g = 30, fats_g = 12 WHERE recipe_id = 8;  -- Rustic bread with vegan cheese
+UPDATE recipes SET protein_g = 8, carbs_g = 32, fats_g = 15 WHERE recipe_id = 9;   -- Vegan toast with avocado
+UPDATE recipes SET protein_g = 14, carbs_g = 6, fats_g = 12 WHERE recipe_id = 10;  -- Paleo eggs with vegetables
+
+UPDATE recipes SET protein_g = 26, carbs_g = 2, fats_g = 15 WHERE recipe_id = 11;  -- Grilled chicken breast
+UPDATE recipes SET protein_g = 22, carbs_g = 15, fats_g = 9 WHERE recipe_id = 12;  -- Turkey sandwich
+UPDATE recipes SET protein_g = 8, carbs_g = 52, fats_g = 12 WHERE recipe_id = 13;  -- Pasta with tomato sauce
+UPDATE recipes SET protein_g = 24, carbs_g = 8, fats_g = 18 WHERE recipe_id = 14;  -- Beef stir fry
+UPDATE recipes SET protein_g = 28, carbs_g = 2, fats_g = 10 WHERE recipe_id = 15;  -- Salmon fillet
+UPDATE recipes SET protein_g = 9, carbs_g = 45, fats_g = 14 WHERE recipe_id = 16;  -- Quinoa salad with feta
+UPDATE recipes SET protein_g = 12, carbs_g = 48, fats_g = 10 WHERE recipe_id = 17; -- Rice and beans
+UPDATE recipes SET protein_g = 20, carbs_g = 5, fats_g = 15 WHERE recipe_id = 18;  -- Beef burger (no bun)
+UPDATE recipes SET protein_g = 30, carbs_g = 3, fats_g = 20 WHERE recipe_id = 19;  -- Chicken thighs
+UPDATE recipes SET protein_g = 25, carbs_g = 10, fats_g = 18 WHERE recipe_id = 20; -- Tuna salad
+
+UPDATE recipes SET protein_g = 22, carbs_g = 12, fats_g = 14 WHERE recipe_id = 21; -- Turkey meatballs
+UPDATE recipes SET protein_g = 16, carbs_g = 40, fats_g = 8 WHERE recipe_id = 22;  -- Chicken wrap
+UPDATE recipes SET protein_g = 12, carbs_g = 60, fats_g = 10 WHERE recipe_id = 23; -- Lentil stew
+UPDATE recipes SET protein_g = 18, carbs_g = 8, fats_g = 20 WHERE recipe_id = 24;  -- Pork chops
+UPDATE recipes SET protein_g = 10, carbs_g = 25, fats_g = 12 WHERE recipe_id = 25; -- Stuffed bell peppers
+UPDATE recipes SET protein_g = 15, carbs_g = 35, fats_g = 9 WHERE recipe_id = 26;  -- Chickpea curry
+UPDATE recipes SET protein_g = 26, carbs_g = 2, fats_g = 14 WHERE recipe_id = 27;  -- Grilled shrimp
+UPDATE recipes SET protein_g = 24, carbs_g = 8, fats_g = 22 WHERE recipe_id = 28;  -- Lamb skewers
+UPDATE recipes SET protein_g = 14, carbs_g = 38, fats_g = 11 WHERE recipe_id = 29; -- Chicken stir fry with rice
+UPDATE recipes SET protein_g = 20, carbs_g = 15, fats_g = 10 WHERE recipe_id = 30; -- Eggplant lasagna
+
+UPDATE recipes SET protein_g = 26, carbs_g = 3, fats_g = 16 WHERE recipe_id = 31;  -- Grilled chicken with veggies
+UPDATE recipes SET protein_g = 10, carbs_g = 50, fats_g = 12 WHERE recipe_id = 32; -- Sweet potato stew
+UPDATE recipes SET protein_g = 12, carbs_g = 48, fats_g = 9 WHERE recipe_id = 33;  -- Vegan chili
+UPDATE recipes SET protein_g = 18, carbs_g = 10, fats_g = 22 WHERE recipe_id = 34; -- Duck breast
+UPDATE recipes SET protein_g = 28, carbs_g = 2, fats_g = 12 WHERE recipe_id = 35;  -- Baked salmon
+UPDATE recipes SET protein_g = 22, carbs_g = 15, fats_g = 18 WHERE recipe_id = 36; -- Turkey burger
+UPDATE recipes SET protein_g = 15, carbs_g = 38, fats_g = 10 WHERE recipe_id = 37; -- Chickpea salad
+UPDATE recipes SET protein_g = 24, carbs_g = 6, fats_g = 20 WHERE recipe_id = 38;  -- Beef stew
+UPDATE recipes SET protein_g = 12, carbs_g = 42, fats_g = 12 WHERE recipe_id = 39; -- Rice with lentils
+UPDATE recipes SET protein_g = 16, carbs_g = 36, fats_g = 14 WHERE recipe_id = 40; -- Pasta with pesto
+
+UPDATE recipes SET protein_g = 26, carbs_g = 4, fats_g = 15 WHERE recipe_id = 41;  -- Chicken skewers
+UPDATE recipes SET protein_g = 14, carbs_g = 48, fats_g = 12 WHERE recipe_id = 42; -- Falafel wrap
+UPDATE recipes SET protein_g = 22, carbs_g = 10, fats_g = 20 WHERE recipe_id = 43; -- Beef kebab
+UPDATE recipes SET protein_g = 28, carbs_g = 2, fats_g = 12 WHERE recipe_id = 44;  -- Grilled salmon
+UPDATE recipes SET protein_g = 12, carbs_g = 55, fats_g = 10 WHERE recipe_id = 45; -- Vegan pasta
+UPDATE recipes SET protein_g = 16, carbs_g = 42, fats_g = 14 WHERE recipe_id = 46; -- Bean soup
+UPDATE recipes SET protein_g = 26, carbs_g = 3, fats_g = 20 WHERE recipe_id = 47;  -- Chicken curry
+UPDATE recipes SET protein_g = 18, carbs_g = 8, fats_g = 18 WHERE recipe_id = 48;  -- Pork stir fry
+UPDATE recipes SET protein_g = 24, carbs_g = 6, fats_g = 16 WHERE recipe_id = 49;  -- Beef stew with potatoes
+UPDATE recipes SET protein_g = 12, carbs_g = 45, fats_g = 11 WHERE recipe_id = 50; -- Quinoa pilaf
+
+-- =====================
+-- Recipes 51–100
+-- =====================
+
+UPDATE recipes SET protein_g = 20, carbs_g = 30, fats_g = 12 WHERE recipe_id = 51;  -- Chicken fried rice
+UPDATE recipes SET protein_g = 16, carbs_g = 40, fats_g = 10 WHERE recipe_id = 52;  -- Tofu stir fry
+UPDATE recipes SET protein_g = 22, carbs_g = 15, fats_g = 18 WHERE recipe_id = 53;  -- Beef burrito
+UPDATE recipes SET protein_g = 10, carbs_g = 55, fats_g = 9 WHERE recipe_id = 54;   -- Vegan risotto
+UPDATE recipes SET protein_g = 24, carbs_g = 6, fats_g = 20 WHERE recipe_id = 55;   -- Baked chicken thighs
+UPDATE recipes SET protein_g = 12, carbs_g = 50, fats_g = 11 WHERE recipe_id = 56;  -- Lentil curry
+UPDATE recipes SET protein_g = 28, carbs_g = 3, fats_g = 15 WHERE recipe_id = 57;   -- Grilled cod
+UPDATE recipes SET protein_g = 18, carbs_g = 10, fats_g = 22 WHERE recipe_id = 58;  -- Pork roast
+UPDATE recipes SET protein_g = 14, carbs_g = 45, fats_g = 13 WHERE recipe_id = 59;  -- Chickpea wrap
+UPDATE recipes SET protein_g = 22, carbs_g = 12, fats_g = 16 WHERE recipe_id = 60;  -- Beef stir fry with noodles
+
+UPDATE recipes SET protein_g = 20, carbs_g = 35, fats_g = 10 WHERE recipe_id = 61;  -- Chicken pasta
+UPDATE recipes SET protein_g = 15, carbs_g = 42, fats_g = 12 WHERE recipe_id = 62;  -- Vegan burger
+UPDATE recipes SET protein_g = 28, carbs_g = 2, fats_g = 14 WHERE recipe_id = 63;   -- Grilled tuna
+UPDATE recipes SET protein_g = 12, carbs_g = 48, fats_g = 10 WHERE recipe_id = 64;  -- Bean chili
+UPDATE recipes SET protein_g = 18, carbs_g = 15, fats_g = 20 WHERE recipe_id = 65;  -- Lamb stew
+UPDATE recipes SET protein_g = 26, carbs_g = 5, fats_g = 18 WHERE recipe_id = 66;   -- Chicken kebab
+UPDATE recipes SET protein_g = 16, carbs_g = 40, fats_g = 9 WHERE recipe_id = 67;   -- Tofu curry
+UPDATE recipes SET protein_g = 24, carbs_g = 10, fats_g = 22 WHERE recipe_id = 68;  -- Beef stew with carrots
+UPDATE recipes SET protein_g = 14, carbs_g = 35, fats_g = 11 WHERE recipe_id = 69;  -- Rice and chickpeas
+UPDATE recipes SET protein_g = 20, carbs_g = 38, fats_g = 12 WHERE recipe_id = 70;  -- Chicken noodles
+
+UPDATE recipes SET protein_g = 18, carbs_g = 42, fats_g = 10 WHERE recipe_id = 71;  -- Vegan curry
+UPDATE recipes SET protein_g = 30, carbs_g = 2, fats_g = 14 WHERE recipe_id = 72;   -- Grilled chicken breast (large)
+UPDATE recipes SET protein_g = 12, carbs_g = 50, fats_g = 12 WHERE recipe_id = 73;  -- Lentil soup
+UPDATE recipes SET protein_g = 24, carbs_g = 8, fats_g = 18 WHERE recipe_id = 74;   -- Beef stir fry (spicy)
+UPDATE recipes SET protein_g = 10, carbs_g = 55, fats_g = 10 WHERE recipe_id = 75;  -- Quinoa with vegetables
+UPDATE recipes SET protein_g = 16, carbs_g = 38, fats_g = 11 WHERE recipe_id = 76;  -- Chickpea stew
+UPDATE recipes SET protein_g = 28, carbs_g = 3, fats_g = 16 WHERE recipe_id = 77;   -- Baked salmon (large)
+UPDATE recipes SET protein_g = 20, carbs_g = 15, fats_g = 22 WHERE recipe_id = 78;  -- Pork belly
+UPDATE recipes SET protein_g = 15, carbs_g = 45, fats_g = 12 WHERE recipe_id = 79;  -- Falafel plate
+UPDATE recipes SET protein_g = 26, carbs_g = 6, fats_g = 20 WHERE recipe_id = 80;   -- Chicken wings
+
+UPDATE recipes SET protein_g = 22, carbs_g = 14, fats_g = 16 WHERE recipe_id = 81;  -- Beef meatballs
+UPDATE recipes SET protein_g = 12, carbs_g = 52, fats_g = 10 WHERE recipe_id = 82;  -- Lentil pilaf
+UPDATE recipes SET protein_g = 30, carbs_g = 2, fats_g = 12 WHERE recipe_id = 83;   -- Grilled turkey breast
+UPDATE recipes SET protein_g = 18, carbs_g = 12, fats_g = 22 WHERE recipe_id = 84;  -- Duck legs
+UPDATE recipes SET protein_g = 14, carbs_g = 48, fats_g = 13 WHERE recipe_id = 85;  -- Vegan couscous
+UPDATE recipes SET protein_g = 24, carbs_g = 8, fats_g = 20 WHERE recipe_id = 86;   -- Beef stew with potatoes
+UPDATE recipes SET protein_g = 20, carbs_g = 35, fats_g = 10 WHERE recipe_id = 87;  -- Chicken pasta (creamy)
+UPDATE recipes SET protein_g = 16, carbs_g = 42, fats_g = 14 WHERE recipe_id = 88;  -- Bean salad
+UPDATE recipes SET protein_g = 26, carbs_g = 4, fats_g = 18 WHERE recipe_id = 89;   -- Grilled chicken thighs
+UPDATE recipes SET protein_g = 12, carbs_g = 55, fats_g = 11 WHERE recipe_id = 90;  -- Rice with lentils and onions
+
+UPDATE recipes SET protein_g = 18, carbs_g = 38, fats_g = 12 WHERE recipe_id = 91;  -- Chickpea curry (spicy)
+UPDATE recipes SET protein_g = 22, carbs_g = 15, fats_g = 20 WHERE recipe_id = 92;  -- Beef stir fry (ginger)
+UPDATE recipes SET protein_g = 14, carbs_g = 45, fats_g = 12 WHERE recipe_id = 93;  -- Vegan burrito
+UPDATE recipes SET protein_g = 28, carbs_g = 3, fats_g = 15 WHERE recipe_id = 94;   -- Grilled mackerel
+UPDATE recipes SET protein_g = 20, carbs_g = 40, fats_g = 11 WHERE recipe_id = 95;  -- Chicken stir fry with rice noodles
+UPDATE recipes SET protein_g = 16, carbs_g = 48, fats_g = 10 WHERE recipe_id = 96;  -- Lentil and rice stew
+UPDATE recipes SET protein_g = 24, carbs_g = 12, fats_g = 22 WHERE recipe_id = 97;  -- Pork chops (large)
+UPDATE recipes SET protein_g = 15, carbs_g = 50, fats_g = 11 WHERE recipe_id = 98;  -- Falafel wrap (large)
+UPDATE recipes SET protein_g = 26, carbs_g = 6, fats_g = 19 WHERE recipe_id = 99;   -- Chicken curry with coconut
+UPDATE recipes SET protein_g = 18, carbs_g = 15, fats_g = 18 WHERE recipe_id = 100; -- Beef stir fry with broccoli
+
+-- =====================
+-- Recipes 101–116
+-- =====================
+
+UPDATE recipes SET protein_g = 20, carbs_g = 35, fats_g = 12 WHERE recipe_id = 101; -- Chicken fried noodles
+UPDATE recipes SET protein_g = 16, carbs_g = 42, fats_g = 10 WHERE recipe_id = 102; -- Vegan stew
+UPDATE recipes SET protein_g = 28, carbs_g = 3, fats_g = 15 WHERE recipe_id = 103;  -- Grilled sea bass
+UPDATE recipes SET protein_g = 12, carbs_g = 48, fats_g = 11 WHERE recipe_id = 104; -- Lentil dhal
+UPDATE recipes SET protein_g = 24, carbs_g = 10, fats_g = 20 WHERE recipe_id = 105; -- Beef kebab
+UPDATE recipes SET protein_g = 20, carbs_g = 38, fats_g = 11 WHERE recipe_id = 106; -- Chicken fried rice (spicy)
+UPDATE recipes SET protein_g = 15, carbs_g = 45, fats_g = 12 WHERE recipe_id = 107; -- Chickpea curry wrap
+UPDATE recipes SET protein_g = 30, carbs_g = 2, fats_g = 14 WHERE recipe_id = 108;  -- Turkey breast (grilled)
+UPDATE recipes SET protein_g = 18, carbs_g = 14, fats_g = 22 WHERE recipe_id = 109; -- Pork ribs
+UPDATE recipes SET protein_g = 14, carbs_g = 52, fats_g = 10 WHERE recipe_id = 110; -- Vegan paella
+
+UPDATE recipes SET protein_g = 26, carbs_g = 6, fats_g = 18 WHERE recipe_id = 111; -- Chicken skewers
+UPDATE recipes SET protein_g = 22, carbs_g = 15, fats_g = 20 WHERE recipe_id = 112; -- Beef stew with peas
+UPDATE recipes SET protein_g = 12, carbs_g = 55, fats_g = 11 WHERE recipe_id = 113; -- Rice with beans
+UPDATE recipes SET protein_g = 28, carbs_g = 4, fats_g = 16 WHERE recipe_id = 114; -- Grilled shrimp
+UPDATE recipes SET protein_g = 16, carbs_g = 40, fats_g = 12 WHERE recipe_id = 115; -- Lentil soup (spicy)
+UPDATE recipes SET protein_g = 24, carbs_g = 8, fats_g = 22 WHERE recipe_id = 116; -- Beef stir fry with peppers
+

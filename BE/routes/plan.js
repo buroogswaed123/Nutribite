@@ -135,13 +135,14 @@ router.get('/:id', async (req, res) => {
         pp.plan_id,
         pp.product_id,
         pp.servings,
-        pr.name AS product_name,
-        pr.calories,
-        pr.protein,
-        pr.carbs,
-        pr.fats
+        p.name AS product_name,
+        r.calories,
+        r.protein_g,
+        r.carbs_g,
+        r.fats_g
       FROM nutrition_plan_contains_products pp
-      JOIN products pr ON pr.product_id = pp.product_id
+      JOIN products p ON p.product_id = pp.product_id
+      JOIN recipes r ON r.recipe_id = p.recipe_id
       WHERE pp.plan_id = ?
       ORDER BY pp.plan_product_id ASC
       `,
@@ -256,13 +257,14 @@ router.get('/:id/products', async (req, res) => {
         pp.plan_id,
         pp.product_id,
         pp.servings,
-        pr.name AS product_name,
-        pr.calories,
-        pr.protein,
-        pr.carbs,
-        pr.fats
+        p.name AS product_name,
+        r.calories,
+        r.protein_g,
+        r.carbs_g,
+        r.fats_g
       FROM nutrition_plan_contains_products pp
-      JOIN products pr ON pr.product_id = pp.product_id
+      JOIN products p ON p.product_id = pp.product_id
+      JOIN recipes r ON r.recipe_id = p.recipe_id
       WHERE pp.plan_id = ?
       ORDER BY pp.plan_product_id ASC
       `,

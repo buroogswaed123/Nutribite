@@ -230,3 +230,9 @@ export function calculateCalories(form) {
   return calculateMacros({ bmr, activity_level: form.activity_level });
 }
 
+
+//fetch customer allergies
+export async function fetchCustomerAllergiesAPI(customerId) {
+  const { data } = await axios.get(`/api/customers/${customerId}/allergies`);
+  return data;
+}

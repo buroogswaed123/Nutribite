@@ -285,7 +285,18 @@ router.post('/:id/products', requireActiveUser, async (req, res) => {
     const productId = Number(req.body?.product_id);
     if (!Number.isFinite(productId)) return bad(res, 'product_id is required');
 
-    const servings = req.body?.servings == null ? 1 : Number(req.body.servings);
+    // Derive servings from the product's linked recipe. If unavailable, default to 1.
+    const [svRows] = await conn.promise().query(
+      `
+      SELECT COALESCE(NULLIF(r.servings, 0), 1) AS servings
+      FROM products p
+      JOIN recipes r ON r.recipe_id = p.recipe_id
+      WHERE p.product_id = ?
+      LIMIT 1
+      `,
+      [productId]
+    );
+    const servings = Number(svRows?.[0]?.servings) || 1;
     if (!Number.isFinite(servings) || servings <= 0) return bad(res, 'Invalid servings');
 
     const [result] = await conn.promise().query(
@@ -347,6 +358,30 @@ router.delete('/:id/products/:plan_product_id', requireActiveUser, async (req, r
     return ok(res, { success: true, deleted: linkId });
   } catch (err) {
     return serverErr(res, err, 'Failed to delete plan product');
+  }
+});
+
+// GET /api/plan/:id/allergies
+router.get('/:id/allergies', requireActiveUser, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return bad(res, 'Invalid id');
+
+    const [rows] = await conn.promise().query(
+      `
+      SELECT 
+        ca.comp_id,
+        c.name
+      FROM customer_allergies ca
+      JOIN components c ON c.comp_id = ca.comp_id
+      WHERE ca.customer_id = ?
+      ORDER BY c.name ASC
+    `,
+      [id]
+    );
+    return ok(res, rows);
+  } catch (err) {
+    return serverErr(res, err, 'Failed to list plan allergies');
   }
 });
 

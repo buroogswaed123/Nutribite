@@ -36,6 +36,9 @@ router.get('/', async (req, res) => {
         r.name,
         r.description,
         r.calories,
+        r.protein_g,
+        r.carbs_g,
+        r.fats_g,
         r.picture,
         r.diet_type_id,
         r.category_id,
@@ -150,6 +153,9 @@ router.get('/search', async (req, res) => {
         r.name,
         r.description,
         r.calories,
+        r.protein_g,
+        r.carbs_g,
+        r.fats_g,
         r.picture,
         r.diet_type_id,
         r.category_id,
@@ -174,3 +180,77 @@ router.get('/search', async (req, res) => {
 });
 
 module.exports = router;
+
+// Additional endpoint: eligible products excluding customer's allergies
+// GET /api/menu/eligible?customer_id=123
+// Optional query: category, dietType, minCalories, maxCalories, minPrice, maxPrice
+router.get('/eligible', async (req, res) => {
+  try {
+    const customerId = Number(req.query.customer_id);
+    if (!Number.isFinite(customerId)) {
+      return res.status(400).json({ message: 'customer_id is required' });
+    }
+
+    const minP = Number(req.query.minPrice);
+    const maxP = Number(req.query.maxPrice);
+    const minC = Number(req.query.minCalories);
+    const maxC = Number(req.query.maxCalories);
+    const dietType = req.query.dietType || '';
+    const category = req.query.category || '';
+
+    const where = [];
+    const params = [];
+    // Exclude soft-deleted recipes
+    where.push('r.deleted_at IS NULL');
+    // Exclude products that contain any component the customer is allergic to
+    where.push(`NOT EXISTS (
+      SELECT 1
+      FROM product_contains_components pcc
+      JOIN customer_allergies ca ON ca.comp_id = pcc.comp_id
+      WHERE pcc.product_id = p.product_id AND ca.customer_id = ?
+    )`);
+    params.push(customerId);
+
+    if (Number.isFinite(minP) && Number.isFinite(maxP)) { where.push('p.price BETWEEN ? AND ?'); params.push(minP, maxP); }
+    else if (Number.isFinite(minP)) { where.push('p.price >= ?'); params.push(minP); }
+    else if (Number.isFinite(maxP)) { where.push('p.price <= ?'); params.push(maxP); }
+
+    if (Number.isFinite(minC) && Number.isFinite(maxC)) { where.push('r.calories BETWEEN ? AND ?'); params.push(minC, maxC); }
+    else if (Number.isFinite(minC)) { where.push('r.calories >= ?'); params.push(minC); }
+    else if (Number.isFinite(maxC)) { where.push('r.calories <= ?'); params.push(maxC); }
+
+    if (dietType) { where.push('r.diet_type_id = ?'); params.push(dietType); }
+    if (category) { where.push('r.category_id = ?'); params.push(category); }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT 
+        p.product_id,
+        p.recipe_id,
+        p.price,
+        p.stock,
+        r.name,
+        r.description,
+        r.calories,
+        r.protein_g,
+        r.carbs_g,
+        r.fats_g,
+        r.picture,
+        r.diet_type_id,
+        r.category_id,
+        (SELECT dt.name FROM diet_type dt WHERE dt.diet_id = r.diet_type_id LIMIT 1) AS diet_name,
+        (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category_name
+      FROM products p
+      INNER JOIN recipes r ON r.recipe_id = p.recipe_id
+      ${whereSql}
+      ORDER BY p.product_id DESC
+    `;
+
+    const rows = await query(sql, params);
+    return res.json({ items: rows });
+  } catch (err) {
+    console.error('PUBLIC MENU ELIGIBLE ERROR:', err);
+    return res.status(500).json({ message: 'Error listing eligible products', error: err.message });
+  }
+});

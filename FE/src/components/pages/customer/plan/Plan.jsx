@@ -76,6 +76,9 @@ export default function Plan() {
   // One-time save success modal
   const [saveSuccessOpen, setSaveSuccessOpen] = useState(false);
   const [hasShownSaveSuccess, setHasShownSaveSuccess] = useState(false);
+  // Suggestions visibility control (collapse after first save)
+  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [hasAutoCollapsedSuggestions, setHasAutoCollapsedSuggestions] = useState(false);
 
   const [recipes, setRecipes] = useState([]);
   const [recipesLoading, setRecipesLoading] = useState(false);
@@ -521,161 +524,134 @@ export default function Plan() {
         לקוח #{plan.customer_id} • יעד יומי: {plan.calories_per_day ?? '—'} ק״ק
       </div>
 
-      {/* Suggestions section: columns per category with Switch */}
-      <div style={{ marginTop: 12, marginBottom: 16, background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:10, padding:12 }}>
-        {/* Compact summary: goal, count, current calories */}
-        <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', color:'#374151' }}>
-          <div>יעד: <strong>{plan.calories_per_day ?? '—'}</strong> ק"ק</div>
-          <div>פריטים נבחרים: <strong>{(suggestions.picks || []).length}</strong></div>
-          <div>קלוריות נוכחי: <strong>{Math.round(suggestions.total.calories)}</strong></div>
+      {/* Suggestions section: collapsible */}
+      <div style={{ marginTop: 12, marginBottom: 16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ color:'#374151', fontWeight:600 }}>הצעות לתכנון</div>
+          <button
+            onClick={() => setShowSuggestions(s => !s)}
+            style={{ border:'1px solid #e5e7eb', padding:'6px 10px', borderRadius:8, background:'#fff', cursor:'pointer' }}
+          >{showSuggestions ? 'הסתר' : 'הצג'} הצעות</button>
         </div>
 
-        {/* Columns by category */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:12, marginTop: 10 }}>
-          {(categoryData.cats || []).map((cat) => {
-            const arr = cat.items || [];
-            const idx = Math.max(0, Math.min((catIdx[cat.catId] ?? 0), Math.max(arr.length - 1, 0)));
-            const it = arr[idx];
-            return (
-              <div key={cat.catId} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, overflow:'hidden', display:'flex', flexDirection:'column' }}>
-                <div style={{ padding: 10, background:'#f3f4f6', borderBottom:'1px solid #e5e7eb', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <div style={{ fontWeight:600 }}>{cat.category_name}</div>
-                  <div style={{ display:'flex', gap:6 }}>
-                    <button
-                      onClick={() => cycleCategory(cat.catId, -1)}
-                      title="החלף לפריט קודם"
-                      style={{ border:'1px solid #e5e7eb', padding:'4px 8px', borderRadius:6, background:'#fff', cursor:'pointer' }}
-                    >◀</button>
-                    <button
-                      onClick={() => cycleCategory(cat.catId, +1)}
-                      title="החלף לפריט הבא"
-                      style={{ border:'1px solid #e5e7eb', padding:'4px 8px', borderRadius:6, background:'#fff', cursor:'pointer' }}
-                    > ▶</button>
+        {showSuggestions && (
+          <div style={{ marginTop: 8, background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:10, padding:12 }}>
+            {/* Compact summary: goal, count, current calories */}
+            <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', color:'#374151' }}>
+              <div>יעד: <strong>{plan.calories_per_day ?? '—'}</strong> ק"ק</div>
+              <div>פריטים נבחרים: <strong>{(suggestions.picks || []).length}</strong></div>
+              <div>קלוריות נוכחי: <strong>{Math.round(suggestions.total.calories)}</strong></div>
+            </div>
+
+            {/* Columns by category */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:12, marginTop: 10 }}>
+              {(categoryData.cats || []).map((cat) => {
+                const arr = cat.items || [];
+                const idx = Math.max(0, Math.min((catIdx[cat.catId] ?? 0), Math.max(arr.length - 1, 0)));
+                const it = arr[idx];
+                return (
+                  <div key={cat.catId} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+                    <div style={{ padding: 10, background:'#f3f4f6', borderBottom:'1px solid #e5e7eb', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                      <div style={{ fontWeight:600 }}>{cat.category_name}</div>
+                      <div style={{ display:'flex', gap:6 }}>
+                        <button
+                          onClick={() => cycleCategory(cat.catId, -1)}
+                          title="החלף לפריט קודם"
+                          style={{ border:'1px solid #e5e7eb', padding:'4px 8px', borderRadius:6, background:'#fff', cursor:'pointer' }}
+                        >◀</button>
+                        <button
+                          onClick={() => cycleCategory(cat.catId, +1)}
+                          title="החלף לפריט הבא"
+                          style={{ border:'1px solid #e5e7eb', padding:'4px 8px', borderRadius:6, background:'#fff', cursor:'pointer' }}
+                        > ▶</button>
+                      </div>
+                    </div>
+                    {!it && (
+                      <div style={{ padding: 10, color:'#6b7280' }}>אין הצעות בקטגוריה זו</div>
+                    )}
+                    {it && (
+                      <div style={{ padding: 10, display:'grid', gap:8 }}>
+                        <img
+                          src={resolveImageUrl(it.picture || it.imageUrl)}
+                          alt={it.name}
+                          style={{ width:'100%', height:140, objectFit:'cover', borderRadius:6 }}
+                          onError={(e)=>{ e.currentTarget.style.display='none' }}
+                        />
+                        <div style={{ fontWeight:600 }}>{it.name}</div>
+                        <div style={{ fontSize:12, color:'#6b7280' }}>#{idx+1} מתוך {arr.length}</div>
+                        <div style={{ fontSize:13, color:'#374151' }}>{it.calories} קלוריות • חלבון {it.protein_g ?? '—'}g • פחמימות {it.carbs_g ?? '—'}g • שומן {it.fats_g ?? '—'}g</div>
+                        {/* Removed per-item add button; saving happens via bottom action */}
+                      </div>
+                    )}
                   </div>
-                </div>
-                {!it && (
-                  <div style={{ padding: 10, color:'#6b7280' }}>אין הצעות בקטגוריה זו</div>
-                )}
-                {it && (
+                );
+              })}
+              {(!eligibleLoading && (categoryData.cats || []).length === 0) && (
+                <div style={{ padding: 10, color:'#6b7280' }}>אין עדיין הצעות. ודאו שהוגדר סוג דיאטה ושקיימים פריטים מתאימים ללא אלרגנים.</div>
+              )}
+              {/* Extra suggestion column if goal not reached */}
+              {suggestions.extra && (
+                <div key="extra" style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+                  <div style={{ padding: 10, background:'#f3f4f6', borderBottom:'1px solid #e5e7eb', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <div style={{ fontWeight:600 }}>תוספת</div>
+                  </div>
                   <div style={{ padding: 10, display:'grid', gap:8 }}>
                     <img
-                      src={resolveImageUrl(it.picture || it.imageUrl)}
-                      alt={it.name}
+                      src={resolveImageUrl(suggestions.extra.picture || suggestions.extra.imageUrl)}
+                      alt={suggestions.extra.name}
                       style={{ width:'100%', height:140, objectFit:'cover', borderRadius:6 }}
                       onError={(e)=>{ e.currentTarget.style.display='none' }}
                     />
-                    <div style={{ fontWeight:600 }}>{it.name}</div>
-                    <div style={{ fontSize:12, color:'#6b7280' }}>#{idx+1} מתוך {arr.length}</div>
-                    <div style={{ fontSize:13, color:'#374151' }}>{it.calories} קלוריות • חלבון {it.protein_g ?? '—'}g • פחמימות {it.carbs_g ?? '—'}g • שומן {it.fats_g ?? '—'}g</div>
-                    {/* Removed per-item add button; saving happens via bottom action */}
+                    <div style={{ fontWeight:600 }}>{suggestions.extra.name}</div>
+                    <div style={{ fontSize:13, color:'#374151' }}>{suggestions.extra.calories} קלוריות • חלבון {suggestions.extra.protein_g ?? '—'}g • פחמימות {suggestions.extra.carbs_g ?? '—'}g • שומן {suggestions.extra.fats_g ?? '—'}g</div>
                   </div>
-                )}
-              </div>
-            );
-          })}
-          {(!eligibleLoading && (categoryData.cats || []).length === 0) && (
-            <div style={{ padding: 10, color:'#6b7280' }}>אין עדיין הצעות. ודאו שהוגדר סוג דיאטה ושקיימים פריטים מתאימים ללא אלרגנים.</div>
-          )}
-          {/* Extra suggestion column if goal not reached */}
-          {suggestions.extra && (
-            <div key="extra" style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, overflow:'hidden', display:'flex', flexDirection:'column' }}>
-              <div style={{ padding: 10, background:'#f3f4f6', borderBottom:'1px solid #e5e7eb', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <div style={{ fontWeight:600 }}>תוספת</div>
-              </div>
-              <div style={{ padding: 10, display:'grid', gap:8 }}>
-                <img
-                  src={resolveImageUrl(suggestions.extra.picture || suggestions.extra.imageUrl)}
-                  alt={suggestions.extra.name}
-                  style={{ width:'100%', height:140, objectFit:'cover', borderRadius:6 }}
-                  onError={(e)=>{ e.currentTarget.style.display='none' }}
-                />
-                <div style={{ fontWeight:600 }}>{suggestions.extra.name}</div>
-                <div style={{ fontSize:13, color:'#374151' }}>{suggestions.extra.calories} קלוריות • חלבון {suggestions.extra.protein_g ?? '—'}g • פחמימות {suggestions.extra.carbs_g ?? '—'}g • שומן {suggestions.extra.fats_g ?? '—'}g</div>
-              </div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        )}
+      </div>
+
+      {/* Current plan items (compact view). Visible when suggestions are hidden */}
+      {(!showSuggestions && plan.items && plan.items.length > 0) && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ marginBottom: 8, color:'#374151', fontWeight:600 }}>פריטי תוכנית נוכחיים</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, minmax(240px, 1fr))', gap: 12 }}>
+            {plan.items.map((it) => {
+              const perServing = Number(it.calories || 0);
+              const servings = Number(it.servings || 1);
+              const totalCal = Math.round(perServing * servings);
+              return (
+                <div key={it.plan_product_id}
+                     onClick={() => openItemModal(it)}
+                     style={{ cursor:'pointer', background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, overflow:'hidden', boxShadow:'0 1px 3px rgba(0,0,0,0.05)' }}>
+                  <div style={{ padding: 12, borderBottom:'1px solid #f3f4f6', background:'#fafafa' }}>
+                    <div style={{ fontWeight:600, marginBottom:4 }}>{it.product_name || it.name || `מוצר #${it.product_id}`}</div>
+                    <div style={{ fontSize:13, color:'#6b7280' }}>{perServing} קלוריות לכל מנה • {servings} מנות • סה״כ {totalCal} ק״ק</div>
+                  </div>
+                  <div style={{ padding: 12, display:'flex', gap:8, justifyContent:'flex-end' }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openItemModal(it); }}
+                      title="פרטים"
+                      style={{ border:'1px solid #e5e7eb', padding:'6px 10px', borderRadius:8, background:'#fff', cursor:'pointer' }}
+                    >פרטים</button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onRemoveItem(it); }}
+                      title="הסר"
+                      style={{ border:'1px solid #e5e7eb', padding:'6px 10px', borderRadius:8, background:'#fff', cursor:'pointer', color:'#b91c1c' }}
+                    >הסר</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
-
-      {/* Items list */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-        {(plan.items || []).map((it) => {
-          const perServing = Number(it.calories || 0);
-          const servings = Number(it.servings || 1);
-          const totalCal = Math.round(perServing * servings);
-          return (
-            <div key={it.plan_product_id}
-                 style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden', boxShadow:'0 1px 3px rgba(0,0,0,0.05)' }}>
-              {/* Compact header */}
-              <div
-                onClick={() => openItemModal(it)}
-                style={{ cursor: 'pointer', padding: 12, borderBottom: '1px solid #f3f4f6', background:'#fafafa' }}
-                title="הצגת מידע">
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                  {it.product_name || it.name || `מוצר #${it.product_id}`}
-                </div>
-                <div style={{ fontSize: 13, color: '#6b7280' }}>
-                  {perServing} קלוריות לכל מנה • {servings} מנות • סה״כ {totalCal} ק״ק
-                </div>
-              </div>
-
-              {/* Body */}
-              <div style={{ padding: 12, display:'grid', gap: 10 }}>
-                <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
-                  <div title="חלבון" style={{ fontSize: 12, color:'#6b7280' }}>חלבון: {it.protein_g ?? '—'}g</div>
-                  <div title="פחמימות" style={{ fontSize: 12, color:'#6b7280' }}>פחמימות: {it.carbs_g ?? '—'}g</div>
-                  <div title="שומנים" style={{ fontSize: 12, color:'#6b7280' }}>שומנים: {it.fats_g ?? '—'}g</div>
-                </div>
-
-                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                  <label style={{ fontSize: 13, color:'#374151' }}>
-                    מנות:
-                    <input
-                      type="number"
-                      min={0.1}
-                      step={0.1}
-                      defaultValue={servings}
-                      onBlur={(e) => onChangeServings(it, e.target.value)}
-                      style={{ width: 80, marginInlineStart: 6 }}
-                    />
-                  </label>
-
-                  {/* Swap icon/button */}
-                  <button
-                    onClick={() => openSwap(it)}
-                    title="החלף לפריט דומה"
-                    style={{
-                      border:'1px solid #e5e7eb', padding:'6px 10px', borderRadius:8, background:'#fff', cursor:'pointer'
-                    }}>
-                    🔄 החלפה
-                  </button>
-
-                  {/* Add to cart (stub) */}
-                  <button
-                    onClick={() => onAddToCart(it)}
-                    style={{ border:'1px solid #e5e7eb', padding:'6px 10px', borderRadius:8, background:'#fff', cursor:'pointer' }}
-                  >
-                    הוסף לעגלה
-                  </button>
-
-                  <button
-                    onClick={() => onRemoveItem(it)}
-                    style={{ marginInlineStart:'auto', color:'#b91c1c', border:'1px solid #fca5a5', padding:'6px 10px', borderRadius:8, background:'#fff', cursor:'pointer' }}
-                  >
-                    הסר
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      )}
 
       {/* Footer actions */}
       <div style={{ marginTop: 16, display:'flex', gap:8, justifyContent:'flex-end' }}>
         <button
           onClick={async () => {
-            if (!plan?.plan_id) return;
             try {
               // Build list to save: current picks plus extra if present
               const itemsToSave = [...(suggestions.picks || [])];
@@ -692,6 +668,11 @@ export default function Plan() {
               if (!hasShownSaveSuccess) {
                 setSaveSuccessOpen(true);
                 setHasShownSaveSuccess(true);
+                // Auto-collapse suggestions once on first save to avoid duplicate-feel UI
+                if (!hasAutoCollapsedSuggestions) {
+                  setShowSuggestions(false);
+                  setHasAutoCollapsedSuggestions(true);
+                }
               }
             } catch (e) {
               setErr(e.message || 'שגיאה בשמירת התוכנית');
@@ -723,10 +704,25 @@ export default function Plan() {
             style={{ background:'#fff', borderRadius: 10, maxWidth: 720, width: '95%', padding: 16, boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}
           >
             <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
-              {/* We don’t have image/category for products; attempt to show a placeholder */}
-              <div style={{ width: 260, height: 200, background:'#f3f4f6', borderRadius: 8, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <span style={{ color:'#9ca3af' }}>תמונה</span>
-              </div>
+              {/* Show image in modal if available, else placeholder */}
+              {(() => {
+                const pic = selectedItem?.picture || selectedItem?.imageUrl;
+                if (pic) {
+                  return (
+                    <img
+                      src={resolveImageUrl(pic)}
+                      alt={selectedItem.product_name || selectedItem.name || ''}
+                      style={{ width: 260, height: 200, objectFit: 'cover', borderRadius: 8, background:'#f3f4f6' }}
+                      onError={(e)=>{ e.currentTarget.style.display='none'; }}
+                    />
+                  );
+                }
+                return (
+                  <div style={{ width: 260, height: 200, background:'#f3f4f6', borderRadius: 8, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <span style={{ color:'#9ca3af' }}>תמונה</span>
+                  </div>
+                );
+              })()}
               <div style={{ flex:1, minWidth: 240 }}>
                 <h2 style={{ marginTop:0 }}>{selectedItem.product_name || selectedItem.name || `מוצר #${selectedItem.product_id}`}</h2>
                 <div style={{ marginBottom:8 }}>

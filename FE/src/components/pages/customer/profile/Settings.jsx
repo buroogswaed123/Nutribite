@@ -1,6 +1,8 @@
 import React, { useContext, useEffect, useState } from 'react';
 import styles from './profile.module.css';
 import { AuthContext } from '../../../../app/App';
+import { canonicalizeUserInputToHebrew } from '../../../../utils/allergens';
+import { ALLERGEN_ALIASES } from '../../../../utils/allergens';
 
 export default function Settings() {
     const { currentUser } = useContext(AuthContext) || {};
@@ -77,12 +79,22 @@ export default function Settings() {
         load();
     }, [currentUser?.user_id]);
 
-    // Add allergy by name
+    // Add allergy by name (canonicalized to Hebrew)
     const addAllergy = async (name) => {
         const trimmed = String(name || '').trim();
         if (!trimmed || !custId) return;
-        // check duplicate in UI
-        if (allergies.some(a => a.name.toLowerCase() === trimmed.toLowerCase())) {
+        // Canonicalize to Hebrew category key (also handles English input)
+        const canonical = canonicalizeUserInputToHebrew(trimmed);
+        if (!canonical) {
+            setAllergyInput('');
+            return;
+        }
+        // Prevent duplicates by canonical form
+        const hasDup = allergies.some(a => {
+            const existingCanon = canonicalizeUserInputToHebrew(a?.name);
+            return existingCanon && existingCanon === canonical;
+        });
+        if (hasDup) {
             setAllergyInput('');
             return;
         }
@@ -91,7 +103,7 @@ export default function Settings() {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: trimmed }),
+                body: JSON.stringify({ name: canonical }),
             });
             if (!res.ok) {
                 try { const j = await res.json(); throw new Error(j?.message || 'הוספת אלרגיה נכשלה'); } catch { throw new Error('הוספת אלרגיה נכשלה'); }
@@ -239,6 +251,9 @@ export default function Settings() {
                                     <button type="button" onClick={()=>removeAllergy(a.comp_id)} style={{ border:'none', background:'transparent', cursor:'pointer' }} aria-label={`הסר ${a.name}`}>×</button>
                                 </span>
                             ))}
+                        </div>
+                        <div style={{ color: '#6b7280', fontSize: 12, marginTop: 6 }}>
+                            קטגוריות מוכרות: {Object.keys(ALLERGEN_ALIASES).join(', ')}. אפשר להקליד גם באנגלית (יומר אוטומטית לעברית).
                         </div>
                     </div>
                 </fieldset>

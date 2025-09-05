@@ -186,9 +186,19 @@ module.exports = router;
 // Optional query: category, dietType, minCalories, maxCalories, minPrice, maxPrice
 router.get('/eligible', async (req, res) => {
   try {
-    const customerId = Number(req.query.customer_id);
+    let customerId = Number(req.query.customer_id);
+    // Allow deriving customer_id from session user when not provided
     if (!Number.isFinite(customerId)) {
-      return res.status(400).json({ message: 'customer_id is required' });
+      const sessionUserId = req.session && req.session.user_id;
+      if (Number.isFinite(Number(sessionUserId))) {
+        const rows = await query('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [Number(sessionUserId)]);
+        if (rows && rows[0] && rows[0].cust_id) {
+          customerId = Number(rows[0].cust_id);
+        }
+      }
+      if (!Number.isFinite(customerId)) {
+        return res.status(400).json({ message: 'customer_id is required' });
+      }
     }
 
     const minP = Number(req.query.minPrice);
@@ -210,6 +220,8 @@ router.get('/eligible', async (req, res) => {
       WHERE pcc.product_id = p.product_id AND ca.customer_id = ?
     )`);
     params.push(customerId);
+
+    // No heuristic text filters: rely strictly on component-based mapping in customer_allergies
 
     if (Number.isFinite(minP) && Number.isFinite(maxP)) { where.push('p.price BETWEEN ? AND ?'); params.push(minP, maxP); }
     else if (Number.isFinite(minP)) { where.push('p.price >= ?'); params.push(minP); }

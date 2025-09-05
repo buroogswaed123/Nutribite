@@ -1,0 +1,504 @@
+.page {
+    padding: 16px;
+  }
+  
+  .pad16 {
+    padding: 16px;
+  }
+  
+  .errorText {
+    color: #b91c1c;
+  }
+  
+  /* Header and subheader */
+  .headerRow {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .pageTitle {
+    margin: 0;
+  }
+  
+  .totalCaloriesText {
+    color: #374151;
+  }
+  
+  .subHeader {
+    margin-top: 12px;
+    margin-bottom: 8px;
+    color: #4b5563;
+  }
+  
+  /* Suggestions section */
+  .suggSection {
+    margin-top: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .suggHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .btn {
+    border: 1px solid #e5e7eb;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+  }
+  
+  .btnSmall {
+    border: 1px solid #e5e7eb;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+  }
+  
+  .btnPrimary {
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  
+  .btnSuccess {
+    background: #10b981;
+    color: #fff;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  
+  .btnDanger {
+    color: #b91c1c;
+  }
+  
+  .suggestionsBox {
+    margin-top: 8px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px;
+  }
+  
+  .summaryRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: #374151;
+  }
+  
+  .suggestionsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+  }
+  
+  /* Category card */
+  .catCard {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .catCardHeader {
+    padding: 10px;
+    background: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .catTitle {
+    font-weight: 600;
+  }
+  
+  .catHeaderBtns {
+    display: flex;
+    gap: 6px;
+  }
+  
+  .catItem {
+    padding: 10px;
+    display: grid;
+    gap: 8px;
+  }
+  
+  .cardImage {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 6px;
+  }
+  
+  .smallMuted {
+    font-size: 12px;
+    color: #6b7280;
+  }
+  
+  .smallDark {
+    font-size: 13px;
+    color: #374151;
+  }
+  
+  .emptyCategory {
+    padding: 10px;
+    color: #6b7280;
+  }
+  
+  .noEligible {
+    padding: 10px;
+    color: #6b7280;
+  }
+  
+  /* Current plan items */
+  .currentItems {
+    margin-top: 8px;
+  }
+  
+  .currentItemsTitle {
+    margin-bottom: 8px;
+    color: #374151;
+    font-weight: 600;
+  }
+  
+  .itemsGrid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  
+  .itemCard {
+    cursor: pointer;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  
+  .itemCardHeader {
+    padding: 12px;
+    border-bottom: 1px solid #f3f4f6;
+    background: #fafafa;
+  }
+  
+  .itemTitle {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  
+  .itemMeta {
+    font-size: 13px;
+    color: #6b7280;
+  }
+  
+  .itemActions {
+    padding: 12px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  
+  /* Footer actions */
+  .footerActions {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  
+  /* Overlays and modals */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  
+  .overlayHigh {
+    z-index: 1100;
+  }
+  
+  .modal {
+    background: #fff;
+    border-radius: 10px;
+    max-width: 720px;
+    width: 95%;
+    padding: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  }
+  
+  .modalNarrow {
+    max-width: 520px;
+  }
+  
+  .modalWide {
+    max-width: 860px;
+  }
+  
+  .modalContent {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  
+  .modalImage {
+    width: 260px;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #f3f4f6;
+  }
+  
+  .placeholderBox {
+    width: 260px;
+    height: 200px;
+    background: #f3f4f6;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .placeholderText {
+    color: #9ca3af;
+  }
+  
+  .noMarginTop {
+    margin-top: 0;
+  }
+  
+  .modalMetaGroup {
+    margin-bottom: 8px;
+  }
+  
+  .inlineItem {
+    margin-inline-end: 12px;
+  }
+  
+  .modalActions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  
+  /* Swap grid */
+  .swapGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  
+  .swapCard {
+    cursor: pointer;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  
+  .swapImg {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+  }
+  
+  .swapCardBody {
+    padding: 10px;
+  }
+  
+  .swapCardTitle {
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 15px;
+  }
+  
+  .swapCardCal {
+    font-size: 13px;
+    color: #6b7280;
+  }
+  
+  .swapActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  
+  /* Newly added for remaining inline styles */
+  .modalDetails {
+    flex: 1;
+    min-width: 240px;
+  }
+  
+  .textDark {
+    color: #374151;
+  }
+  
+  .textMuted {
+    color: #6b7280;
+  }
+  
+  .justifyEnd {
+    justify-content: flex-end;
+  }
+  
+  /* List-style plan layout (screenshot-like) */
+  .planHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .planHeaderRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .planTitle {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+  }
+
+  .planCalories {
+    color: #374151;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 9999px;
+    display: inline-block;
+    background: conic-gradient(#8b5cf6, #3b82f6, #10b981, #f59e0b, #ef4444, #8b5cf6);
+  }
+
+  .listPlan {
+    display: block;
+    margin-top: 8px;
+  }
+
+  /* Two-column layout for grouped meal sections */
+  .columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 24px;
+    align-items: start;
+  }
+
+  .col { display: flex; flex-direction: column; gap: 12px; }
+
+  @media (max-width: 720px) {
+    .columns { grid-template-columns: 1fr; }
+  }
+
+  .mealSection {
+    padding-block: 8px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .mealHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mealTitle {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  .mealCalories {
+    color: #374151;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .refreshBtn {
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 20px;
+    padding: 6px;
+    border-radius: 6px;
+  }
+  .refreshBtn:hover { background: #f3f4f6; }
+
+  .headerRefresh {
+    margin-inline-start: 2px;
+  }
+
+  .mealList {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0 0;
+    display: block;
+  }
+
+  .mealItem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    cursor: pointer;
+    /* no background/border to avoid highlight */
+  }
+
+  .mealItemEmpty {
+    color: #6b7280;
+    padding: 6px 0;
+  }
+
+  .mealThumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #f3f4f6;
+  }
+
+  .mealBody { flex: 1; }
+
+  .mealNameLink {
+    color: #2563eb;
+    font-weight: 600;
+  }
+
+  .mealServing {
+    color: #6b7280;
+    font-size: 13px;
+  }

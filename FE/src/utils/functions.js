@@ -236,3 +236,48 @@ export async function fetchCustomerAllergiesAPI(customerId) {
   const { data } = await axios.get(`/api/customers/${customerId}/allergies`);
   return data;
 }
+
+// =============================
+// Plan API helpers (customer plan CRUD)
+// =============================
+
+export async function listPlansAPI(customerId) {
+  const params = {};
+  if (customerId) params.customer_id = customerId;
+  const { data } = await axios.get('/api/plan', { params });
+  return data;
+}
+
+export async function getPlanAPI(planId) {
+  const { data } = await axios.get(`/api/plan/${planId}`);
+  return data;
+}
+
+export async function createPlanAPI(payload) {
+  const { data } = await axios.post('/api/plan', payload);
+  return data;
+}
+
+export async function addPlanProductAPI(planId, product_id, servings = 1) {
+  const { data } = await axios.post(`/api/plan/${planId}/products`, { product_id, servings });
+  return data;
+}
+
+export async function updatePlanProductAPI(planId, linkId, servings) {
+  const { data } = await axios.patch(`/api/plan/${planId}/products/${linkId}`, { servings });
+  return data;
+}
+
+export async function deletePlanProductAPI(planId, linkId) {
+  const { data } = await axios.delete(`/api/plan/${planId}/products/${linkId}`);
+  return data;
+}
+
+// Eligible menu items for a given customer and optional diet type
+export async function fetchEligibleMenuAPI({ customer_id, dietType } = {}) {
+  const params = {};
+  if (customer_id != null) params.customer_id = String(customer_id);
+  if (dietType != null) params.dietType = String(dietType);
+  const { data } = await axios.get('/api/menu/eligible', { params });
+  return data?.items || [];
+}

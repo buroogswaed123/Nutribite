@@ -696,6 +696,12 @@ export default function Plan() {
         >
           שמור תוכנית
         </button>
+        <button
+          onClick={() => alert('TODO: הזמנה של כל הפריטים בתוכנית')}
+          className={styles.btnSuccess}
+        >
+          הזמן הכל
+        </button>
       </div>
 
       {/* Modals */}

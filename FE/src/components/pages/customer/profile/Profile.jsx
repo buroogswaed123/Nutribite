@@ -5,6 +5,7 @@ import { AuthContext } from '../../../../app/App';
 import styles from './profile.module.css';
 import headerStyles from '../../../layout/header/header.module.css';
 import Settings from './Settings';
+import { listPlansAPI } from '../../../../utils/functions';
 
 const buildProfileImageUrl = (raw) =>
   raw?.startsWith('http') ? raw : `http://localhost:3000/${raw || 'uploads/profile/default.png'}`;
@@ -22,6 +23,7 @@ export default function Profile() {
   const [uploading, setUploading] = useState(false);
   const [custId, setCustId] = useState(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [plans, setPlans] = useState([]);
 
   const username = currentUser?.username || 'User';
   const imgSrc = buildProfileImageUrl(profileImage);
@@ -50,6 +52,21 @@ export default function Profile() {
       })
       .catch(() => {});
   }, [currentUser?.user_id]);
+
+  // fetch plans for this customer once custId is known
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      try {
+        if (!custId) return;
+        const rows = await listPlansAPI(custId);
+        if (!ignore) setPlans(Array.isArray(rows) ? rows : []);
+      } catch (_) {
+        if (!ignore) setPlans([]);
+      }
+    })();
+    return () => { ignore = true; };
+  }, [custId]);
 
   const handleSaveName = () => {
     fetch(`http://localhost:3000/api/customers/${currentUser.user_id}`, {
@@ -210,7 +227,79 @@ export default function Profile() {
       </nav>
 
       <section className={styles.content}>
-        {activeTab === 'התוכנית שלי' && <p className={styles.rtlText}>התוכנית שלי</p>}
+        {activeTab === 'התוכנית שלי' && (
+          <div className={styles.rtlText}>
+            <h3 style={{ marginTop: 0 }}>התוכניות שלי</h3>
+
+            {/* Current active plan (latest by created desc from API) */}
+            <div style={{ marginTop: 8, marginBottom: 6, fontWeight: 600 }}>תוכנית פעילה נוכחית</div>
+            {plans && plans.length > 0 ? (
+              <div
+                role="button"
+                onClick={() => navigate('/plan')}
+                title="עבור לתוכנית"
+                style={{
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 10,
+                  padding: 12,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700 }}>תוכנית נוכחית #{plans[0].plan_id}</div>
+                  <div style={{ color: '#6b7280', fontSize: 13 }}>
+                    יעד יומי: {plans[0].calories_per_day ?? '—'} קלוריות • דיאטה: {plans[0].diet_type_name || '—'}
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigate('/plan-maker'); }}
+                  className={styles.iconCircleBtn}
+                  title="צור חדשה"
+                  aria-label="צור חדשה"
+                  style={{ background: '#10b981', color: '#fff', borderRadius: 8, padding: '8px 12px' }}
+                >
+                  צור חדשה
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{ border: '1px dashed #e5e7eb', borderRadius: 10, padding: 12, color: '#6b7280' }}
+              >
+                אין עדיין תוכנית פעילה. 
+                <button
+                  onClick={() => navigate('/plan-maker')}
+                  style={{ marginInlineStart: 8, background: '#3b82f6', color: '#fff', borderRadius: 8, padding: '6px 10px', border: 'none', cursor: 'pointer' }}
+                >
+                  צור חדשה
+                </button>
+              </div>
+            )}
+
+            {/* Previous plans */}
+            <div style={{ marginTop: 16, marginBottom: 6, fontWeight: 600 }}>תוכניות קודמות</div>
+            {plans && plans.length > 1 ? (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {plans.slice(1).map((p) => (
+                  <div
+                    key={p.plan_id}
+                    style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, background: '#fff' }}
+                  >
+                    <div style={{ fontWeight: 600 }}>תוכנית #{p.plan_id}</div>
+                    <div style={{ color: '#6b7280', fontSize: 13 }}>
+                      יעד יומי: {p.calories_per_day ?? '—'} קלוריות • דיאטה: {p.diet_type_name || '—'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: '#6b7280' }}>אין תוכניות קודמות להצגה.</div>
+            )}
+          </div>
+        )}
 
         {activeTab === 'ההזמנות שלי' && <p className={styles.rtlText}>ההזמנות שלי</p>}
       </section>

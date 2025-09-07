@@ -1,0 +1,1043 @@
+/* Main Container */
+.adminHome {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
+  direction: rtl;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  padding: 0;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Loading State */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: #059669;
+}
+
+.loadingSpinner {
+  animation: spin 2s linear infinite;
+  margin-bottom: 1rem;
+}
+
+.spinnerIcon {
+  color: #059669;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Hero Header */
+.heroHeader {
+  background: linear-gradient(135deg, #059669 0%, #047857 50%, #065f46 100%);
+  color: white;
+  padding: 3rem 2rem;
+  border-radius: 0 0 2rem 2rem;
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(5, 150, 105, 0.3);
+}
+
+.heroHeader::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.15)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+  opacity: 0.1;
+}
+
+.heroContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 3rem;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.heroText h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.brandName {
+  color: #10b981;
+  position: relative;
+}
+
+.brandName::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  border-radius: 2px;
+}
+
+.heroSubtitle {
+  font-size: 1.1rem;
+  opacity: 0.9;
+  line-height: 1.6;
+  margin-bottom: 0;
+}
+
+.heroStats {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.heroStat {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1.5rem;
+  border-radius: 1rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: transform 0.3s ease;
+}
+
+.heroStat:hover {
+  transform: translateY(-5px);
+}
+
+.statIcon {
+  background: rgba(16, 185, 129, 0.2);
+  padding: 0.75rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.statInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.statNumber {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  margin-top: 0.25rem;
+}
+
+.heroDecoration {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.floatingIcon1, .floatingIcon2, .floatingIcon3 {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.2);
+  animation: float 6s ease-in-out infinite;
+}
+
+.floatingIcon1 {
+  top: 20%;
+  right: 10%;
+  animation-delay: 0s;
+}
+
+.floatingIcon2 {
+  top: 60%;
+  right: 20%;
+  animation-delay: 2s;
+}
+
+.floatingIcon3 {
+  top: 30%;
+  right: 30%;
+  animation-delay: 4s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(5deg); }
+}
+
+/* Navigation Tabs */
+.navTabs {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  padding: 0 2rem;
+}
+
+.tabButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 2rem;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 1rem;
+  color: #6b7280;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.tabButton:hover {
+  border-color: #059669;
+  color: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(5, 150, 105, 0.15);
+}
+
+.tabButton.active {
+  background: linear-gradient(135deg, #059669, #047857);
+  border-color: #059669;
+  color: white;
+  box-shadow: 0 4px 20px rgba(5, 150, 105, 0.3);
+}
+
+/* Main Content */
+.mainContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem 3rem;
+}
+
+/* Section Styles */
+.section {
+  margin-bottom: 3rem;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.sectionIcon {
+  color: #059669;
+}
+
+.sectionDescription {
+  color: #6b7280;
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Quick Actions */
+.quickActionsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.actionCard {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  background: white;
+  border-radius: 1.5rem;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.actionCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.1), rgba(16, 185, 129, 0.1));
+  transition: width 0.3s ease;
+  z-index: -1;
+}
+
+.actionCard:hover::before {
+  width: 100%;
+}
+
+.actionCard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  border-color: #059669;
+}
+
+.actionIcon {
+  background: linear-gradient(135deg, #059669, #047857);
+  color: white;
+  padding: 1rem;
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(5, 150, 105, 0.3);
+}
+
+.actionContent {
+  flex: 1;
+}
+
+.actionTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.actionDescription {
+  color: #6b7280;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.actionStats {
+  background: #f3f4f6;
+  color: #059669;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.actionArrow {
+  color: #059669;
+  font-size: 1.5rem;
+  font-weight: bold;
+  transition: transform 0.3s ease;
+}
+
+.actionCard:hover .actionArrow {
+  transform: translateX(-5px);
+}
+
+/* Color Variants */
+.primary .actionIcon {
+  background: linear-gradient(135deg, #059669, #047857);
+}
+
+.success .actionIcon {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.warning .actionIcon {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.info .actionIcon {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+/* Statistics Cards */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.statCard {
+  background: white;
+  padding: 2rem;
+  border-radius: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border: 1px solid #f3f4f6;
+}
+
+.statCard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.statIcon {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.statContent {
+  flex: 1;
+}
+
+.statNumber {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+  line-height: 1;
+}
+
+.statLabel {
+  color: #6b7280;
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.statChange {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #10b981;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Popular Recipes */
+.recipesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.recipeCard {
+  background: white;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border: 1px solid #f3f4f6;
+}
+
+.recipeCard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.recipeImage {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+}
+
+.recipeImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.recipeCard:hover .recipeImage img {
+  transform: scale(1.05);
+}
+
+.trendingBadge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.3);
+}
+
+.recipeContent {
+  padding: 1.5rem;
+}
+
+.recipeHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.recipeTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.recipeCategory {
+  background: #f3f4f6;
+  color: #059669;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.recipeStats {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.recipeActions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.viewBtn, .editBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.viewBtn {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+}
+
+.viewBtn:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.editBtn {
+  background: linear-gradient(135deg, #059669, #047857);
+  color: white;
+  border: 1px solid #059669;
+}
+
+.editBtn:hover {
+  background: linear-gradient(135deg, #047857, #065f46);
+  transform: translateY(-1px);
+}
+
+/* Comments Section */
+.commentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.commentCard {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f3f4f6;
+  transition: all 0.3s ease;
+}
+
+.commentCard:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.commentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.commentUser {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.userAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #10b981;
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.userName {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.commentTime {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.commentMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.recipeName {
+  font-size: 0.9rem;
+  color: #059669;
+  font-weight: 600;
+}
+
+.statusBadge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.statusBadge.pending {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.statusBadge.approved {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.commentText {
+  color: #374151;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.commentActions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.approveBtn, .deleteBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.approveBtn {
+  background: #10b981;
+  color: white;
+  border: 1px solid #10b981;
+}
+
+.approveBtn:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.deleteBtn {
+  background: #ef4444;
+  color: white;
+  border: 1px solid #ef4444;
+}
+
+.deleteBtn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+/* Notifications */
+.notificationsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.notificationCard {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f3f4f6;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.notificationCard:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.notificationCard.urgent {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+}
+
+.notificationIcon {
+  background: #f3f4f6;
+  padding: 0.75rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+.notificationCard.urgent .notificationIcon {
+  background: #f59e0b;
+  color: white;
+}
+
+.notificationContent {
+  flex: 1;
+}
+
+.notificationMessage {
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
+
+.notificationTime {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.urgentIndicator {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+}
+
+.urgentDot {
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+/* Analytics and Reports */
+.analyticsGrid, .reportsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.chartCard, .reportCard {
+  background: white;
+  padding: 2rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f3f4f6;
+  transition: all 0.3s ease;
+}
+
+.chartCard:hover, .reportCard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.chartCard h3, .reportCard h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 1rem;
+}
+
+.chartPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  background: #f8fafc;
+  border-radius: 1rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.chartPlaceholder svg {
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.reportIcon {
+  background: linear-gradient(135deg, #059669, #047857);
+  color: white;
+  padding: 1rem;
+  border-radius: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.reportContent h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.reportContent p {
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+}
+
+.downloadBtn {
+  background: linear-gradient(135deg, #059669, #047857);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.downloadBtn:hover {
+  background: linear-gradient(135deg, #047857, #065f46);
+  transform: translateY(-1px);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .heroContent {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    text-align: center;
+  }
+
+  .heroStats {
+    justify-content: center;
+  }
+
+  .heroText h1 {
+    font-size: 2rem;
+  }
+
+  .quickActionsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .recipesGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .analyticsGrid, .reportsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .adminHome {
+    padding: 0;
+  }
+
+  .heroHeader {
+    padding: 2rem 1rem;
+    border-radius: 0 0 1.5rem 1.5rem;
+  }
+
+  .heroText h1 {
+    font-size: 1.75rem;
+  }
+
+  .heroSubtitle {
+    font-size: 1rem;
+  }
+
+  .mainContent {
+    padding: 0 1rem 2rem;
+  }
+
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .sectionTitle {
+    font-size: 1.5rem;
+  }
+
+  .navTabs {
+    padding: 0 1rem;
+    flex-wrap: wrap;
+  }
+
+  .tabButton {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .actionCard {
+    padding: 1.5rem;
+  }
+
+  .statCard {
+    padding: 1.5rem;
+  }
+
+  .recipeCard {
+    margin: 0;
+  }
+
+  .commentHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .commentActions {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .heroHeader {
+    padding: 1.5rem 1rem;
+  }
+
+  .heroText h1 {
+    font-size: 1.5rem;
+  }
+
+  .heroStat {
+    padding: 1rem;
+  }
+
+  .statNumber {
+    font-size: 2rem;
+  }
+
+  .actionCard {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .actionIcon {
+    align-self: center;
+  }
+
+  .recipeStats {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .recipeActions {
+    flex-direction: column;
+  }
+
+  .viewBtn, .editBtn {
+    width: 100%;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus States */
+.tabButton:focus,
+.viewBtn:focus,
+.editBtn:focus,
+.approveBtn:focus,
+.deleteBtn:focus,
+.downloadBtn:focus {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+}
+
+/* Print Styles */
+@media print {
+  .adminHome {
+    background: white;
+  }
+
+  .heroHeader,
+  .navTabs,
+  .actionCard,
+  .notificationCard {
+    box-shadow: none;
+    border: 1px solid #e5e7eb;
+  }
+}

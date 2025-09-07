@@ -9,8 +9,8 @@ import {
   Bell,
   BarChart3,
   Plus,
-  CheckCircle,
-  XCircle,
+  // CheckCircle, // unused now
+  // XCircle, // unused
   AlertTriangle,
   Apple,
   Carrot,
@@ -37,6 +37,7 @@ export default function HomeEnhanced() {
   const [recentUsers, setRecentUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [recipes, setRecipes] = useState([]);
+  // Analytics: we only show filtered Overview sections; no extra analytics state needed
   
 
   useEffect(() => {
@@ -85,6 +86,53 @@ export default function HomeEnhanced() {
     })();
     return () => { mounted = false; };
   }, [fetchDashboardStats, fetchRecentUsers, fetchAllUsers, fetchAllRecipes]);
+
+  // Refresh core stats when switching to Analytics so numbers reflect latest BE data
+  useEffect(() => {
+    if (activeTab !== 'analytics') return;
+    let mounted = true;
+    (async () => {
+      try {
+        const [statsRes, allUsersRes, recipesRes] = await Promise.all([
+          fetchDashboardStats().catch(() => ({})),
+          fetchAllUsers().catch(() => []),
+          fetchAllRecipes().catch(() => []),
+        ]);
+        if (!mounted) return;
+        const total_recipes = (Array.isArray(recipesRes) ? recipesRes : (recipesRes?.items || [])).length;
+        const now = new Date();
+        const month = now.getMonth();
+        const year = now.getFullYear();
+        const new_recipes_this_month = (Array.isArray(recipesRes) ? recipesRes : (recipesRes?.items || []))
+          .filter(r => r?.createdAt && new Date(r.createdAt).getMonth() === month && new Date(r.createdAt).getFullYear() === year)
+          .length;
+        const total_users = (Array.isArray(allUsersRes) ? allUsersRes : (allUsersRes?.items || [])).length;
+        const merged = {
+          total_recipes: statsRes?.total_recipes ?? total_recipes,
+          new_recipes_this_month: statsRes?.new_recipes_this_month ?? new_recipes_this_month,
+          weekly_visits: statsRes?.weekly_visits ?? 0,
+          total_users: statsRes?.total_users ?? total_users,
+          active_users: statsRes?.active_users ?? 0,
+          new_users_this_month: statsRes?.new_users_this_month ?? 0,
+          new_comments: statsRes?.new_comments ?? 0,
+        };
+        setStats(merged);
+      } catch {}
+    })();
+    return () => { mounted = false; };
+  }, [activeTab, fetchDashboardStats, fetchAllUsers, fetchAllRecipes]);
+
+  // Filter helpers (fixed 30 days)
+  const cutoffDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d;
+  })();
+  const withinRange = (dt) => {
+    if (!dt) return true; // if no date, keep
+    const t = new Date(dt);
+    return t >= cutoffDate;
+  };
 
   // Trigger banner animation: move to center then back
   useEffect(() => {
@@ -445,10 +493,89 @@ export default function HomeEnhanced() {
 
       {activeTab === "analytics" && (
         <div className={styles.analyticsSection}>
-          <div className={styles.chartPlaceholder}>
-            <BarChart3 size={48} />
-            <h3>אנליטיקס מתקדם</h3>
-            <p>גרפים וסטטיסטיקות מפורטות יוצגו כאן</p>
+          {/* Statistics Cards (filtered) FIRST */}
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>סטטיסטיקות (מסונן)</h2>
+            <div className={styles.statsGrid}>
+              {statistics.map((stat, index) => (
+                <div key={`an-stat-${index}`} className={styles.statCard}>
+                  <div className={styles.statHeader}>
+                    <div className={styles.statIcon} style={{ backgroundColor: stat.color }}>
+                      {React.createElement(stat.icon, { size: 20 })}
+                    </div>
+                    <div className={styles.statChange}>
+                      <TrendingUp size={14} />
+                      <span>{stat.change}</span>
+                    </div>
+                  </div>
+                  <div className={styles.statContent}>
+                    <h3 className={styles.statValue}>{stat.value.toLocaleString()}</h3>
+                    <p className={styles.statLabel}>{stat.title}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Popular Recipes (filtered) */}
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>מתכונים פופולריים (מסונן)</h2>
+            <div className={styles.recipesGrid}>
+              {popularRecipes.map((recipe, index) => (
+                <div key={`an-recipe-${index}`} className={styles.recipeCard}>
+                  <div className={styles.recipeImage}>
+                    <span className={styles.recipeEmoji}>{recipe.image}</span>
+                  </div>
+                  <div className={styles.recipeContent}>
+                    <h3 className={styles.recipeTitle}>{recipe.name}</h3>
+                    <p className={styles.recipeCategory}>{recipe.category}</p>
+                    <div className={styles.recipeStats}>
+                      <div className={styles.recipeStat}>
+                        <Eye size={14} />
+                        <span>{recipe.views.toLocaleString()}</span>
+                      </div>
+                      <div className={styles.recipeStat}>
+                        <Star size={14} />
+                        <span>{recipe.rating}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recent Users (filtered by createdAt if available) */}
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>משתמשים אחרונים (מסונן)</h2>
+            <div className={styles.commentsList}>
+              {recentUsersList.filter(u => withinRange(u.createdAt)).map((u) => (
+                <div key={`an-u-${u.id}`} className={styles.commentCard}>
+                  <div className={styles.commentHeader}>
+                    <div className={styles.commentUser}>
+                      <div className={styles.userAvatar}>
+                        <Users size={16} />
+                      </div>
+                      <div className={styles.userInfo}>
+                        <span className={styles.userName}>{u.name}</span>
+                        <span className={styles.commentTime}>{u.email}</span>
+                      </div>
+                    </div>
+                    <div className={styles.commentMeta}>
+                      <span className={styles.statusBadge}>{u.role}</span>
+                      {u.createdAt && (
+                        <span className={styles.dateBadge}>
+                          {new Date(u.createdAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {recentUsersList.filter(u => withinRange(u.createdAt)).length === 0 && (
+                <div className={styles.noComments}>אין נתונים להצגה כרגע.</div>
+              )}
+            </div>
           </div>
         </div>
       )}

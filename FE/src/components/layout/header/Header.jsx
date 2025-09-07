@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Bell } from 'lucide-react';
 import styles from './header.module.css';
 import { AuthContext } from '../../../app/App';
 import { getCurrentCustomerId } from '../../../utils/functions';
+import useNotifications from '../../../hooks/useNotif';
+import NotificationsPanel from '../../notifications/Notifications';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -14,6 +16,17 @@ export default function Header() {
   const { isLoggedIn, handleLogout, currentUser } = useContext(AuthContext) || {};
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const avatarWrapperRef = React.useRef(null);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState(null);
+
+  // Notifications hook
+  const {
+    notifications: notifList,
+    loading: notifLoading,
+    unreadCount,
+    remove: deleteNotif,
+    removeAll: deleteAllNotifs,
+  } = useNotifications();
 
   // Simple helper function to check auth state
   const userLoggedIn = () => !!isLoggedIn;
@@ -114,30 +127,77 @@ export default function Header() {
     { name: 'מאמרים', path: '/articles' }
   ];
 
+  const isCustomer = (getUserType() || '').toLowerCase() === 'customer';
+
   // Apply transparent on home top, solid when scrolled or on other routes
   const solid = isScrolled || location.pathname !== '/';
 
   return (
-    <header className={`${styles.header} ${solid ? styles.headerSolid : styles.headerTransparent}`}>
+    <header className={`${styles.header} ${solid ? styles.headerSolid : styles.headerTransparent}`} style={{ position: 'relative' }}>
       <div className={styles.container}>
         <div className={styles.row}>
           {/* Logo */}
           <Link to={userLoggedIn() ? getHomePath() : '/'} className={styles.logo}>
             <span className={styles.brand}>Nutribite</span>
           </Link>
+          {/* Notifications bell */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <button
+              type="button"
+              aria-label="Notifications"
+              title="Notifications"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                marginInlineStart: 8,
+                display: 'flex',
+                alignItems: 'center',
+                position: 'relative',
+              }}
+              onClick={() => setIsNotifOpen((v) => !v)}
+            >
+              <Bell size={20} color={solid ? '#111827' : '#ffffff'} />
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    insetInlineStart: 18,
+                    background: '#ef4444',
+                    color: '#fff',
+                    fontSize: 10,
+                    lineHeight: '14px',
+                    minWidth: 16,
+                    height: 16,
+                    padding: '0 4px',
+                    borderRadius: 9999,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+                  }}
+                >
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
 
           {/* Desktop Navigation */}
-          <nav className={styles.navDesktop}>
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={styles.navLink}
-              >
-                {link.name}
-              </Link>
-            ))}
-          </nav>
+          {isCustomer && (
+            <nav className={styles.navDesktop}>
+              {navLinks.map((link) => (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={styles.navLink}
+                >
+                  {link.name}
+                </Link>
+              ))}
+            </nav>
+          )}
 
           {/* Auth Buttons - Desktop */}
           <div className={styles.authDesktop}>
@@ -244,17 +304,34 @@ export default function Header() {
           </div>
 
           {/* Mobile Menu Button */}
-          <button
-            className={styles.mobileToggle}
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-          >
-            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          {isCustomer && (
+            <button
+              className={styles.mobileToggle}
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Notifications Dropdown */}
+      <NotificationsPanel
+        isOpen={isNotifOpen}
+        onClose={() => setIsNotifOpen(false)}
+        notifications={notifList}
+        loading={notifLoading}
+        onOpenNotification={(n) => {
+          setSelectedNotification(n);
+          // Modal will be implemented next step
+          setIsNotifOpen(false);
+        }}
+        onDelete={(id) => deleteNotif(id)}
+        onDeleteAll={() => deleteAllNotifs()}
+      />
+
       {/* Mobile Menu */}
-      {isMenuOpen && (
+      {isCustomer && isMenuOpen && (
         <div className={styles.mobileMenu}>
           <div className={styles.mobileMenuInner}>
             <nav className={styles.mobileNav}>

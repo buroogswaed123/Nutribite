@@ -306,3 +306,48 @@ export async function fetchEligibleMenuAPI({ customer_id, dietType } = {}) {
   const { data } = await axios.get('/api/menu/eligible', { params });
   return data?.items || [];
 }
+
+
+
+//Notifications management //
+
+//get all notifications for user
+export async function fetchNotificationsAPI(userId) {
+  const { data } = await axios.get(`/api/notifications/user/${userId}`);
+  return data;
+}
+
+//delete notification
+export async function deleteNotificationAPI(notificationId) {
+  const { data } = await axios.delete(`/api/notifications/${notificationId}`);
+  return data;
+}
+
+//mark notification as read
+export async function markNotificationReadAPI(notificationId) {
+  if (!notificationId) throw new Error('Missing notificationId');
+  const { data } = await axios.put(`/api/notifications/${notificationId}`);
+  return data;
+}
+
+//create a notification (admin-only backend)
+export async function createNotificationAPI({ user_id, type, related_id, title, description }) {
+  if (!user_id) throw new Error('Missing user_id');
+  if (!type) throw new Error('Missing type');
+  const payload = { user_id, type, related_id, title, description };
+  const { data } = await axios.post('/api/notifications', payload);
+  return data;
+}
+
+//return notification type (order,ban,answer)=>for customers,(order,ban)=>for courier,(question)=>for admin
+export async function getNotificationTypeAPI(userId) {
+  const { data } = await axios.get(`/api/notifications/user/${userId}/type`);
+  return data;  
+}
+
+//delete all notifications for a given user
+export async function deleteAllNotificationsAPI(userId) {
+  if (!userId) throw new Error('Missing userId');
+  const { data } = await axios.delete(`/api/notifications/user/${userId}`);
+  return data;
+}

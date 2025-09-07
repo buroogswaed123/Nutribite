@@ -49,8 +49,8 @@ router.put('/:id', (req, res) => {
 //create a notification (for admin only)
 router.post('/', (req, res) => {
     const { user_id,type,related_id,title,description } = req.body;
-    const sql = 'INSERT INTO notifications (user_id,type,related_id,related_id,title,description) VALUES (?, ?, ?, ?, ?, ?)';
-    conn.query(sql, [user_id, type, related_id, related_id, title, description], (err, results) => {
+    const sql = 'INSERT INTO notifications (user_id,type,related_id,title,description) VALUES (?, ?, ?, ?, ?)';
+    conn.query(sql, [user_id, type, related_id, title, description], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
     });

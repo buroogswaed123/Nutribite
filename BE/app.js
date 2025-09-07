@@ -256,6 +256,9 @@ app.use('/api/admin/auth', adminAuthRoutes); // no requireAdmin on /login
 const adminIndexRoutes = require('./routes/admin');
 app.use('/api/admin', requireActiveUser, requireAdmin, adminIndexRoutes);
 
+const notificationsRoutes = require('./routes/notifications');
+app.use('/api/notifications', notificationsRoutes);
+
 const customersRoutes = require('./routes/customers');
 app.use('/api/customers', customersRoutes);
 const usersRoutes = require('./routes/users');
@@ -373,7 +376,6 @@ const salesData = [
 app.get('/api/admin/sales', (req, res) => {
   res.json(salesData);
 });
-
 
 //use the photos folder
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));

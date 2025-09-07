@@ -199,8 +199,57 @@ router.get('/stats', async (req, res) => {
   try {
     const [usersCountRows] = await runQuery('SELECT COUNT(*) AS total_users FROM users');
 
-    // Replace with a real active-users metric if/when you add it.
-    const activeUsers = usersCountRows?.[0]?.total_users || 0;
+    // Active users: prefer explicit status='active'; fall back to last_seen freshness window
+    let activeUsers = 0;
+    try {
+      const [activeByStatus] = await runQuery(`SELECT COUNT(*) AS active_users FROM users WHERE status = 'active'`);
+      activeUsers = activeByStatus?.[0]?.active_users || 0;
+    } catch (e) {
+      // Fallback: users seen in the last 2 minutes considered active
+      try {
+        const [activeByLastSeen] = await runQuery(`SELECT COUNT(*) AS active_users FROM users WHERE last_seen IS NOT NULL AND last_seen >= (NOW() - INTERVAL 2 MINUTE)`);
+        activeUsers = activeByLastSeen?.[0]?.active_users || 0;
+      } catch (_) {
+        activeUsers = 0;
+      }
+    }
+
+    // Total recipes
+    let totalRecipes = 0;
+    try {
+      const [recipeCountRows] = await runQuery(`SELECT COUNT(*) AS total_recipes FROM recipes`);
+      totalRecipes = recipeCountRows?.[0]?.total_recipes || 0;
+    } catch (e) {
+      totalRecipes = 0;
+    }
+
+    // New users this month (based on account_creation_time)
+    let newUsersThisMonth = 0;
+    try {
+      const [rows] = await runQuery(`
+        SELECT COUNT(*) AS cnt
+        FROM users
+        WHERE MONTH(account_creation_time) = MONTH(CURRENT_DATE())
+          AND YEAR(account_creation_time) = YEAR(CURRENT_DATE())
+      `);
+      newUsersThisMonth = rows?.[0]?.cnt || 0;
+    } catch (_) {
+      newUsersThisMonth = 0;
+    }
+
+    // New recipes this month (based on recipes.created_at). If column missing, falls back to 0
+    let newRecipesThisMonth = 0;
+    try {
+      const [rows] = await runQuery(`
+        SELECT COUNT(*) AS cnt
+        FROM recipes
+        WHERE MONTH(created_at) = MONTH(CURRENT_DATE())
+          AND YEAR(created_at) = YEAR(CURRENT_DATE())
+      `);
+      newRecipesThisMonth = rows?.[0]?.cnt || 0;
+    } catch (_) {
+      newRecipesThisMonth = 0;
+    }
 
     const [byTypeRows] = await runQuery(`
       SELECT user_type, COUNT(*) AS cnt
@@ -230,7 +279,10 @@ router.get('/stats', async (req, res) => {
       total_users: usersCountRows?.[0]?.total_users || 0,
       active_users: activeUsers,
       users_by_type: usersByType,
-      orders_today: ordersToday
+      orders_today: ordersToday,
+      total_recipes: totalRecipes,
+      new_users_this_month: newUsersThisMonth,
+      new_recipes_this_month: newRecipesThisMonth,
     });
   } catch (err) {
     console.error('ADMIN STATS GET ERROR:', err);

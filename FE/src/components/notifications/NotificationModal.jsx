@@ -1,6 +1,8 @@
 import React from 'react';
-import { X, Trash2, CheckCircle2 } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 import styles from './Notifications.module.css';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function NotificationModal({
   open,
@@ -9,6 +11,30 @@ export default function NotificationModal({
   onMarkRead,
   onDelete,
 }) {
+  // Unban request state
+  const [showUnbanForm, setShowUnbanForm] = useState(false);
+  const [unbanReason, setUnbanReason] = useState('');
+  const [sending, setSending] = useState(false);
+  const [adminName, setAdminName] = useState('');
+  const [adminId, setAdminId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const { createNotification } = useAuth();
+
+  // Initialize identities for unban flow from the notification itself
+  useEffect(() => {
+    if (!open || !notification) return;
+    // Prefer fields on the notification if present
+    const nb = notification.banned_by || notification.admin_id || null;
+    const nbName = notification.banned_by_name || notification.admin_name || '';
+    setAdminId(nb);
+    setAdminName(nbName);
+    // The requester is the notification recipient (current user);
+    // many backends omit this, but we can fall back to related_id when it represents the user
+    const meId = notification.recipient_id || notification.user_id || null;
+    setCurrentUserId(meId);
+  }, [open, notification]);
+
+  // After hooks: safely destructure and compute display values
   if (!open || !notification) return null;
 
   const {
@@ -39,12 +65,8 @@ export default function NotificationModal({
             <span className={styles.label}>סוג</span>
             <div className={styles.value}>{type || '-'}</div>
           </div>
-          {related_id != null && (
-            <div className={styles.field}>
-              <span className={styles.label}>מזהה קשור</span>
-              <div className={styles.value}>{String(related_id)}</div>
-            </div>
-          )}
+          
+          
           {description && (
             <div className={styles.field}>
               <span className={styles.label}>תיאור</span>
@@ -55,6 +77,64 @@ export default function NotificationModal({
             {dateText && <span>נוצר: {dateText}</span>}
             {is_read ? <span>נקרא</span> : <span>לא נקרא</span>}
           </div>
+
+          {type === 'ban' && (
+            <div style={{ marginTop: 10 }}>
+              {!showUnbanForm ? (
+                <button
+                  className={styles.primaryBtn}
+                  onClick={() => setShowUnbanForm(true)}
+                >
+                  שלח בקשת ביטול חסימה
+                </button>
+              ) : (
+                <div>
+                  <label className={styles.label} htmlFor="unbanReason">נימוק לבקשת ביטול חסימה</label>
+                  <textarea
+                    id="unbanReason"
+                    className={styles.textarea}
+                    rows={4}
+                    placeholder="כתוב כאן מדוע לדעתך יש להסיר את החסימה"
+                    value={unbanReason}
+                    onChange={(e) => setUnbanReason(e.target.value)}
+                  />
+                  <div className={styles.modalFooter}>
+                    <button
+                      className={styles.closeFooterBtn}
+                      disabled={sending}
+                      onClick={() => setShowUnbanForm(false)}
+                    >ביטול</button>
+                    <button
+                      className={styles.primaryBtn}
+                      disabled={sending || !unbanReason.trim() || !adminId}
+                      onClick={async () => {
+                        try {
+                          if (!adminId) return;
+                          setSending(true);
+                          const title = 'בקשת ביטול חסימה';
+                          await createNotification({
+                            user_id: adminId,
+                            type: 'unban request',
+                            related_id: currentUserId || null,
+                            title,
+                            description: unbanReason.trim(),
+                          });
+                          setShowUnbanForm(false);
+                          setUnbanReason('');
+                          // Optionally mark as read
+                          onMarkRead?.(id);
+                        } catch (e) {
+                          console.error('Failed to send unban request', e);
+                        } finally {
+                          setSending(false);
+                        }
+                      }}
+                    >שלח</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className={styles.modalFooter}>
           {!is_read && (

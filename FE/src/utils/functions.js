@@ -368,8 +368,16 @@ export async function createNotificationAPI({ user_id, type, related_id, title, 
 
 //return notification type (order,ban,answer)=>for customers,(order,ban)=>for courier,(question)=>for admin
 export async function getNotificationTypeAPI(userId) {
-  const { data } = await axios.get(`/api/notifications/user/${userId}/type`);
-  return data;  
+  try {
+    const { data } = await axios.get(`/api/notifications/user/${userId}/type`);
+    return data;
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      // Endpoint not implemented on backend; let caller fall back silently
+      return [];
+    }
+    throw err;
+  }
 }
 
 //delete all notifications for a given user

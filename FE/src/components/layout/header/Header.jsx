@@ -138,53 +138,55 @@ export default function Header() {
     <header className={`${styles.header} ${solid ? styles.headerSolid : styles.headerTransparent}`} style={{ position: 'fixed' }}>
       <div className={styles.container}>
         <div className={styles.row}>
-          {/* Logo + Notifications bell as a single group */}
+          {/* Logo + Notifications bell (bell only when logged in) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Link to={userLoggedIn() ? getHomePath() : '/'} className={styles.logo}>
               <span className={styles.brand}>Nutribite</span>
             </Link>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <button
-                type="button"
-                aria-label="Notifications"
-                title="Notifications"
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  position: 'relative',
-                }}
-                data-notif-anchor
-                onClick={() => setIsNotifOpen((v) => !v)}
-              >
-                <Bell size={20} color={solid ? '#111827' : '#ffffff'} />
-                {unreadCount > 0 && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: -4,
-                      insetInlineStart: 18,
-                      background: '#ef4444',
-                      color: '#fff',
-                      fontSize: 10,
-                      lineHeight: '14px',
-                      minWidth: 16,
-                      height: 16,
-                      padding: '0 4px',
-                      borderRadius: 9999,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
-                    }}
-                  >
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-            </div>
+            {userLoggedIn() && (
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  aria-label="Notifications"
+                  title="Notifications"
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    position: 'relative',
+                  }}
+                  data-notif-anchor
+                  onClick={() => setIsNotifOpen((v) => !v)}
+                >
+                  <Bell size={20} color={solid ? '#111827' : '#ffffff'} />
+                  {unreadCount > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: -4,
+                        insetInlineStart: 18,
+                        background: '#ef4444',
+                        color: '#fff',
+                        fontSize: 10,
+                        lineHeight: '14px',
+                        minWidth: 16,
+                        height: 16,
+                        padding: '0 4px',
+                        borderRadius: 9999,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+                      }}
+                    >
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Desktop Navigation */}
@@ -318,35 +320,37 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Notifications Dropdown */}
-      <NotificationsPanel
-        isOpen={isNotifOpen}
-        onClose={() => setIsNotifOpen(false)}
-        notifications={notifList}
-        loading={notifLoading}
-        onOpenNotification={(n) => {
-          setSelectedNotification(n);
-          // Modal will be implemented next step
-          setIsNotifOpen(false);
-        }}
-        onDelete={(id) => deleteNotif(id)}
-        onDeleteAll={() => deleteAllNotifs()}
-      />
+      {/* Notifications (only for logged-in users) */}
+      {userLoggedIn() && (
+        <>
+          <NotificationsPanel
+            isOpen={isNotifOpen}
+            onClose={() => setIsNotifOpen(false)}
+            notifications={notifList}
+            loading={notifLoading}
+            onOpenNotification={(n) => {
+              setSelectedNotification(n);
+              setIsNotifOpen(false);
+            }}
+            onDelete={(id) => deleteNotif(id)}
+            onDeleteAll={() => deleteAllNotifs()}
+          />
 
-      <NotificationModal
-        open={!!selectedNotification}
-        notification={selectedNotification}
-        onClose={() => setSelectedNotification(null)}
-        onMarkRead={async (id) => {
-          await markRead(id);
-          // also update selected notification state to reflect read
-          setSelectedNotification((prev) => (prev && prev.id === id ? { ...prev, is_read: true, status: 'read' } : prev));
-        }}
-        onDelete={async (id) => {
-          await deleteNotif(id);
-          setSelectedNotification(null);
-        }}
-      />
+          <NotificationModal
+            open={!!selectedNotification}
+            notification={selectedNotification}
+            onClose={() => setSelectedNotification(null)}
+            onMarkRead={async (id) => {
+              await markRead(id);
+              setSelectedNotification((prev) => (prev && prev.id === id ? { ...prev, is_read: true, status: 'read' } : prev));
+            }}
+            onDelete={async (id) => {
+              await deleteNotif(id);
+              setSelectedNotification(null);
+            }}
+          />
+        </>
+      )}
 
       {/* Mobile Menu */}
       {isCustomer && isMenuOpen && (

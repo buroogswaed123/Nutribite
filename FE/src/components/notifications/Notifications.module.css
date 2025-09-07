@@ -64,6 +64,18 @@
   background: #f9fafb;
 }
 
+/* Dim read notifications */
+.readItem {
+  opacity: 0.6;
+}
+.readItem .unreadDot {
+  display: none;
+}
+.readItem .h3 {
+  font-weight: 600;
+  color: #374151;
+}
+
 .titleRow {
   display: flex;
   align-items: center;
@@ -178,6 +190,17 @@
 .value {
   color: #111827;
   white-space: pre-wrap;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.95rem;
 }
 
 .meta {

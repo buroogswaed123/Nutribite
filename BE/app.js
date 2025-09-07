@@ -46,7 +46,7 @@ db.connect((err) => {
     });
     return;
   }
-  console.log('Connected to MySQL');
+  console.log('starting server..');
   
   // Test connection
   db.query('SELECT 1', (err, results) => {
@@ -267,7 +267,7 @@ app.use('/api/users', usersRoutes);
 try {
   const courierRoutes = require('./routes/courier');
   app.use('/api/courier', requireActiveUser, courierRoutes);
-  console.log('Mounted /api/courier routes');
+  // console.log('Mounted /api/courier routes');
 } catch (e) {
   console.error('Failed to mount /api/courier routes:', e?.message || e);
   if (e && e.stack) console.error('Stack:', e.stack);
@@ -277,14 +277,14 @@ try {
 try {
   const dietRoutes = require('./routes/diet');
   app.use('/api/diet', dietRoutes);
-  console.log('Mounted /api/diet routes');
+  // console.log('Mounted /api/diet routes');
 } catch (e) {
   console.error('Failed to mount /api/diet routes:', e?.message || e);
 }
 try {
   const recipesRoutes = require('./routes/recipes');
   app.use('/api/recipes', recipesRoutes);
-  console.log('Mounted /api/recipes routes');
+  //console.log('Mounted /api/recipes routes');
 } catch (e) {
   console.error('Failed to mount /api/recipes routes:', e?.message || e);
 }
@@ -292,7 +292,7 @@ try {
 try {
   const menuRoutes = require('./routes/menu');
   app.use('/api/menu', menuRoutes);
-  console.log('Mounted /api/menu routes');
+  //console.log('Mounted /api/menu routes');
 } catch (e) {
   console.error('Failed to mount /api/menu routes:', e?.message || e);
 }
@@ -300,7 +300,7 @@ try {
 try {
   const questionsRoutes = require('./routes/faq');
   app.use('/api/questions', questionsRoutes);
-  console.log('Mounted /api/questions routes');
+  //console.log('Mounted /api/questions routes');
 } catch (e) {
   console.error('Failed to mount /api/questions routes:', e?.message || e);
 }
@@ -309,7 +309,7 @@ try {
   const planRoutes = require('./routes/plan');
   const requireActiveUser = require('./middleware/requireActiveUser');
   app.use('/api/plan', requireActiveUser, planRoutes);
-  console.log('Mounted /api/plan routes');
+  //console.log('Mounted /api/plan routes');
 } catch (e) {
   console.error('Failed to mount /api/plan routes:', e?.message || e);
   if (e && e.stack) console.error('Stack:', e.stack);

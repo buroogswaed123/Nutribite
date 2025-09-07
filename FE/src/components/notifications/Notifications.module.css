@@ -117,3 +117,110 @@
 .trashBtn:hover {
   background: #fef2f2;
 }
+
+/* Modal styles */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  width: min(560px, 92vw);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.modalTitle {
+  font-weight: 800;
+  font-size: 1.05rem;
+  margin: 0;
+  color: #111827;
+}
+
+.closeBtn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #6b7280;
+}
+
+.modalBody {
+  padding: 14px;
+}
+
+.field {
+  margin-bottom: 10px;
+}
+
+.label {
+  display: block;
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.value {
+  color: #111827;
+  white-space: pre-wrap;
+}
+
+.meta {
+  display: flex;
+  gap: 12px;
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.primaryBtn {
+  border: 1px solid #A4036F;
+  background: #A4036F;
+  color: #ffffff;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dangerBtn {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.closeFooterBtn {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  border-radius: 9999px;
+  padding: 6px 10px;
+  cursor: pointer;
+}

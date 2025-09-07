@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import styles from './users.module.css'
 import { useAuth } from '../../../../../hooks/useAuth';
 import { ArrowUpDown, X } from 'lucide-react';
+import { getSessionUser } from '../../../../../utils/functions';
 
 export default function UsersList() {
     const [recentUsers, setRecentUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-     const { fetchAllUsers, updateUserRole, updateUserBanStatus, deleteUser } = useAuth();
+     const { fetchAllUsers, updateUserRole, updateUserBanStatus, deleteUser, updateUserBanDetails, createNotification, adminBanUser, adminUnbanUser } = useAuth();
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState('online'); // 'online' | 'type'
   const [selectedUser, setSelectedUser] = useState(null);
@@ -17,6 +18,11 @@ export default function UsersList() {
   const [pendingRole, setPendingRole] = useState(null);
   const [pendingBan, setPendingBan] = useState(null); // true to ban, false to unban, null none
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [isBanFormOpen, setIsBanFormOpen] = useState(false);
+  const [banReason, setBanReason] = useState('');
+  const [savingBan, setSavingBan] = useState(false);
+  const [banDescription, setBanDescription] = useState('');
+  const [adminId, setAdminId] = useState(null);
 
   const addToast = (type, message) => {
     const id = Date.now() + Math.random();
@@ -44,6 +50,13 @@ export default function UsersList() {
           } finally {
             if (mounted) setLoading(false);
           }
+        })();
+        // load current admin id
+        (async () => {
+          try {
+            const session = await getSessionUser();
+            if (mounted) setAdminId(session?.user_id || session?.id || null);
+          } catch (_) {}
         })();
         // Poll users every 30s for online status updates
         const interval = setInterval(async () => {
@@ -293,13 +306,19 @@ export default function UsersList() {
                         <button
                           className={styles.confirmBtn}
                           onClick={async () => {
+                            if (pendingBan === true) {
+                              // Open ban scheduling form instead of immediate ban
+                              setIsBanFormOpen(true);
+                              return;
+                            }
+                            // Unban flow immediate
                             try {
-                              await updateUserBanStatus(selectedUser.user_id, pendingBan);
-                              setSelectedUser((prev) => ({ ...prev, is_banned: pendingBan }));
-                              setRecentUsers((list) => list.map(u => u.user_id === selectedUser.user_id ? { ...u, is_banned: pendingBan } : u));
-                              addToast('success', pendingBan ? 'המשתמש נחסם' : 'החסימה בוטלה');
+                              await adminUnbanUser(selectedUser.user_id);
+                              setSelectedUser((prev) => ({ ...prev, is_banned: false }));
+                              setRecentUsers((list) => list.map(u => u.user_id === selectedUser.user_id ? { ...u, is_banned: false } : u));
+                              addToast('success', 'החסימה בוטלה');
                             } catch (e) {
-                              console.error('Ban/unban failed', e);
+                              console.error('Unban failed', e);
                               addToast('error', 'פעולת החסימה נכשלה');
                             } finally {
                               setPendingBan(null);
@@ -366,6 +385,69 @@ export default function UsersList() {
             </div>
           ))}
         </div>
+
+        {/* Ban scheduling modal */}
+        {isBanFormOpen && selectedUser && (
+          <div className={styles.modalOverlay} onClick={() => !savingBan && setIsBanFormOpen(false)}>
+            <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.modalHeader}>
+                <h3 className={styles.modalTitle}>קביעת חסימה</h3>
+                <button className={styles.closeBtn} onClick={() => !savingBan && setIsBanFormOpen(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div className={styles.modalBody}>
+                <p className={styles.infoRow}>המשתמש: <strong>{selectedUser.username}</strong> (ID: {selectedUser.user_id})</p>
+                <p className={styles.infoRow}>החסימה תיכנס לתוקף מחר באופן אוטומטי.</p>
+                <label className={styles.infoLabel} htmlFor="banReason">סיבת חסימה (תשמר בשדה המשתמש)</label>
+                <textarea id="banReason" className={styles.textarea} rows={3}
+                  placeholder="סיבת החסימה"
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)} />
+                <label className={styles.infoLabel} htmlFor="banDesc" style={{ marginTop: 8 }}>תיאור מפורט (להתראה)</label>
+                <textarea id="banDesc" className={styles.textarea} rows={4}
+                  placeholder="תיאור מפורט שיופיע בהתראה"
+                  value={banDescription}
+                  onChange={(e) => setBanDescription(e.target.value)} />
+              </div>
+              <div className={styles.modalFooter}>
+                <button className={styles.closeFooterBtn} disabled={savingBan} onClick={() => setIsBanFormOpen(false)}>ביטול</button>
+                <button className={styles.primaryBtn} disabled={savingBan}
+                  onClick={async () => {
+                    try {
+                      setSavingBan(true);
+                      const next = new Date();
+                      next.setDate(next.getDate() + 1);
+                      const title = `החשבון שלך יחסם בתאריך ${next.toLocaleDateString('he-IL')}`;
+                      // 1) Schedule ban on server (server stores ban_reason, banned_by, ban_effective_at)
+                      await adminBanUser(selectedUser.user_id, { reason: banReason || '' });
+                      // 2) Create notification for the user (related_id is the banned user's id)
+                      await createNotification({
+                        user_id: selectedUser.user_id,
+                        type: 'ban',
+                        related_id: selectedUser.user_id,
+                        title,
+                        description: banDescription || ''
+                      });
+                      addToast('success', 'החסימה נקבעה וההתראה נשלחה');
+                      setIsBanFormOpen(false);
+                      setPendingBan(null);
+                      setBanReason('');
+                      setBanDescription('');
+                    } catch (e) {
+                      console.error('Failed to schedule ban/notify', e);
+                      addToast('error', 'קביעת החסימה נכשלה');
+                    } finally {
+                      setSavingBan(false);
+                    }
+                  }}
+                >
+                  אשר חסימה
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
 }

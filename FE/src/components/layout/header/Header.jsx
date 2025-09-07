@@ -6,6 +6,7 @@ import { AuthContext } from '../../../app/App';
 import { getCurrentCustomerId } from '../../../utils/functions';
 import useNotifications from '../../../hooks/useNotif';
 import NotificationsPanel from '../../notifications/Notifications';
+import NotificationModal from '../../notifications/NotificationModal';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -24,6 +25,7 @@ export default function Header() {
     notifications: notifList,
     loading: notifLoading,
     unreadCount,
+    markRead,
     remove: deleteNotif,
     removeAll: deleteAllNotifs,
   } = useNotifications();
@@ -133,55 +135,56 @@ export default function Header() {
   const solid = isScrolled || location.pathname !== '/';
 
   return (
-    <header className={`${styles.header} ${solid ? styles.headerSolid : styles.headerTransparent}`} style={{ position: 'relative' }}>
+    <header className={`${styles.header} ${solid ? styles.headerSolid : styles.headerTransparent}`} style={{ position: 'fixed' }}>
       <div className={styles.container}>
         <div className={styles.row}>
-          {/* Logo */}
-          <Link to={userLoggedIn() ? getHomePath() : '/'} className={styles.logo}>
-            <span className={styles.brand}>Nutribite</span>
-          </Link>
-          {/* Notifications bell */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <button
-              type="button"
-              aria-label="Notifications"
-              title="Notifications"
-              style={{
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-                marginInlineStart: 8,
-                display: 'flex',
-                alignItems: 'center',
-                position: 'relative',
-              }}
-              onClick={() => setIsNotifOpen((v) => !v)}
-            >
-              <Bell size={20} color={solid ? '#111827' : '#ffffff'} />
-              {unreadCount > 0 && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: -4,
-                    insetInlineStart: 18,
-                    background: '#ef4444',
-                    color: '#fff',
-                    fontSize: 10,
-                    lineHeight: '14px',
-                    minWidth: 16,
-                    height: 16,
-                    padding: '0 4px',
-                    borderRadius: 9999,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
-                  }}
-                >
-                  {unreadCount}
-                </span>
-              )}
-            </button>
+          {/* Logo + Notifications bell as a single group */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Link to={userLoggedIn() ? getHomePath() : '/'} className={styles.logo}>
+              <span className={styles.brand}>Nutribite</span>
+            </Link>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <button
+                type="button"
+                aria-label="Notifications"
+                title="Notifications"
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  position: 'relative',
+                }}
+                data-notif-anchor
+                onClick={() => setIsNotifOpen((v) => !v)}
+              >
+                <Bell size={20} color={solid ? '#111827' : '#ffffff'} />
+                {unreadCount > 0 && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      insetInlineStart: 18,
+                      background: '#ef4444',
+                      color: '#fff',
+                      fontSize: 10,
+                      lineHeight: '14px',
+                      minWidth: 16,
+                      height: 16,
+                      padding: '0 4px',
+                      borderRadius: 9999,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+                    }}
+                  >
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Desktop Navigation */}
@@ -328,6 +331,21 @@ export default function Header() {
         }}
         onDelete={(id) => deleteNotif(id)}
         onDeleteAll={() => deleteAllNotifs()}
+      />
+
+      <NotificationModal
+        open={!!selectedNotification}
+        notification={selectedNotification}
+        onClose={() => setSelectedNotification(null)}
+        onMarkRead={async (id) => {
+          await markRead(id);
+          // also update selected notification state to reflect read
+          setSelectedNotification((prev) => (prev && prev.id === id ? { ...prev, is_read: true, status: 'read' } : prev));
+        }}
+        onDelete={async (id) => {
+          await deleteNotif(id);
+          setSelectedNotification(null);
+        }}
       />
 
       {/* Mobile Menu */}

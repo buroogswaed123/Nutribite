@@ -16,6 +16,9 @@ export default function Notifications({
   useEffect(() => {
     const onDocClick = (e) => {
       if (!isOpen) return;
+      // Ignore clicks on the anchor (bell) so toggle doesn't immediately re-open
+      const inAnchor = e.target.closest('[data-notif-anchor]');
+      if (inAnchor) return;
       if (panelRef.current && !panelRef.current.contains(e.target)) {
         onClose?.();
       }

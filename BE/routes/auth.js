@@ -163,6 +163,31 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// Simple password reset: hash and update by identifier (email or username)
+// Body: { identifier: string, newPassword: string }
+router.post('/password_reset_simple', async (req, res) => {
+  try {
+    const { identifier, newPassword } = req.body || {};
+    if (!identifier || !newPassword) {
+      return res.status(400).json({ message: 'Missing identifier or newPassword' });
+    }
+
+    // Decide whether identifier is an email based on regex
+    const isEmail = /.+@.+\..+/.test(String(identifier));
+    const user = isEmail ? await findUserByEmail(identifier) : await findUserByName(identifier);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const hashed = await hashPassword(newPassword);
+    const [result] = await runQuery(
+      'UPDATE users SET password_hash = ? WHERE user_id = ? LIMIT 1',
+      [hashed, user.user_id]
+    );
+
+    return res.json({ ok: true, affectedRows: result.affectedRows || 0 });
+  } catch (err) {
+    handleError(res, err, 'Error updating password');
+  }
+});
 
 // Get current session user
 router.get('/me', async (req, res) => {

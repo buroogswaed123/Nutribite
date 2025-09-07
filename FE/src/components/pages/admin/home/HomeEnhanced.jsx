@@ -38,6 +38,7 @@ export default function HomeEnhanced() {
   const [allUsers, setAllUsers] = useState([]);
   const [recipes, setRecipes] = useState([]);
   // Analytics: we only show filtered Overview sections; no extra analytics state needed
+  const [ordersByStatus, setOrdersByStatus] = useState(null);
   
 
   useEffect(() => {
@@ -118,6 +119,14 @@ export default function HomeEnhanced() {
         };
         setStats(merged);
       } catch {}
+      // Also fetch a tiny numbers-only metric: orders by status
+      try {
+        const res = await fetch('http://localhost:3000/api/admin/data/metrics/orders_by_status', { credentials: 'include' });
+        const data = await res.json();
+        if (mounted) setOrdersByStatus(data || {});
+      } catch (_) {
+        if (mounted) setOrdersByStatus(null);
+      }
     })();
     return () => { mounted = false; };
   }, [activeTab, fetchDashboardStats, fetchAllUsers, fetchAllRecipes]);
@@ -495,7 +504,7 @@ export default function HomeEnhanced() {
         <div className={styles.analyticsSection}>
           {/* Statistics Cards (filtered) FIRST */}
           <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>סטטיסטיקות (מסונן)</h2>
+            <h2 className={styles.sectionTitle}>סטטיסטיקות </h2>
             <div className={styles.statsGrid}>
               {statistics.map((stat, index) => (
                 <div key={`an-stat-${index}`} className={styles.statCard}>
@@ -517,9 +526,34 @@ export default function HomeEnhanced() {
             </div>
           </div>
 
+         
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>פילוח הזמנות </h2>
+            <div className={styles.statsGrid}>
+              {(() => {
+                const d = ordersByStatus || {};
+                const items = [
+                  { label: 'ממתינות', key: 'pending' },
+                  { label: 'בהכנה', key: 'preparing' },
+                  { label: 'בדרך', key: 'out_for_delivery' },
+                  { label: 'הושלמו', key: 'complete' },
+                  { label: 'בוטלו', key: 'cancelled' },
+                ];
+                return items.map((it) => (
+                  <div key={it.key} className={styles.statCard}>
+                    <div className={styles.statContent}>
+                      <h3 className={styles.statValue}>{Number(d[it.key] || 0).toLocaleString()}</h3>
+                      <p className={styles.statLabel}>{it.label}</p>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+
           {/* Popular Recipes (filtered) */}
           <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>מתכונים פופולריים (מסונן)</h2>
+            <h2 className={styles.sectionTitle}>מתכונים פופולריים </h2>
             <div className={styles.recipesGrid}>
               {popularRecipes.map((recipe, index) => (
                 <div key={`an-recipe-${index}`} className={styles.recipeCard}>

@@ -154,23 +154,44 @@ router.get('/metrics/overview', async (req, res) => {
 // orders by status within date range
 router.get('/metrics/orders_by_status', async (req, res) => {
   try {
-    const { from, to } = req.query;
-    const dateFilter = buildDateRangeFilter(from, to, 'o.set_delivery_time');
+    // Use deliveries table; preparing is counted globally (no date filter), others are for TODAY
     const sql = `
       SELECT 
-        SUM(o.status = 'pending') AS pending,
-        SUM(o.status = 'preparing') AS preparing,
-        SUM(o.status = 'out for delivery') AS out_for_delivery,
-        SUM(o.status = 'complete') AS complete,
-        SUM(o.status = 'cancelled') AS cancelled
-      FROM orders o
-      WHERE ${dateFilter.clause}
+        SUM(CASE WHEN DATE(d.delivery_date) = CURRENT_DATE() AND d.status LIKE 'pending%' THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN d.status LIKE 'preparing%' THEN 1 ELSE 0 END) AS preparing,
+        SUM(CASE WHEN DATE(d.delivery_date) = CURRENT_DATE() AND d.status LIKE 'on route%' THEN 1 ELSE 0 END) AS out_for_delivery,
+        SUM(CASE WHEN DATE(d.delivery_date) = CURRENT_DATE() AND d.status LIKE 'delivered%' THEN 1 ELSE 0 END) AS complete,
+        SUM(CASE WHEN DATE(d.delivery_date) = CURRENT_DATE() AND d.status LIKE 'cancelled%' THEN 1 ELSE 0 END) AS cancelled
+      FROM deliveries d
     `;
-    const [rows] = await runQuery(sql, dateFilter.params);
+    const [rows] = await runQuery(sql);
+    try { console.log('orders_by_status (today via deliveries)', rows?.[0] || rows); } catch (_) {}
     return res.json(rows[0] || rows);
   } catch (err) {
     console.error('ADMIN METRICS ORDERS BY STATUS GET ERROR:', err);
     return res.status(500).json({ message: 'Error getting orders by status', error: err.message });
+  }
+});
+
+// Health endpoint that logs and returns the same counts
+router.get('/metrics/orders_by_status/health', async (req, res) => {
+  try {
+    const sql = `
+      SELECT 
+        SUM(CASE WHEN DATE(d.delivery_date) = CURRENT_DATE() AND d.status LIKE 'pending%' THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN d.status LIKE 'preparing%' THEN 1 ELSE 0 END) AS preparing,
+        SUM(CASE WHEN DATE(d.delivery_date) = CURRENT_DATE() AND d.status LIKE 'on route%' THEN 1 ELSE 0 END) AS out_for_delivery,
+        SUM(CASE WHEN DATE(d.delivery_date) = CURRENT_DATE() AND d.status LIKE 'delivered%' THEN 1 ELSE 0 END) AS complete,
+        SUM(CASE WHEN DATE(d.delivery_date) = CURRENT_DATE() AND d.status LIKE 'cancelled%' THEN 1 ELSE 0 END) AS cancelled
+      FROM deliveries d
+    `;
+    const [rows] = await runQuery(sql);
+    const payload = rows?.[0] || rows;
+    console.log('orders_by_status/health', payload);
+    return res.json({ ok: true, metrics: payload });
+  } catch (err) {
+    console.error('ADMIN METRICS ORDERS BY STATUS HEALTH ERROR:', err);
+    return res.status(500).json({ ok: false, message: 'Error in orders_by_status health', error: err.message });
   }
 });
 

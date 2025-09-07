@@ -3,6 +3,7 @@ import { X, Trash2 } from 'lucide-react';
 import styles from './Notifications.module.css';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { getSessionUser } from '../../utils/functions';
 
 export default function NotificationModal({
   open,
@@ -17,8 +18,10 @@ export default function NotificationModal({
   const [sending, setSending] = useState(false);
   const [adminName, setAdminName] = useState('');
   const [adminId, setAdminId] = useState(null);
+  const [targetUserId, setTargetUserId] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const { createNotification } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const { createNotification, adminUnbanUser } = useAuth();
 
   // Initialize identities for unban flow from the notification itself
   useEffect(() => {
@@ -32,6 +35,22 @@ export default function NotificationModal({
     // many backends omit this, but we can fall back to related_id when it represents the user
     const meId = notification.recipient_id || notification.user_id || null;
     setCurrentUserId(meId);
+    // Try to infer the banned user's id for admin quick-unban button
+    const inferredTarget = notification.related_id
+      || notification.target_user_id
+      || notification.affected_user_id
+      || null;
+    setTargetUserId(inferredTarget);
+    // Determine if current viewer is admin for admin actions
+    (async () => {
+      try {
+        const me = await getSessionUser();
+        const ut = (me?.user_type || '').toLowerCase();
+        setIsAdmin(ut === 'admin');
+      } catch {
+        setIsAdmin(false);
+      }
+    })();
   }, [open, notification]);
 
   // After hooks: safely destructure and compute display values
@@ -50,6 +69,7 @@ export default function NotificationModal({
 
   const displayTitle = computedTitle || title || 'התראה';
   const dateText = created_at ? new Date(created_at).toLocaleString('he-IL') : '';
+  const typeLower = (type || '').toString().toLowerCase();
 
   return (
     <div className={styles.modalOverlay} onClick={() => onClose?.()}>
@@ -78,58 +98,101 @@ export default function NotificationModal({
             {is_read ? <span>נקרא</span> : <span>לא נקרא</span>}
           </div>
 
-          {type === 'ban' && (
+          {(typeLower === 'ban' || typeLower === 'unban request') && (
             <div style={{ marginTop: 10 }}>
-              {!showUnbanForm ? (
-                <button
-                  className={styles.primaryBtn}
-                  onClick={() => setShowUnbanForm(true)}
-                >
-                  שלח בקשת ביטול חסימה
-                </button>
-              ) : (
-                <div>
-                  <label className={styles.label} htmlFor="unbanReason">נימוק לבקשת ביטול חסימה</label>
-                  <textarea
-                    id="unbanReason"
-                    className={styles.textarea}
-                    rows={4}
-                    placeholder="כתוב כאן מדוע לדעתך יש להסיר את החסימה"
-                    value={unbanReason}
-                    onChange={(e) => setUnbanReason(e.target.value)}
-                  />
+              {!isAdmin && (
+                !showUnbanForm ? (
+                  <button
+                    className={styles.primaryBtn}
+                    onClick={() => setShowUnbanForm(true)}
+                  >
+                    שלח בקשת ביטול חסימה
+                  </button>
+                ) : (
+                  <div>
+                    <label className={styles.label} htmlFor="unbanReason">נימוק לבקשת ביטול חסימה</label>
+                    <textarea
+                      id="unbanReason"
+                      className={styles.textarea}
+                      rows={4}
+                      placeholder="כתוב כאן מדוע לדעתך יש להסיר את החסימה"
+                      value={unbanReason}
+                      onChange={(e) => setUnbanReason(e.target.value)}
+                    />
+                    <div className={styles.modalFooter}>
+                      <button
+                        className={styles.closeFooterBtn}
+                        disabled={sending}
+                        onClick={() => setShowUnbanForm(false)}
+                      >ביטול</button>
+                      <button
+                        className={styles.primaryBtn}
+                        disabled={sending || !unbanReason.trim() || !adminId}
+                        onClick={async () => {
+                          try {
+                            if (!adminId) return;
+                            setSending(true);
+                            const title = 'בקשת ביטול חסימה';
+                            await createNotification({
+                              user_id: adminId,
+                              type: 'unban request',
+                              related_id: currentUserId || null,
+                              title,
+                              description: unbanReason.trim(),
+                            });
+                            setShowUnbanForm(false);
+                            setUnbanReason('');
+                            onMarkRead?.(id);
+                          } catch (e) {
+                            console.error('Failed to send unban request', e);
+                          } finally {
+                            setSending(false);
+                          }
+                        }}
+                      >שלח</button>
+                    </div>
+                  </div>
+                )
+              )}
+              {/* Admin-only direct unban action for ban notifications */}
+              {isAdmin && (
+                <div style={{ marginTop: 10 }}>
+                  {!targetUserId && (
+                    <div className={styles.field}>
+                      <span className={styles.label}>מזהה משתמש להסרת חסימה</span>
+                      <input
+                        type="number"
+                        className={styles.textarea}
+                        style={{ minHeight: 0, height: 36 }}
+                        placeholder="הזן מזהה משתמש"
+                        value={targetUserId ?? ''}
+                        onChange={(e) => setTargetUserId(e.target.value ? Number(e.target.value) : null)}
+                      />
+                    </div>
+                  )}
                   <div className={styles.modalFooter}>
                     <button
-                      className={styles.closeFooterBtn}
-                      disabled={sending}
-                      onClick={() => setShowUnbanForm(false)}
-                    >ביטול</button>
-                    <button
-                      className={styles.primaryBtn}
-                      disabled={sending || !unbanReason.trim() || !adminId}
+                      className={styles.dangerBtn}
+                      disabled={!targetUserId}
                       onClick={async () => {
                         try {
-                          if (!adminId) return;
-                          setSending(true);
-                          const title = 'בקשת ביטול חסימה';
-                          await createNotification({
-                            user_id: adminId,
-                            type: 'unban request',
-                            related_id: currentUserId || null,
-                            title,
-                            description: unbanReason.trim(),
-                          });
-                          setShowUnbanForm(false);
-                          setUnbanReason('');
-                          // Optionally mark as read
+                          await adminUnbanUser(targetUserId);
+                          try {
+                            await createNotification({
+                              user_id: targetUserId,
+                              type: 'ban',
+                              related_id: targetUserId,
+                              title: 'החסימה הוסרה',
+                              description: 'החסימה הוסרה על ידי המנהל.'
+                            });
+                          } catch (_) {}
                           onMarkRead?.(id);
+                          onClose?.();
                         } catch (e) {
-                          console.error('Failed to send unban request', e);
-                        } finally {
-                          setSending(false);
+                          console.error('Admin unban failed', e);
                         }
                       }}
-                    >שלח</button>
+                    >בטל חסימה</button>
                   </div>
                 </div>
               )}

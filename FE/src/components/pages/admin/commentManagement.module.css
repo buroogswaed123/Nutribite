@@ -1,0 +1,242 @@
+.container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: 30px;
+}
+
+.header h1 {
+  color: #2c3e50;
+  margin: 0;
+}
+
+.filters {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.searchBox {
+  flex: 1;
+  max-width: 400px;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.filterBox {
+  min-width: 150px;
+}
+
+.filterSelect {
+  width: 100%;
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: white;
+}
+
+.filterSelect:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.commentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.commentCard {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.commentCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.commentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.authorInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.authorInfo strong {
+  color: #2c3e50;
+  font-size: 16px;
+}
+
+.date {
+  color: #7f8c8d;
+  font-size: 12px;
+}
+
+.statusBadge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.statusBadge.pending {
+  background-color: #f39c12;
+  color: white;
+}
+
+.statusBadge.approved {
+  background-color: #27ae60;
+  color: white;
+}
+
+.statusBadge.rejected {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.commentContent {
+  margin-bottom: 15px;
+}
+
+.commentContent p {
+  margin: 0 0 10px 0;
+  line-height: 1.5;
+  color: #34495e;
+}
+
+.recipeRef {
+  color: #7f8c8d;
+  font-style: italic;
+}
+
+.commentActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.approveBtn {
+  background-color: #27ae60;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.approveBtn:hover {
+  background-color: #229954;
+}
+
+.rejectBtn {
+  background-color: #e67e22;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.rejectBtn:hover {
+  background-color: #d35400;
+}
+
+.deleteBtn {
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.deleteBtn:hover {
+  background-color: #c0392b;
+}
+
+.noComments {
+  text-align: center;
+  padding: 50px;
+  color: #7f8c8d;
+  font-size: 16px;
+}
+
+.loading {
+  text-align: center;
+  padding: 50px;
+  font-size: 18px;
+  color: #7f8c8d;
+}
+
+.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 15px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  border: 1px solid #f5c6cb;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .commentHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .commentActions {
+    flex-direction: column;
+  }
+
+  .approveBtn,
+  .rejectBtn,
+  .deleteBtn {
+    width: 100%;
+  }
+}

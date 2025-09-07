@@ -4,15 +4,16 @@ import styles from './Notifications.module.css';
 
 export default function NotificationItem({ notification, onOpen, onDelete }) {
   if (!notification) return null;
-  const { id, computedTitle, title, description, is_read } = notification;
+  const { id, computedTitle, title, description, is_read, status } = notification;
   const displayTitle = (computedTitle || title || 'התראה');
   const subtitle = description || '';
+  const isRead = is_read || status === 'read';
 
   return (
-    <div className={styles.item} onClick={() => onOpen?.(notification)}>
+    <div className={`${styles.item} ${isRead ? styles.readItem : ''}`} onClick={() => onOpen?.(notification)}>
       <div>
         <div className={styles.titleRow}>
-          {!is_read && <span className={styles.unreadDot} />}
+          {!isRead && <span className={styles.unreadDot} />}
           <h3 className={styles.h3} title={displayTitle}>{displayTitle}</h3>
         </div>
         {subtitle ? (

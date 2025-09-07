@@ -29,6 +29,7 @@ function computeTitle(n) {
 function normalizeNotification(n) {
   return {
     ...n,
+    id: n?.id ?? n?.notification_id ?? n?.notif_id ?? n?.ID,
     computedTitle: computeTitle(n),
     is_read: n.status === "read" || n.is_read === true,
   };
@@ -95,7 +96,17 @@ export default function useNotifications() {
   // Load notifications
   useEffect(() => {
     let mounted = true;
-    if (!userId) return;
+    // If no user (guest), clear notifications to avoid leaking previous user's items
+    if (!userId) {
+      if (mounted) {
+        setNotifications([]);
+        setLoading(false);
+        setError(null);
+      }
+      return () => { mounted = false; };
+    }
+    // Reset list when switching users
+    setNotifications([]);
     setLoading(true);
     (async () => {
       try {
@@ -121,7 +132,11 @@ export default function useNotifications() {
     try {
       await markNotificationReadAPI(id);
       setNotifications((arr) => arr.map((n) => (n.id === id ? { ...n, status: "read", is_read: true } : n)));
+      // Ensure DB and client are in sync
+      reload();
     } catch (e) {
+      // Surface for debugging
+      console.error('Failed to mark notification as read', e);
       // keep silent here; consumer can show toast
       throw e;
     }

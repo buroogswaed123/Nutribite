@@ -44,14 +44,17 @@ export default function Notifications({
           ) : notifications.length === 0 ? (
             <div className={styles.empty}>אין התראות</div>
           ) : (
-            notifications.map((n) => (
-              <NotificationItem
-                key={n.id}
-                notification={n}
-                onOpen={onOpenNotification}
-                onDelete={onDelete}
-              />
-            ))
+            notifications.map((n, idx) => {
+              const fallbackKey = `${n.id ?? n.notification_id ?? n.created_at ?? 'n'}-${idx}`;
+              return (
+                <NotificationItem
+                  key={fallbackKey}
+                  notification={n}
+                  onOpen={onOpenNotification}
+                  onDelete={onDelete}
+                />
+              );
+            })
           )}
         </div>
       </div>

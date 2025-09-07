@@ -1,3 +1,5 @@
+export default function Dashboard() { return null; }
+/* 
 import React, { useState, useEffect } from "react";
 import {
   ChefHat,
@@ -15,63 +17,11 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  LineChart,
-  Line,
 } from "recharts";
-import { useNavigate } from "react-router-dom";
 import styles from "./dashboard.module.css";
 
-import React, { useState, useEffect } from "react";
-import {
-  ChefHat,
-  Users,
-  MessageSquare,
-  Calendar,
-  TrendingUp,
-  TrendingDown,
-} from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  LineChart,
-  Line,
-} from "recharts";
-import { useNavigate } from "react-router-dom";
-import styles from "./dashboard.module.css";
-
-const Dashboard = () => {
-  // Sample data - replace with actual API calls
-  const [stats, setStats] = useState({
-    totalRecipes: 0,
-    totalUsers: 0,
-    pendingComments: 0,
-    weeklyMenus: 0,
-    activeUsers: 0,
-    newUsers: 0,
-    recipeGrowth: 0,
-    userGrowth: 0,
-    weeklyVisits: 0,
-    newRecipes: 0,
-  });
-
-  const [loading, setLoading] = useState(true);
-  const [welcomeMessage, setWelcomeMessage] = useState("");
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    // Simulate API call
-    const fetchDashboardData = async () => {
-      try {
-        // Replace with actual API call
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        setStats({
-          totalRecipes: 245,
+// UNUSED ADMIN COMPONENT: stubbed on 2025-09-07 (original implementation removed to avoid JSX parse issues)
+// export default function Dashboard() { return null; }
           totalUsers: 153,
           pendingComments: 12,
           weeklyMenus: 36,
@@ -838,5 +788,12 @@ const Dashboard = () => {
     </div>
   );
 };
-
-export default Dashboard;
+/*
+{{ ... }}
+        </div>
+      </section>
+    </div>
+  );
+};
+ */
+ 

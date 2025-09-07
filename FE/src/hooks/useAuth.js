@@ -12,7 +12,10 @@ import {
   fetchAllRecipesAPI,
   fetchRecipeAPI,
   fetchPublicRecipesAPI,
-  fetchPublicRecipeAPI
+  fetchPublicRecipeAPI,
+  updateUserRoleAPI,
+  updateUserBanStatusAPI,
+  deleteUserAPI,
 } from "../utils/functions";
 
 // exports useAuth hook
@@ -70,6 +73,18 @@ import {
     return await fetchPublicRecipeAPI(recipeId);
   };
 
+  const updateUserRole = async (userId, user_type) => {
+    return await updateUserRoleAPI(userId, user_type);
+  };
+
+  const updateUserBanStatus = async (userId, banned) => {
+    return await updateUserBanStatusAPI(userId, banned);
+  };
+
+  const deleteUser = async (userId) => {
+    return await deleteUserAPI(userId);
+  };
+
   // Provide aliases to match existing component usage
   return {
     doLogin,
@@ -82,6 +97,9 @@ import {
     fetchRecipe,
     fetchPublicRecipes,
     fetchPublicRecipe,
+    updateUserRole,
+    updateUserBanStatus,
+    deleteUser,
     login: doLogin,
     register: doRegister,
     checkUserType: getUserType,

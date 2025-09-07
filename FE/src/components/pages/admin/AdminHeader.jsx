@@ -1,16 +1,5 @@
 import React from 'react';
 import styles from './adminHeader.module.css';
 
-const AdminHeader = () => {
-  return (
-    <header className={styles.adminHeader}>
-      <h1>Admin Panel</h1>
-      <div className={styles.userInfo}>
-        {/* Placeholder for user info or logout button */}
-        <span>Welcome, Admin</span>
-      </div>
-    </header>
-  );
-};
-
-export default AdminHeader;
+// UNUSED ADMIN COMPONENT: stubbed on 2025-09-07. Original implementation removed to avoid JSX parsing.
+export default function AdminHeader() { return null; }

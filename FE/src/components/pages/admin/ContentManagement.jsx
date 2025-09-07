@@ -399,4 +399,6 @@ const ContentForm = ({ content, onSave, onCancel }) => {
   );
 };
 
-export default ContentManagement;
+// UNUSED ADMIN COMPONENT: export stubbed on 2025-09-07
+// export default ContentManagement;
+export default function ContentManagementStub() { return null; }

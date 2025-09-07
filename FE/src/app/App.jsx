@@ -6,8 +6,9 @@ import classes from "./app.module.css";
 
 //Home Page imports
 import CustomerHome from "../components/pages/customer/home/Home";
-import AdminHome from "../components/pages/admin/home/Home";
+import HomeEnhanced from "../components/pages/admin/home/HomeEnhanced";
 import CourierHome from "../components/pages/courier/home/Home";
+import UsersList from "../components/pages/admin/profile/management/UsersList";
 
 //Profile Page imports
 import AdminProfile from "../components/pages/admin/profile/Profile";
@@ -93,9 +94,21 @@ function App() {
     <RequireAuth>
     <div className={classes.withNav}>
       <Header />
-      <AdminHome />
+      <HomeEnhanced />
       <Footer />
     </div>
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/users"
+  element={
+    <RequireAuth>
+      <div className={classes.withNav}>
+        <Header />
+        <UsersList />
+        <Footer />
+      </div>
     </RequireAuth>
   }
 />

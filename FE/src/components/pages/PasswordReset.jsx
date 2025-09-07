@@ -1,138 +1,78 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import classes from "../../assets/styles/login.module.css"
-import timerClasses from "../../assets/styles/passwordReset.module.css"
+import prStyles from "../../assets/styles/passwordResetPage.module.css"
 
 export default function PasswordReset() {
-  const [email, setEmail] = useState('');
-  const [resetCode, setResetCode] = useState('');
+  const [identifier, setIdentifier] = useState(''); // email or username
   const [newPassword, setNewPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [timer, setTimer] = useState(0);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    let countdown;
-    if (timer > 0) {
-      countdown = setInterval(() => {
-        setTimer(prev => {
-          if (prev <= 0) {
-            clearInterval(countdown);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+  useEffect(() => { setError(''); }, [identifier, newPassword]);
 
-    return () => {
-      if (countdown) {
-        clearInterval(countdown);
-      }
-    };
-  }, [timer]);
-
-  const handleGetResetCode = async (e) => {
+  const handleSimpleReset = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-
-    try {
-      const response = await fetch(`http://localhost:3000/api/password-reset/${encodeURIComponent(email)}`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(data.message);
-        setTimer(15 * 60); // 15 minutes in seconds
-      } else {
-        setError(data.error || 'Failed to get reset code');
-      }
-    } catch (err) {
-      setError('Network error occurred');
-    }
-  };
-
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    if (!resetCode || !newPassword) {
-      setError('Please enter both reset code and new password');
+    if (!identifier.trim() || !newPassword.trim()) {
+      setError('אנא הזן דוא"ל/שם משתמש וסיסמה חדשה');
       return;
     }
-
     try {
-      const response = await fetch('http://localhost:3000/api/reset-password', {
+      setLoading(true);
+      const response = await fetch('http://localhost:3000/api/password_reset_simple', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          resetCode,
-          newPassword
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: identifier.trim(), newPassword: newPassword.trim() })
       });
-
       const data = await response.json();
-
-      if (response.ok) {
-        setSuccess('Password updated successfully! You can now log in with your new password.');
-        // Clear the form fields
-        setResetCode('');
-        setNewPassword('');
-      } else {
-        setError(data.error || 'Failed to reset password');
+      if (!response.ok) {
+        setError(data?.message || data?.error || 'שגיאה בעדכון הסיסמה');
+        return;
       }
+      setSuccess('הסיסמה עודכנה בהצלחה! ניתן להתחבר עם הסיסמה החדשה.');
+      setNewPassword('');
+      // Optionally route to login after a short delay
+      setTimeout(() => navigate('/'), 800);
     } catch (err) {
-      setError('Network error occurred');
+      console.error('Password reset request failed:', err);
+      setError('שגיאת רשת');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className={classes.container}>
-      <div className={`${classes['form-container']} ${classes['sign-in']}`}>
-        <form onSubmit={handleGetResetCode}>
-          <h1>שחזור סיסמה</h1>
-          <div className={classes.error}>{error}</div>
-          <div className={classes.success}>{success}</div>
-          
-          <input 
-            type="email" 
-            placeholder="דוא" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <button type="submit">קבל קוד איפוס</button>
-          {success && (
-            <div className={classes.success}>
-              <p>קוד איפוס נשלח לכתובת הדוא"ל שלך</p>
-              <p>הקוד תקף עד 15 דקות</p>
-              <div className={timerClasses.timer}>
-                {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, '0')}
-              </div>
-            </div>
-          )}
-        </form>
+    <div className={classes.loginPage}>
+      <div className={prStyles.pageRoot}>
+        <div className={prStyles.inner}>
+          <div className={classes.container}>
+            <div className={`${classes['form-container']} ${classes['sign-in']}`}>
+            <form onSubmit={handleSimpleReset}>
+              <h1>איפוס סיסמה</h1>
+              <div className={classes.error}>{error}</div>
+              <div className={classes.success}>{success}</div>
 
-        {success && (
-          <form onSubmit={handleResetPassword}>
-            <input 
-              type="text" 
-              placeholder="קוד איפוס" 
-              value={resetCode}
-              onChange={(e) => setResetCode(e.target.value)}
-            />
-            <input 
-              type="password" 
-              placeholder="סיסמה חדשה" 
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-            <button type="submit">שנה סיסמה</button>
-          </form>
-        )}
+              <input
+                type="text"
+                placeholder='דוא"ל / שם משתמש'
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+              />
+              <input
+                type="password"
+                placeholder="סיסמה חדשה"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+              <button type="submit" disabled={loading}>{loading ? 'מעדכן...' : 'אשר'}</button>
+            </form>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

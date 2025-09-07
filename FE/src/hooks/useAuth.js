@@ -16,6 +16,10 @@ import {
   updateUserRoleAPI,
   updateUserBanStatusAPI,
   deleteUserAPI,
+  updateUserBanDetailsAPI,
+  createNotificationAPI,
+  adminBanUserAPI,
+  adminUnbanUserAPI,
 } from "../utils/functions";
 
 // exports useAuth hook
@@ -85,6 +89,22 @@ import {
     return await deleteUserAPI(userId);
   };
 
+  const updateUserBanDetails = async (userId, payload) => {
+    return await updateUserBanDetailsAPI(userId, payload);
+  };
+
+  const createNotification = async (payload) => {
+    return await createNotificationAPI(payload);
+  };
+
+  // New canonical ban/unban helpers aligned with backend routes
+  const adminBanUser = async (userId, { reason } = {}) => {
+    return await adminBanUserAPI(userId, { reason });
+  };
+  const adminUnbanUser = async (userId) => {
+    return await adminUnbanUserAPI(userId);
+  };
+
   // Provide aliases to match existing component usage
   return {
     doLogin,
@@ -100,6 +120,10 @@ import {
     updateUserRole,
     updateUserBanStatus,
     deleteUser,
+    updateUserBanDetails,
+    createNotification,
+    adminBanUser,
+    adminUnbanUser,
     login: doLogin,
     register: doRegister,
     checkUserType: getUserType,

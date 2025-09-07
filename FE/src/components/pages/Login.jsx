@@ -101,6 +101,17 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         return;
       }
 
+      // If account ban takes effect today (date equals today), prevent login and show message
+      const banEff = user?.ban_effective_at ? new Date(user.ban_effective_at) : null;
+      const sameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      if (banEff && sameDay(banEff, new Date())) {
+        const whenText = (() => {
+          try { return banEff.toLocaleDateString('he-IL'); } catch { return null; }
+        })();
+        setError(`החשבון שלך חסום${whenText ? ` החל מתאריך ${whenText}` : ''}. לא ניתן להתחבר.`);
+        return;
+      }
+
       setUserType(user.user_type);
       if (typeof onLoginSuccess === "function") onLoginSuccess(user);
 

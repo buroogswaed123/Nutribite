@@ -99,8 +99,7 @@ router.patch('/:id', async (req, res) => {
 // POST /api/admin/users/:id/ban
 // Schedule a soft-ban to take effect in 24 hours.
 // - We DO NOT set status = 'banned' immediately.
-// - We store ban_reason, banned_by, and set ban_effective_at = NOW() + 1 day.
-// - banned_at remains NULL until the ban actually takes effect 
+// - We store ban_reason, banned_by, set banned_at = NOW(), and set ban_effective_at = NOW() + 1 day.
 // Body: { reason?: string }
 router.post('/:id/ban', async (req, res) => {
   try {
@@ -113,8 +112,8 @@ router.post('/:id/ban', async (req, res) => {
       `UPDATE users
        SET ban_reason = ?,
            banned_by = ?,
-           ban_effective_at = DATE_ADD(NOW(), INTERVAL 1 DAY),
-           banned_at = NULL
+           banned_at = NOW(),
+           ban_effective_at = DATE_ADD(NOW(), INTERVAL 1 DAY)
        WHERE user_id = ?`,
       [reason || null, adminId, targetUserId]
     );

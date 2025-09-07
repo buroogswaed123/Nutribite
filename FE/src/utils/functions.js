@@ -116,6 +116,20 @@ export async function bulkUpdateRecipePrices({ recipeIds, newPrice }) {
   return data;
 }
 
+// New canonical admin ban API (server implements POST /ban)
+export async function adminBanUserAPI(userId, { reason } = {}) {
+  if (!userId) throw new Error('Missing userId');
+  const { data } = await axios.post(`/api/admin/users/${userId}/ban`, { reason });
+  return data;
+}
+
+// New canonical admin unban API (server implements POST /unban)
+export async function adminUnbanUserAPI(userId) {
+  if (!userId) throw new Error('Missing userId');
+  const { data } = await axios.post(`/api/admin/users/${userId}/unban`);
+  return data;
+}
+
 //validate email
 export function validateEmail(email) {
   return /\S+@\S+\.\S+/.test(email);
@@ -215,6 +229,19 @@ export async function updateUserRoleAPI(userId, user_type) {
 export async function updateUserBanStatusAPI(userId, banned) {
   if (!userId) throw new Error('Missing userId');
   const { data } = await axios.patch(`/api/admin/users/${userId}/ban`, { banned: !!banned });
+  return data;
+}
+
+// Update user's ban details (admin). Backend should accept these fields.
+export async function updateUserBanDetailsAPI(userId, { banned, ban_reason, banned_at, ban_effective_at, banned_by }) {
+  if (!userId) throw new Error('Missing userId');
+  const payload = {};
+  if (typeof banned !== 'undefined') payload.banned = !!banned;
+  if (typeof ban_reason !== 'undefined') payload.ban_reason = ban_reason;
+  if (typeof banned_at !== 'undefined') payload.banned_at = banned_at;
+  if (typeof ban_effective_at !== 'undefined') payload.ban_effective_at = ban_effective_at;
+  if (typeof banned_by !== 'undefined') payload.banned_by = banned_by;
+  const { data } = await axios.patch(`/api/admin/users/${userId}/ban`, payload);
   return data;
 }
 

@@ -36,7 +36,7 @@ function normalizeNotification(n) {
 
 // Map notification types locally based on user_type if backend endpoint isn't available
 function localTypesForUserType(user_type) {
-  if (user_type === "admin") return ["question"]; // admin gets questions to review
+  if (user_type === "admin") return ["question","stock update","ban"]; // admin gets questions to review,stock updates and bans
   if (user_type === "courier") return ["order", "ban"]; // courier relevant types
   return ["order", "ban", "answer"]; // default/customer
 }

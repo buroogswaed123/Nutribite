@@ -29,28 +29,70 @@ import styles from "./homeEnhanced.module.css";
 
 export default function HomeEnhanced() {
   const { currentUser } = useContext(AuthContext) || {};
-  const { fetchDashboardStats } = useAuth();
+  const { fetchDashboardStats, fetchRecentUsers, fetchAllUsers, fetchAllRecipes } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [animateBanner, setAnimateBanner] = useState(false);
+  const [recentUsers, setRecentUsers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [recipes, setRecipes] = useState([]);
+  
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const data = await fetchDashboardStats();
+        // Fetch in parallel
+        const [statsRes, recentUsersRes, allUsersRes, recipesRes] = await Promise.all([
+          fetchDashboardStats().catch(() => ({})),
+          fetchRecentUsers(5).catch(() => []),
+          fetchAllUsers().catch(() => []),
+          fetchAllRecipes().catch(() => []),
+        ]);
+
         if (!mounted) return;
-        setStats(data || {});
+        setRecentUsers(Array.isArray(recentUsersRes) ? recentUsersRes : (recentUsersRes?.items || []));
+        setAllUsers(Array.isArray(allUsersRes) ? allUsersRes : (allUsersRes?.items || []));
+        setRecipes(Array.isArray(recipesRes) ? recipesRes : (recipesRes?.items || []));
+
+        // Build fallback stats if needed
+        const now = new Date();
+        const month = now.getMonth();
+        const year = now.getFullYear();
+        const total_recipes = (Array.isArray(recipesRes) ? recipesRes : (recipesRes?.items || [])).length;
+        const new_recipes_this_month = (Array.isArray(recipesRes) ? recipesRes : (recipesRes?.items || []))
+          .filter(r => r?.createdAt && new Date(r.createdAt).getMonth() === month && new Date(r.createdAt).getFullYear() === year)
+          .length;
+        const total_users = (Array.isArray(allUsersRes) ? allUsersRes : (allUsersRes?.items || [])).length;
+
+        const merged = {
+          total_recipes: statsRes?.total_recipes ?? total_recipes,
+          new_recipes_this_month: statsRes?.new_recipes_this_month ?? new_recipes_this_month,
+          weekly_visits: statsRes?.weekly_visits ?? 0,
+          total_users: statsRes?.total_users ?? total_users,
+          active_users: statsRes?.active_users ?? 0,
+          new_users_this_month: statsRes?.new_users_this_month ?? 0,
+          new_comments: statsRes?.new_comments ?? 0,
+        };
+        setStats(merged);
       } catch (e) {
-        console.error("HomeEnhanced stats load error:", e);
+        console.error("AdminHome data load error:", e);
+        setStats({});
       } finally {
         if (mounted) setLoading(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
-  }, [fetchDashboardStats]);
+    return () => { mounted = false; };
+  }, [fetchDashboardStats, fetchRecentUsers, fetchAllUsers, fetchAllRecipes]);
+
+  // Trigger banner animation: move to center then back
+  useEffect(() => {
+    if (loading) return;
+    // Animate once into center and keep final state
+    setAnimateBanner(true);
+    return () => {};
+  }, [loading]);
 
   const username = currentUser?.username || "Admin";
 
@@ -67,17 +109,17 @@ export default function HomeEnhanced() {
 
   const quickActions = [
     {
-      title: "ניהול מתכונים",
+      title: "ניהול תפריט",
       description: "הוסף, ערוך ומחק מתכונים",
       icon: ChefHat,
-      path: "/admin/recipes",
+      path: "/menu",
       color: "#059669",
     },
     {
       title: "ניהול משתמשים",
       description: "נהל משתמשים ותפקידים",
       icon: Users,
-      path: "/admin/users",
+      path: "/users",
       color: "#0891b2",
     },
     {
@@ -88,10 +130,10 @@ export default function HomeEnhanced() {
       color: "#dc2626",
     },
     {
-      title: "תפריט שבועי",
+      title: "ניהול מתכונים",
       description: "צור ונהל תפריטים",
       icon: Calendar,
-      path: "/admin/weekly-menus",
+      path: "/recipes",
       color: "#7c3aed",
     },
   ];
@@ -127,56 +169,23 @@ export default function HomeEnhanced() {
     },
   ];
 
-  const popularRecipes = [
-    {
-      name: "סלט קינואה בריא",
-      views: 2450,
-      rating: 4.8,
-      category: "סלטים",
-      image: "🥗",
-    },
-    {
-      name: "פנקייקס טבעוניים",
-      views: 1890,
-      rating: 4.6,
-      category: "ארוחת בוקר",
-      image: "🥞",
-    },
-    {
-      name: "עוגת שוקולד קטו",
-      views: 1650,
-      rating: 4.9,
-      category: "קינוחים",
-      image: "🍰",
-    },
-  ];
+  // Derive a small list of recipes to show (latest or by simple heuristic)
+  const popularRecipes = (recipes || []).slice(0, 3).map(r => ({
+    name: r.title || r.name || 'מתכון',
+    views: r.views || r.view_count || 0,
+    rating: r.rating || r.avg_rating || 0,
+    category: r.category || r.category_name || '',
+    image: '🍽️',
+  }));
 
-  const recentComments = [
-    {
-      id: 1,
-      user: "שרה כהן",
-      recipe: "סלט קינואה בריא",
-      comment: "מתכון מעולה! קל להכנה וטעים מאוד",
-      status: "pending",
-      time: "לפני 2 שעות",
-    },
-    {
-      id: 2,
-      user: "דוד לוי",
-      recipe: "פנקייקס טבעוניים",
-      comment: "הצלחתי להכין עם הילדים, כולם אהבו!",
-      status: "approved",
-      time: "לפני 4 שעות",
-    },
-    {
-      id: 3,
-      user: "רחל גולדברג",
-      recipe: "עוגת שוקולד קטו",
-      comment: "העוגה יצאה מדהימה, תודה רבה!",
-      status: "approved",
-      time: "לפני 6 שעות",
-    },
-  ];
+  // Replace reviews/comments panel with recent users from backend (no DB changes needed)
+  const recentUsersList = (recentUsers || []).map((u, idx) => ({
+    id: u.id || u.user_id || idx,
+    name: u.name || u.username || u.full_name || 'משתמש',
+    email: u.email || '',
+    role: u.role || u.user_type || 'customer',
+    createdAt: u.createdAt || u.created_at || u.joined_at,
+  }));
 
   const notifications = [
     {
@@ -211,32 +220,20 @@ export default function HomeEnhanced() {
 
   return (
     <div className={styles.adminHome}>
-      {/* Hero Section */}
-      <div className={styles.heroSection}>
-        <div className={styles.heroContent}>
-          <div className={styles.heroText}>
-            <h1 className={styles.heroTitle}>
-              ברוך הבא ללוח הבקרה
-              <span className={styles.heroHighlight}>{username}</span>
-            </h1>
-            <p className={styles.heroSubtitle}>
-              נהל את האתר שלך ביעילות עם כלים מתקדמים
-            </p>
-          </div>
-          <div className={styles.heroIcons}>
-            <div className={styles.floatingIcon}>
-              <Apple className={styles.icon} />
-            </div>
-            <div className={styles.floatingIcon}>
-              <Carrot className={styles.icon} />
-            </div>
-            <div className={styles.floatingIcon}>
-              <Leaf className={styles.icon} />
-            </div>
-            <div className={styles.floatingIcon}>
-              <Heart className={styles.icon} />
-            </div>
-          </div>
+      {/* Welcome Banner (Hebrew): header + fruits in a single row, center and back animation */}
+      <div className={`${styles.heroHeader} ${styles.heroRow} ${styles.allowMotion}`}>
+        <h1
+          className={`${styles.welcomeHeader} ${animateBanner ? styles.toCenterRight : ''}`}
+        >
+          ברוך הבא, {username}
+        </h1>
+        <div
+          className={`${styles.fruitRow} ${animateBanner ? styles.toCenterLeft : ''}`}
+        >
+          <Apple size={24} />
+          <Carrot size={24} />
+          <Leaf size={24} />
+          <Heart size={24} />
         </div>
       </div>
 
@@ -375,70 +372,38 @@ export default function HomeEnhanced() {
             </div>
           </div>
 
-          {/* Recent Comments */}
+          {/* Recent Users */}
           <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>תגובות אחרונות</h2>
+            <h2 className={styles.sectionTitle}>משתמשים אחרונים</h2>
             <div className={styles.commentsList}>
-              {recentComments.map((comment) => (
-                <div key={comment.id} className={styles.commentCard}>
+              {recentUsersList.map((u) => (
+                <div key={u.id} className={styles.commentCard}>
                   <div className={styles.commentHeader}>
                     <div className={styles.commentUser}>
                       <div className={styles.userAvatar}>
                         <Users size={16} />
                       </div>
                       <div className={styles.userInfo}>
-                        <span className={styles.userName}>{comment.user}</span>
-                        <span className={styles.commentTime}>
-                          {comment.time}
-                        </span>
+                        <span className={styles.userName}>{u.name}</span>
+                        <span className={styles.commentTime}>{u.email}</span>
                       </div>
                     </div>
-                    <div
-                      className={`${styles.commentStatus} ${
-                        styles[comment.status]
-                      }`}
-                    >
-                      {comment.status === "pending" && (
-                        <AlertTriangle size={14} />
-                      )}
-                      {comment.status === "approved" && (
-                        <CheckCircle size={14} />
-                      )}
-                      <span>
-                        {comment.status === "pending"
-                          ? "ממתין לאישור"
-                          : comment.status === "approved"
-                          ? "מאושר"
-                          : "נדחה"}
+                    <div className={styles.commentMeta}>
+                      <span className={styles.statusBadge}>
+                        {u.role}
                       </span>
+                      {u.createdAt && (
+                        <span className={styles.dateBadge}>
+                          {new Date(u.createdAt).toLocaleDateString()}
+                        </span>
+                      )}
                     </div>
-                  </div>
-                  <div className={styles.commentContent}>
-                    <p className={styles.commentRecipe}>
-                      <strong>{comment.recipe}</strong>
-                    </p>
-                    <p className={styles.commentText}>{comment.comment}</p>
-                  </div>
-                  <div className={styles.commentActions}>
-                    {comment.status === "pending" && (
-                      <button
-                        className={`${styles.commentBtn} ${styles.approve}`}
-                        onClick={() => handleApproveComment(comment.id)}
-                      >
-                        <CheckCircle size={16} />
-                        אשר
-                      </button>
-                    )}
-                    <button
-                      className={`${styles.commentBtn} ${styles.delete}`}
-                      onClick={() => handleDeleteComment(comment.id)}
-                    >
-                      <XCircle size={16} />
-                      מחק
-                    </button>
                   </div>
                 </div>
               ))}
+              {recentUsersList.length === 0 && (
+                <div className={styles.noComments}>אין נתונים להצגה כרגע.</div>
+              )}
             </div>
           </div>
 

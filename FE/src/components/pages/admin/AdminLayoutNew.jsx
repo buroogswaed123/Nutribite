@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import styles from './adminLayout.module.css';
 import AdminHeader from './AdminHeader';
 
+/* UNUSED ADMIN COMPONENT: commented out on 2025-09-07
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -81,3 +82,4 @@ const AdminLayout = () => {
 };
 
 export default AdminLayout;
+*/

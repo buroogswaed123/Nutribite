@@ -1,23 +1,46 @@
 import React, { useEffect, useState } from 'react';
-import styles from '../../home/home.module.css'
+import styles from './users.module.css'
 import { useAuth } from '../../../../../hooks/useAuth';
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown, X } from 'lucide-react';
 
 export default function UsersList() {
     const [recentUsers, setRecentUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-     const { fetchAllUsers } = useAuth();
+     const { fetchAllUsers, updateUserRole, updateUserBanStatus, deleteUser } = useAuth();
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState('online'); // 'online' | 'type'
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [error, setError] = useState(null);
+  const [savingRole, setSavingRole] = useState(false);
+  const [toasts, setToasts] = useState([]);
+  const [pendingRole, setPendingRole] = useState(null);
+  const [pendingBan, setPendingBan] = useState(null); // true to ban, false to unban, null none
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  const addToast = (type, message) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter(t => t.id !== id));
+    }, 3000);
+  };
     useEffect(() => {
         let mounted = true;
         (async () => {
           try {
             const usersData = await fetchAllUsers();
             if (!mounted) return;
-            setRecentUsers(Array.isArray(usersData) ? usersData : []);
+            const list = Array.isArray(usersData) ? usersData : (usersData?.items || []);
+            setRecentUsers(list);
           } catch (err) {
             console.error('AdminHome data load error:', err);
+            const status = err?.response?.status;
+            if (status === 401 || status === 403) {
+              setError('דרוש התחברות כמנהל על מנת לצפות ברשימת המשתמשים.');
+            } else {
+              setError('שגיאה בטעינת הנתונים.');
+            }
           } finally {
             if (mounted) setLoading(false);
           }
@@ -26,9 +49,15 @@ export default function UsersList() {
         const interval = setInterval(async () => {
           try {
             const usersData = await fetchAllUsers();
-            if (mounted) setRecentUsers(Array.isArray(usersData) ? usersData : []);
+            const list = Array.isArray(usersData) ? usersData : (usersData?.items || []);
+            if (mounted) setRecentUsers(list);
           } catch (e) {
-            // ignore
+            const status = e?.response?.status;
+            if (status === 401 || status === 403) {
+              // stop updating if unauthorized
+              setError('דרוש התחברות כמנהל על מנת לצפות ברשימת המשתמשים.');
+              clearInterval(interval);
+            }
           }
         }, 30000);
         return () => { mounted = false; clearInterval(interval); };
@@ -63,81 +92,279 @@ export default function UsersList() {
   };
 
     return (
-        <div className={styles.recentSection}>
+      <div className={styles.usersSection}>
         <h2 className={styles.sectionTitle}>משתמשים</h2>
-        {loading && (
-          <p className={styles.noData}>טוען נתונים...</p>
+        {error && (
+          <div className={styles.errorBanner}>{error}</div>
         )}
+        {loading && <p className={styles.noData}>טוען נתונים...</p>}
+
         {/* Controls */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+        <div className={styles.controls}>
           <input
             type="text"
+            className={styles.searchInput}
             placeholder="חיפוש לפי שם או אימייל"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            style={{
-              flex: 1,
-              padding: '8px 12px',
-              border: '1px solid #e2e8f0',
-              borderRadius: 9999,
-              background: '#fff',
-              outline: 'none'
-            }}
           />
           <button
+            className={styles.sortBtn}
             onClick={() => setSortMode((m) => (m === 'online' ? 'type' : 'online'))}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 10,
-              border: '1px solid #e2e8f0',
-              background: '#0ea5e9',
-              color: '#fff',
-              cursor: 'pointer'
-            }}
             title={sortMode === 'online' ? 'מיין לפי סוג משתמש' : 'מיין לפי סטטוס התחברות'}
             aria-label={sortMode === 'online' ? 'מיין לפי סוג משתמש' : 'מיין לפי סטטוס התחברות'}
           >
             <ArrowUpDown size={16} />
           </button>
-          <span
-            style={{
-              padding: '4px 8px',
-              borderRadius: 9999,
-              border: '1px solid #e2e8f0',
-              background: '#f8fafc',
-              fontSize: 12,
-              color: '#334155'
-            }}
-          >
+          <span className={styles.sortBadge}>
             {sortMode === 'online' ? 'מחוברים' : 'סוג'}
           </span>
         </div>
-        <div className={styles.usersList}>
+
+        <div className={styles.usersGrid}>
           {filteredAndSorted().length === 0 ? (
             <p className={styles.noData}>אין משתמשים להצגה</p>
           ) : (
             filteredAndSorted().map((user) => (
-              <div key={user.user_id} className={styles.userItem}>
-                <div className={styles.userInfo}>
-                  <h4>{user.username}</h4>
-                  <p>{user.email}</p>
-                  <span className={`${styles.userType} ${styles[user.user_type]}`}>
-                    {user.user_type === 'customer' && 'לקוח'}
-                    {user.user_type === 'admin' && 'מנהל'}
-                    {user.user_type === 'courier' && 'שליח'}
-                  </span>
+              <div
+                key={user.user_id}
+                className={styles.userCard}
+                onClick={() => {
+                  setSelectedUser(user);
+                  setIsModalOpen(true);
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    setSelectedUser(user);
+                    setIsModalOpen(true);
+                  }
+                }}
+              >
+                <div className={styles.cardHeader}>
+                  <h4 className={styles.username}>{user.username}</h4>
+                  <div className={styles.labels}>
+                    <span className={`${styles.roleLabel} ${styles['role-' + (user.user_type || 'customer')]}`}>
+                      {user.user_type === 'customer' && 'לקוח'}
+                      {user.user_type === 'admin' && 'מנהל'}
+                      {user.user_type === 'courier' && 'שליח'}
+                    </span>
+                    <span className={`${styles.statusLabel} ${user.is_online ? styles.active : styles.inactive}`}>
+                      {user.is_online ? 'מחובר' : 'לא מחובר'}
+                    </span>
+                  </div>
                 </div>
-                <div className={styles.userStatus}>
-                  <span className={user.is_online ? styles.active : styles.inactive}>
-                    {user.is_online ? 'מחובר' : 'לא מחובר'}
-                  </span>
-                  <p className={styles.userDate}>
-                    {new Date(user.created_at).toLocaleDateString('he-IL')}
-                  </p>
+                <div className={styles.cardBody}>
+                  <p className={styles.email}>{user.email}</p>
+                  <p className={styles.userDate}>{new Date(user.created_at).toLocaleDateString('he-IL')}</p>
+                </div>
+                <div className={styles.cardFooter}>
+                  <button
+                    type="button"
+                    className={styles.manageBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedUser(user);
+                      setIsModalOpen(true);
+                    }}
+                  >
+                    ניהול
+                  </button>
                 </div>
               </div>
             ))
           )}
+        </div>
+
+        {/* Manage Modal */}
+        {isModalOpen && selectedUser && (
+          <div className={styles.modalOverlay} onClick={() => setIsModalOpen(false)}>
+            <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.modalHeader}>
+                <h3 className={styles.modalTitle}>ניהול משתמש</h3>
+                <button className={styles.closeBtn} onClick={() => setIsModalOpen(false)} aria-label="סגור">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className={styles.modalBody}>
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>שם משתמש:</span>
+                  <span className={styles.infoValue}>{selectedUser.username}</span>
+                </div>
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>אימייל:</span>
+                  <span className={styles.infoValue}>{selectedUser.email}</span>
+                </div>
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>תאריך הצטרפות:</span>
+                  <span className={styles.infoValue}>{new Date(selectedUser.created_at).toLocaleDateString('he-IL')}</span>
+                </div>
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>סטטוס:</span>
+                  <span className={`${styles.statusLabel} ${selectedUser.is_online ? styles.active : styles.inactive}`}>
+                    {selectedUser.is_online ? 'מחובר' : 'לא מחובר'}
+                  </span>
+                </div>
+
+                <div className={styles.actionsBlock}>
+                  <div className={styles.fieldGroup}>
+                    <label className={styles.infoLabel} htmlFor="roleSelect">תפקיד:</label>
+                    <select
+                      id="roleSelect"
+                      className={styles.select}
+                      value={pendingRole ?? selectedUser.user_type}
+                      disabled={savingRole}
+                      onChange={(e) => {
+                        const newRole = e.target.value;
+                        if (newRole === selectedUser.user_type) {
+                          setPendingRole(null);
+                          return;
+                        }
+                        setPendingRole(newRole);
+                      }}
+                    >
+                      <option value="admin">מנהל</option>
+                      <option value="customer">לקוח</option>
+                      <option value="courier">שליח</option>
+                    </select>
+                  </div>
+
+                  {pendingRole && (
+                    <div className={styles.confirmBar}>
+                      <span className={styles.confirmText}>לאשר שינוי תפקיד ל- {pendingRole}?</span>
+                      <div className={styles.confirmActions}>
+                        <button
+                          className={styles.confirmBtn}
+                          disabled={savingRole}
+                          onClick={async () => {
+                            try {
+                              setSavingRole(true);
+                              await updateUserRole(selectedUser.user_id, pendingRole);
+                              setSelectedUser((prev) => ({ ...prev, user_type: pendingRole }));
+                              setRecentUsers((list) => list.map(u => u.user_id === selectedUser.user_id ? { ...u, user_type: pendingRole } : u));
+                              addToast('success', 'התפקיד עודכן בהצלחה');
+                              setPendingRole(null);
+                            } catch (err) {
+                              console.error('Failed to update role', err);
+                              addToast('error', 'עדכון התפקיד נכשל');
+                            } finally {
+                              setSavingRole(false);
+                            }
+                          }}
+                        >
+                          אשר
+                        </button>
+                        <button
+                          className={styles.cancelBtn}
+                          disabled={savingRole}
+                          onClick={() => setPendingRole(null)}
+                        >
+                          ביטול
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={styles.buttonsRow}>
+                    <button
+                      className={styles.primaryBtn}
+                      onClick={() => {
+                        const next = !selectedUser.is_banned;
+                        setPendingBan(next);
+                      }}
+                    >
+                      {selectedUser.is_banned ? 'בטל חסימה' : 'חסום משתמש'}
+                    </button>
+                    <button
+                      className={styles.dangerBtn}
+                      onClick={() => setConfirmingDelete(true)}
+                    >
+                      מחק משתמש
+                    </button>
+                  </div>
+
+                  {pendingBan !== null && (
+                    <div className={styles.confirmBar}>
+                      <span className={styles.confirmText}>
+                        {pendingBan ? 'לחסום משתמש זה?' : 'לבטל חסימה למשתמש זה?'}
+                      </span>
+                      <div className={styles.confirmActions}>
+                        <button
+                          className={styles.confirmBtn}
+                          onClick={async () => {
+                            try {
+                              await updateUserBanStatus(selectedUser.user_id, pendingBan);
+                              setSelectedUser((prev) => ({ ...prev, is_banned: pendingBan }));
+                              setRecentUsers((list) => list.map(u => u.user_id === selectedUser.user_id ? { ...u, is_banned: pendingBan } : u));
+                              addToast('success', pendingBan ? 'המשתמש נחסם' : 'החסימה בוטלה');
+                            } catch (e) {
+                              console.error('Ban/unban failed', e);
+                              addToast('error', 'פעולת החסימה נכשלה');
+                            } finally {
+                              setPendingBan(null);
+                            }
+                          }}
+                        >
+                          אשר
+                        </button>
+                        <button
+                          className={styles.cancelBtn}
+                          onClick={() => setPendingBan(null)}
+                        >
+                          ביטול
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {confirmingDelete && (
+                    <div className={styles.confirmBar}>
+                      <span className={styles.confirmText}>למחוק משתמש זה? פעולה זו אינה הפיכה</span>
+                      <div className={styles.confirmActions}>
+                        <button
+                          className={styles.confirmBtn}
+                          onClick={async () => {
+                            try {
+                              await deleteUser(selectedUser.user_id);
+                              setRecentUsers((list) => list.filter(u => u.user_id !== selectedUser.user_id));
+                              setIsModalOpen(false);
+                              addToast('success', 'המשתמש נמחק');
+                            } catch (e) {
+                              console.error('Delete failed', e);
+                              addToast('error', 'מחיקת המשתמש נכשלה');
+                            } finally {
+                              setConfirmingDelete(false);
+                            }
+                          }}
+                        >
+                          אשר
+                        </button>
+                        <button
+                          className={styles.cancelBtn}
+                          onClick={() => setConfirmingDelete(false)}
+                        >
+                          ביטול
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className={styles.modalFooter}>
+                <button className={styles.closeFooterBtn} onClick={() => setIsModalOpen(false)}>סגור</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Toasts */}
+        <div className={styles.toastContainer}>
+          {toasts.map(t => (
+            <div key={t.id} className={`${styles.toast} ${t.type === 'success' ? styles.toastSuccess : styles.toastError}`}>
+              {t.message}
+            </div>
+          ))}
         </div>
       </div>
     )

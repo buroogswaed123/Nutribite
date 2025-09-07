@@ -200,6 +200,31 @@ export async function fetchPublicRecipeAPI(recipeId) {
   return data?.item || data;
 }
 
+// =============================
+// Admin user management helpers
+// =============================
+// Update a user's role
+export async function updateUserRoleAPI(userId, user_type) {
+  if (!userId) throw new Error('Missing userId');
+  if (!user_type) throw new Error('Missing user_type');
+  const { data } = await axios.patch(`/api/admin/users/${userId}/role`, { user_type });
+  return data;
+}
+
+// Ban or unban a user
+export async function updateUserBanStatusAPI(userId, banned) {
+  if (!userId) throw new Error('Missing userId');
+  const { data } = await axios.patch(`/api/admin/users/${userId}/ban`, { banned: !!banned });
+  return data;
+}
+
+// Delete a user
+export async function deleteUserAPI(userId) {
+  if (!userId) throw new Error('Missing userId');
+  const { data } = await axios.delete(`/api/admin/users/${userId}`);
+  return data;
+}
+
 //for calorie calculator
 const activityMultipliers = {
   עצמוני: 1.2,

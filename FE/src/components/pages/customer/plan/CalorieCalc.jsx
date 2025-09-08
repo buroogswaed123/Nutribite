@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { calculateCalories } from "../../../../utils/functions";
+import { calculateCalories, fetchDietTypes } from "../../../../utils/functions";
 import { getCurrentCustomerId } from "../../../../utils/functions";
 import styles from "./caloriecalc.module.css";
 
@@ -21,18 +21,25 @@ export default function CalorieCalculator() {
   const [result, setResult] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [dietTypes, setDietTypes] = useState([]);
 
   useEffect(() => {
     const fetchCustomer = async () => {
       try {
         const cust_id = await getCurrentCustomerId();
-        const { data } = await axios.get(`/api/customers/${cust_id}`);
+        const [{ data }, diets] = await Promise.all([
+          axios.get(`/api/customers/${cust_id}`),
+          fetchDietTypes().catch(() => []),
+        ]);
         setCustomer(data);
+        const safeDiets = Array.isArray(diets) ? diets : [];
+        setDietTypes(safeDiets);
 
         setForm((prev) => ({
           ...prev,
           gender: data.gender || prev.gender,
           birthdate: data.birthdate || "",
+          diet_type_id: (data.diet_type_id ?? prev.diet_type_id) || (safeDiets[0]?.id ?? safeDiets[0]?.diet_id) || prev.diet_type_id,
         }));
       } catch (err) {
         console.error(err);
@@ -46,6 +53,8 @@ export default function CalorieCalculator() {
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
+
+  const setGender = (g) => setForm(prev => ({ ...prev, gender: g }));
 
   const getAge = () => {
     const bd = (customer && customer.birthdate) ? customer.birthdate : form.birthdate;
@@ -105,9 +114,17 @@ export default function CalorieCalculator() {
     <div className={styles.container}>
       <h2 className={styles.title}>חישוב קלוריות</h2>
   
-      {/* Birthdate: only ask if customer has no saved DoB */}
-      {!customer?.birthdate && (
-        <div className={styles.inputGroup}>
+      {/* Birthdate (if missing) or Age (auto) */}
+      {customer?.birthdate ? (
+        <div className={styles.row}>
+          <label className={styles.label}>גיל</label>
+          <div className={styles.inputWithSuffix}>
+            <input type="number" readOnly value={getAge() ?? ''} className={styles.input} />
+            <span className={styles.suffix}>שנים</span>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.row}>
           <label className={styles.label}>תאריך לידה</label>
           <input
             type="date"
@@ -120,47 +137,48 @@ export default function CalorieCalculator() {
         </div>
       )}
   
-      {/* Gender */}
-      <div className={styles.inputGroup}>
+      {/* Gender (pill buttons) */}
+      <div className={styles.row}>
         <label className={styles.label}>מין</label>
-        <select
-          name="gender"
-          value={form.gender}
-          onChange={handleChange}
-          className={styles.select}
-        >
-          <option value="זכר">זכר</option>
-          <option value="נקבה">נקבה</option>
-          <option value="אחר">אחר</option>
-        </select>
+        <div className={styles.toggleGroup}>
+          <button type="button" className={`${styles.toggleBtn} ${form.gender === 'זכר' ? styles.active : ''}`} onClick={() => setGender('זכר')}>זכר</button>
+          <button type="button" className={`${styles.toggleBtn} ${form.gender === 'נקבה' ? styles.active : ''}`} onClick={() => setGender('נקבה')}>נקבה</button>
+          <button type="button" className={`${styles.toggleBtn} ${form.gender === 'אחר' ? styles.active : ''}`} onClick={() => setGender('אחר')}>אחר</button>
+        </div>
       </div>
   
       {/* Height */}
-      <div className={styles.inputGroup}>
+      <div className={styles.row}>
         <label className={styles.label}>גובה (ס״מ)</label>
-        <input
-          type="number"
-          name="height"
-          value={form.height}
-          onChange={handleChange}
-          className={styles.input}
-        />
+        <div className={styles.inputWithSuffix}>
+          <input
+            type="number"
+            name="height"
+            value={form.height}
+            onChange={handleChange}
+            className={styles.input}
+          />
+          <span className={styles.suffix}>ס"מ</span>
+        </div>
       </div>
   
       {/* Weight */}
-      <div className={styles.inputGroup}>
+      <div className={styles.row}>
         <label className={styles.label}>משקל (ק״ג)</label>
-        <input
-          type="number"
-          name="weight"
-          value={form.weight}
-          onChange={handleChange}
-          className={styles.input}
-        />
+        <div className={styles.inputWithSuffix}>
+          <input
+            type="number"
+            name="weight"
+            value={form.weight}
+            onChange={handleChange}
+            className={styles.input}
+          />
+          <span className={styles.suffix}>ק"ג</span>
+        </div>
       </div>
   
       {/* Activity level */}
-      <div className={styles.inputGroup}>
+      <div className={styles.row}>
         <label className={styles.label}>רמת פעילות</label>
         <select
           name="activity_level"
@@ -177,7 +195,7 @@ export default function CalorieCalculator() {
       </div>
   
       {/* Diet type */}
-      <div className={styles.inputGroup}>
+      <div className={styles.row}>
         <label className={styles.label}>סוג דיאטה</label>
         <select
           name="diet_type_id"
@@ -185,9 +203,11 @@ export default function CalorieCalculator() {
           onChange={handleChange}
           className={styles.select}
         >
-          <option value={1}>דיאטה רגילה</option>
-          <option value={2}>דיאטה קטוגנית</option>
-          <option value={3}>דיאטה טבעונית</option>
+          {dietTypes.map(dt => (
+            <option key={dt.id ?? dt.diet_id} value={dt.id ?? dt.diet_id}>
+              {dt.name}
+            </option>
+          ))}
         </select>
       </div>
   
@@ -200,12 +220,24 @@ export default function CalorieCalculator() {
       {modalOpen && result && (
         <div className={styles.modalBackdrop}>
           <div className={styles.modalContent}>
-            <h3 className={styles.modalTitle}>תוצאות החישוב</h3>
-            <div className={styles.modalRow}>קלוריות: {result.calories}</div>
-            <div className={styles.modalRow}>חלבון: {result.protein} גרם</div>
-            <div className={styles.modalRow}>שומן: {result.fat} גרם</div>
-            <div className={styles.modalRow}>פחמימות: {result.carbs} גרם</div>
-  
+            <div className={styles.resultsBlock}>
+              <div className={styles.resultsCalories}><strong>{result.calories}</strong> קלוריות ליום</div>
+              <ul className={styles.statsList}>
+                <li className={styles.statRow}>
+                  <span className={`${styles.statDot} ${styles.carb}`} />
+                  <span className={styles.statText}>לפחות <strong>{result.carbs}g</strong> פחמימות</span>
+                </li>
+                <li className={styles.statRow}>
+                  <span className={`${styles.statDot} ${styles.fat}`} />
+                  <span className={styles.statText}>לפחות <strong>{result.fat}g</strong> שומן</span>
+                </li>
+                <li className={styles.statRow}>
+                  <span className={`${styles.statDot} ${styles.protein}`} />
+                  <span className={styles.statText}>לפחות <strong>{result.protein}g</strong> חלבון</span>
+                </li>
+              </ul>
+            </div>
+
             <div className={styles.modalButtons}>
               <button
                 onClick={() => setModalOpen(false)}

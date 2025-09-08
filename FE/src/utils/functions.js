@@ -54,16 +54,18 @@ export async function getSessionUser() {
 }
 
 export async function getCurrentCustomerId() {
-  if (getCurrentCustomerId._cache) return getCurrentCustomerId._cache;
-
   const session = await getSessionUser();
   const userId = session?.user_id || session?.id;
   if (!userId) throw new Error('Not logged in');
 
+  // Cache per userId to avoid leaking IDs across accounts within the SPA session
+  if (!getCurrentCustomerId._cache) getCurrentCustomerId._cache = {};
+  if (getCurrentCustomerId._cache[userId]) return getCurrentCustomerId._cache[userId];
+
   try {
     const { data } = await axios.get(`/api/customers/by-user/${userId}`);
     if (data?.cust_id) {
-      getCurrentCustomerId._cache = data.cust_id;
+      getCurrentCustomerId._cache[userId] = data.cust_id;
       return data.cust_id;
     }
   } catch (err) {
@@ -73,7 +75,7 @@ export async function getCurrentCustomerId() {
   // If not found, auto-create customer (idempotent with UNIQUE on customers.user_id)
   const { data: createData } = await axios.post('/api/customers', { user_id: userId });
   if (createData?.cust_id) {
-    getCurrentCustomerId._cache = createData.cust_id;
+    getCurrentCustomerId._cache[userId] = createData.cust_id;
     return createData.cust_id;
   }
   throw new Error('Failed to resolve customer id');

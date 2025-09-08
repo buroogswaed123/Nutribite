@@ -334,6 +334,12 @@ export async function fetchEligibleMenuAPI({ customer_id, dietType } = {}) {
   return data?.items || [];
 }
 
+// Fetch categories for Menu filters
+export async function fetchMenuCategoriesAPI() {
+  const { data } = await axios.get('/api/menu/categories');
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
 
 
 //Notifications management //

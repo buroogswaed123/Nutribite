@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styles from './menu.module.css'
-import { fetchDietTypes, fetchRecipes, getSessionUser, bulkUpdateRecipePrices } from '../../../utils/functions'
+import { fetchDietTypes, fetchRecipes, getSessionUser, bulkUpdateRecipePrices, fetchMenuCategoriesAPI } from '../../../utils/functions'
 
 export default function Menu() {
   const navigate = useNavigate()
@@ -9,12 +9,20 @@ export default function Menu() {
   // Normalize image URLs coming from DB (filename or uploads path)
   const resolveImageUrl = (raw) => {
     if (!raw) return ''
-    const s = String(raw)
+    let s = String(raw).trim()
+    if (!s) return ''
     if (/^https?:\/\//i.test(s)) return s
-    // normalize backslashes and trim leading slashes
-    const cleaned = s.replace(/\\/g, '/').replace(/^\/+/, '')
-    if (/^uploads\//i.test(cleaned)) return `http://localhost:3000/${cleaned}`
-    return `http://localhost:3000/uploads/${cleaned}`
+    // normalize slashes
+    s = s.replace(/\\/g, '/').replace(/\s+$/,'')
+    // If path contains 'uploads' anywhere, point to backend uploads after the last occurrence
+    const idx = s.toLowerCase().lastIndexOf('uploads/')
+    if (idx >= 0) {
+      const tail = s.slice(idx)
+      return `http://localhost:3000/${tail}`
+    }
+    // otherwise treat as a filename living under backend /uploads
+    s = s.replace(/^\/+/, '')
+    return `http://localhost:3000/uploads/${s}`
   }
 
   // Allow only digit characters in numeric text inputs
@@ -80,20 +88,24 @@ export default function Menu() {
   const [selectAll, setSelectAll] = useState(false)
   const [bulkPrice, setBulkPrice] = useState('')
 
-  // Load user/admin, diet types, and recipes
+  // Load user/admin, diet types, and categories list
   useEffect(() => {
     let cancelled = false
     async function initial() {
       try {
         setLoading(true)
         setError('')
-        const [user, diets] = await Promise.all([
+        const [user, diets, cats] = await Promise.all([
           getSessionUser(),
           fetchDietTypes(),
+          fetchMenuCategoriesAPI().catch(() => []),
         ])
         if (cancelled) return
         setIsAdmin(!!user && String(user.user_type).toLowerCase() === 'admin')
         setDietTypes(diets)
+        // Use categories from BE so filter shows all categories, not only those currently in view
+        const mappedCats = Array.isArray(cats) ? cats.map(c => ({ id: c.id, name: translateCategoryName(c.name) })) : []
+        setCategories(mappedCats)
       } catch (e) {
         if (!cancelled) setError(e.message || 'שגיאה בטעינה')
       } finally {
@@ -122,15 +134,6 @@ export default function Menu() {
         })
         if (cancelled) return
         setRecipes(items)
-        const uniq = new Map()
-        for (const r of items) {
-          if (r.category_id && r.category_name) {
-            uniq.set(r.category_id, r.category_name)
-          }
-        }
-        setCategories(
-          [...uniq.entries()].map(([id, name]) => ({ id, name: translateCategoryName(name) }))
-        )
       } catch (e) {
         if (!cancelled) setError(e.message || 'שגיאה בטעינת מתכונים')
       } finally {
@@ -325,7 +328,7 @@ export default function Menu() {
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:16}}>
         {filtered.map(r => (
           <div key={r.recipe_id} onClick={() => openModal(r)} style={{cursor:'pointer', background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
-            <img src={resolveImageUrl(r.picture || r.imageUrl)} alt={r.name} style={{width:'100%', height:150, objectFit:'cover'}} onError={(e)=>{ e.currentTarget.style.display='none' }} />
+            <img src={resolveImageUrl(r.picture || r.imageUrl)} alt={r.name} style={{width:'100%', height:150, objectFit:'cover'}} onError={(e)=>{ try{ console.error('Image failed to load:', resolveImageUrl(r.picture || r.imageUrl)); }catch(_){} e.currentTarget.style.display='none' }} />
             <div style={{padding:12, position:'relative'}}>
               {isAdmin && (
                 <input
@@ -368,7 +371,7 @@ export default function Menu() {
                 src={resolveImageUrl(selected.picture || selected.imageUrl)}
                 alt={selected.name}
                 className={styles.detailImg}
-                onError={(e)=>{ e.currentTarget.style.display='none' }}
+                onError={(e)=>{ try{ console.error('Image failed to load (detail):', resolveImageUrl(selected.picture || selected.imageUrl)); }catch(_){} e.currentTarget.style.display='none' }}
               />
               <div className={styles.detailBody}>
                 <h2 className={styles.title}>{selected.name}</h2>

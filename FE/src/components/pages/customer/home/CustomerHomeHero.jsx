@@ -12,7 +12,8 @@ export default function CustomerHomeHero({ scrollToFeatures }) {
      const navigate = useNavigate();
 
      const handleGetStarted = () => {
-        navigate("/meal-planner");
+        // Navigate to Calorie Calculator (PlanMaker)
+        navigate("/plan-maker");
       };
     
     return (

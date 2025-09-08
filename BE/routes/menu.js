@@ -181,6 +181,29 @@ router.get('/search', async (req, res) => {
 
 module.exports = router;
 
+// Categories list with counts for Menu filters
+// GET /api/menu/categories
+router.get('/categories', async (req, res) => {
+  try {
+    const sql = `
+      SELECT 
+        c.category_id AS id,
+        c.name AS name,
+        COUNT(p.product_id) AS product_count
+      FROM categories c
+      LEFT JOIN recipes r ON r.category_id = c.category_id AND r.deleted_at IS NULL
+      LEFT JOIN products p ON p.recipe_id = r.recipe_id
+      GROUP BY c.category_id, c.name
+      ORDER BY c.name ASC
+    `;
+    const rows = await query(sql);
+    return res.json({ items: rows });
+  } catch (err) {
+    console.error('PUBLIC MENU CATEGORIES ERROR:', err);
+    return res.status(500).json({ message: 'Error listing categories', error: err.message });
+  }
+});
+
 // Additional endpoint: eligible products excluding customer's allergies
 // GET /api/menu/eligible?customer_id=123
 // Optional query: category, dietType, minCalories, maxCalories, minPrice, maxPrice

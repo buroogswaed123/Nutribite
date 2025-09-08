@@ -62,21 +62,31 @@
   }
   
   .btnPrimary {
-    background: #3b82f6;
+    background: linear-gradient(to right, #3b82f6, #2563eb);
     color: #fff;
     border: none;
     padding: 10px 14px;
-    border-radius: 8px;
+    border-radius: 10px;
+    font-weight: 600;
     cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  .btnPrimary:hover {
+    background: linear-gradient(to right, #2563eb, #1e40af);
   }
   
   .btnSuccess {
-    background: #10b981;
+    background: linear-gradient(to right, #10b981, #059669);
     color: #fff;
     border: none;
     padding: 10px 14px;
-    border-radius: 8px;
+    border-radius: 10px;
+    font-weight: 600;
     cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  .btnSuccess:hover {
+    background: linear-gradient(to right, #059669, #047857);
   }
   
   .btnDanger {

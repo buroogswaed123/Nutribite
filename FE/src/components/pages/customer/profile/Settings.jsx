@@ -242,7 +242,7 @@ export default function Settings() {
                                     }
                                 }}
                             />
-                            <button type="button" className={styles.primaryBtn} onClick={()=>addAllergy(allergyInput)}>הוסף</button>
+                            <button type="button" className={styles.primaryGradBtn} onClick={()=>addAllergy(allergyInput)}>הוסף</button>
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                             {allergies.map(a => (
@@ -262,7 +262,7 @@ export default function Settings() {
                 {error && <span style={{ color: '#b91c1c' }}>{error}</span>}
                 {success && <span style={{ color: '#065f46' }}>{success}</span>}
 
-                <button className={styles.primaryBtn} type="submit" disabled={saving || loading}>
+                <button className={styles.primaryGradBtn} type="submit" disabled={saving || loading}>
                     {saving ? 'שומר…' : 'שמירה'}
                 </button>
             </form>

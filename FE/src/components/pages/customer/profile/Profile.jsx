@@ -257,10 +257,9 @@ export default function Profile() {
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); navigate('/plan-maker'); }}
-                  className={styles.iconCircleBtn}
+                  className={styles.primaryGradBtn}
                   title="צור חדשה"
                   aria-label="צור חדשה"
-                  style={{ background: '#10b981', color: '#fff', borderRadius: 8, padding: '8px 12px' }}
                 >
                   צור חדשה
                 </button>
@@ -272,7 +271,8 @@ export default function Profile() {
                 אין עדיין תוכנית פעילה. 
                 <button
                   onClick={() => navigate('/plan-maker')}
-                  style={{ marginInlineStart: 8, background: '#3b82f6', color: '#fff', borderRadius: 8, padding: '6px 10px', border: 'none', cursor: 'pointer' }}
+                  className={styles.primaryGradBtn}
+                  style={{ marginInlineStart: 8, padding: '8px 12px' }}
                 >
                   צור חדשה
                 </button>

@@ -108,6 +108,33 @@
   text-overflow: ellipsis;
 }
 
+/* Inline actions for special notification types (e.g., plan renew) */
+.inlineActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.inlinePrimary {
+  background: linear-gradient(to right, #3b82f6, #2563eb);
+  color: #fff;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.inlinePrimary:hover { background: linear-gradient(to right, #2563eb, #1e40af); }
+.inlineSecondary {
+  background: linear-gradient(to right, #10b981, #059669);
+  color: #fff;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.inlineSecondary:hover { background: linear-gradient(to right, #059669, #047857); }
+
 .itemActions {
   display: flex;
   align-items: center;

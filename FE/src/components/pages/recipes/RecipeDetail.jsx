@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './recipes.module.css';
+import { getRecipeRatingsAPI, rateRecipeAPI } from '../../../utils/functions';
 
 const ensureImageUrl = (val) => {
   if (!val) return ''
@@ -17,6 +18,10 @@ export default function RecipeDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isImgOpen, setIsImgOpen] = useState(false);
+  const [ratingAvg, setRatingAvg] = useState(null);
+  const [ratingCount, setRatingCount] = useState(0);
+  const [userStars, setUserStars] = useState(null);
+  const [hoverStars, setHoverStars] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +33,17 @@ export default function RecipeDetail() {
         if (!res.ok) throw new Error('שגיאה בטעינת מתכון');
         const data = await res.json();
         if (!cancelled) setRecipe(data);
+        // fetch ratings meta
+        try {
+          const meta = await getRecipeRatingsAPI(id);
+          if (!cancelled) {
+            setRatingAvg(meta?.avg ?? null);
+            setRatingCount(meta?.count ?? 0);
+            setUserStars(meta?.userStars ?? null);
+          }
+        } catch (_) {
+          if (!cancelled) { setRatingAvg(null); setRatingCount(0); setUserStars(null); }
+        }
       } catch (e) {
         if (!cancelled) setError(e.message || 'שגיאה');
       } finally {
@@ -73,6 +89,41 @@ export default function RecipeDetail() {
         )}
         <div className={styles.detailInner}>
           <h1 className={styles.detailTitle}>{recipe.name}</h1>
+          {/* Ratings summary and interaction */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
+            <div style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+              {[1,2,3,4,5].map(n => {
+                const active = (hoverStars ?? userStars ?? Math.round(ratingAvg ?? 0)) >= n;
+                return (
+                  <span
+                    key={n}
+                    title={`דרג ${n}`}
+                    onMouseEnter={() => setHoverStars(n)}
+                    onMouseLeave={() => setHoverStars(null)}
+                    onClick={async () => {
+                      try {
+                        const res = await rateRecipeAPI(id, n);
+                        setUserStars(res?.userStars ?? n);
+                        setRatingAvg(res?.avg ?? n);
+                        setRatingCount(res?.count ?? (ratingCount || 1));
+                      } catch (e) {
+                        const status = e?.response?.status;
+                        if (status === 401) {
+                          alert('יש להתחבר כלקוח כדי לדרג מתכונים');
+                        } else {
+                          console.error('Failed to rate:', e?.message || e);
+                        }
+                      }
+                    }}
+                    style={{ cursor:'pointer', color: active ? '#f59e0b' : '#d1d5db', fontSize:18 }}
+                  >★</span>
+                );
+              })}
+            </div>
+            <span style={{ color:'#6b7280', fontSize:13 }}>
+              {ratingAvg != null ? ratingAvg.toFixed(1) : '—'} ({ratingCount}) {hoverStars ? `· דרג ${hoverStars}` : ''}
+            </span>
+          </div>
           {description && <p className={styles.detailDesc}>{description}</p>}
           <div className={styles.detailMeta}>
             {recipe.calories != null && <span className={styles.calories}>{recipe.calories} קלוריות</span>}

@@ -2,6 +2,7 @@ import styles from './recipes.module.css'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../../hooks/useAuth'
+import { getRecipeRatingsAPI, rateRecipeAPI } from '../../../utils/functions'
 
 // Ensure image paths work like in Menu.jsx
 const ensureImageUrl = (val) => {
@@ -20,6 +21,14 @@ export default function Recipes() {
   const [openId, setOpenId] = useState(null);
   const [selected, setSelected] = useState(null);
   const [loadingItem, setLoadingItem] = useState(false);
+  const [ratingAvg, setRatingAvg] = useState(null);
+  const [ratingCount, setRatingCount] = useState(0);
+  const [userStars, setUserStars] = useState(null);
+  const [hoverStars, setHoverStars] = useState(null);
+  const [cardHover, setCardHover] = useState({}); // { [id]: n|null }
+  const [cardUserStars, setCardUserStars] = useState({}); // { [id]: n }
+  const [toast, setToast] = useState('');
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
   const [search, setSearch] = useState('');
   const [calories, setCalories] = useState(''); // max calories
   const [diet, setDiet] = useState('');
@@ -141,6 +150,17 @@ export default function Recipes() {
       try {
         const full = await fetchPublicRecipe(rid);
         if (!cancelled) setSelected(full?.item || full);
+        // fetch ratings meta
+        try {
+          const meta = await getRecipeRatingsAPI(rid);
+          if (!cancelled) {
+            setRatingAvg(meta?.avg ?? null);
+            setRatingCount(meta?.count ?? 0);
+            setUserStars(meta?.userStars ?? null);
+          }
+        } catch (_) {
+          if (!cancelled) { setRatingAvg(null); setRatingCount(0); setUserStars(null); }
+        }
       } catch (e) {
         if (!cancelled) setSelected(null);
       } finally {
@@ -154,6 +174,7 @@ export default function Recipes() {
   if (error) return <div className={`${styles.pad16} ${styles.errorText}`}>{error}</div>;
 
   return (
+    <>
     <div>
       <h1>מתכונים</h1>
       {/* Filters */}
@@ -213,6 +234,45 @@ export default function Recipes() {
             />
             <h3 className={styles.cardTitle}>{recipe.name}</h3>
             <p className={styles.cardDesc}>{recipe.description || recipe.shortDescription || recipe.summary || recipe.summary}</p>
+            {/* Card stars (quick rate) */}
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:6 }}>
+              <div style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                {[1,2,3,4,5].map(n => {
+                  const id = recipe.id || recipe.recipe_id;
+                  const avg = Number(recipe.rating_avg ?? 0);
+                  const active = (cardHover[id] ?? cardUserStars[id] ?? Math.round(avg)) >= n;
+                  return (
+                    <span
+                      key={n}
+                      title={`דרג ${n}`}
+                      onMouseEnter={() => setCardHover(prev => ({ ...prev, [id]: n }))}
+                      onMouseLeave={() => setCardHover(prev => ({ ...prev, [id]: null }))}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          const res = await rateRecipeAPI(id, n);
+                          setCardUserStars(prev => ({ ...prev, [id]: res?.userStars ?? n }));
+                          // update the recipe's cached avg locally so UI reflects change
+                          setRecipes(prev => prev.map(r => ( (r.id||r.recipe_id) === id ? { ...r, rating_avg: res?.avg ?? n } : r )));
+                        } catch (err) {
+                          const status = err?.response?.status;
+                          if (status === 401) {
+                            showToast('יש להתחבר כלקוח כדי לדרג מתכונים');
+                          } else {
+                            console.error('Failed to rate on card:', err?.message || err);
+                          }
+                        }
+                      }}
+                      style={{ cursor:'pointer', color: active ? '#f59e0b' : '#d1d5db', fontSize:16 }}
+                    >★</span>
+                  );
+                })}
+              </div>
+              <span style={{ color:'#6b7280', fontSize:12 }}>
+                {recipe.rating_avg != null ? Number(recipe.rating_avg).toFixed(1) : '—'}
+                {cardHover[recipe.id || recipe.recipe_id] ? ` · דרג ${cardHover[recipe.id || recipe.recipe_id]}` : ''}
+              </span>
+            </div>
             <button className={styles.btn} onClick={async () => {
               const id = recipe.id || recipe.recipe_id;
               setOpenId(id);
@@ -256,6 +316,43 @@ export default function Recipes() {
                     {selected.calories != null && <span className={styles.calories}>{selected.calories} קלוריות</span>}
                     {(selected.diet_type || selected.diet_name) && <span>דיאטה: {selected.diet_type || selected.diet_name}</span>}
                     {(selected.category || selected.category_name) && <span>קטגוריה: {selected.category || selected.category_name}</span>}
+                  </div>
+
+                  {/* Ratings */}
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}>
+                    <div style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                      {[1,2,3,4,5].map(n => {
+                        const active = (hoverStars ?? userStars ?? Math.round(ratingAvg ?? 0)) >= n;
+                        return (
+                          <span
+                            key={n}
+                            title={`דרג ${n}`}
+                            onMouseEnter={() => setHoverStars(n)}
+                            onMouseLeave={() => setHoverStars(null)}
+                            onClick={async () => {
+                              try {
+                                const rid = selected.id || selected.recipe_id;
+                                const res = await rateRecipeAPI(rid, n);
+                                setUserStars(res?.userStars ?? n);
+                                setRatingAvg(res?.avg ?? n);
+                                setRatingCount(res?.count ?? (ratingCount || 1));
+                              } catch (e) {
+                                const status = e?.response?.status;
+                                if (status === 401) {
+                                  showToast('יש להתחבר כלקוח כדי לדרג מתכונים');
+                                } else {
+                                  console.error('Failed to rate:', e?.message || e);
+                                }
+                              }
+                            }}
+                            style={{ cursor:'pointer', color: active ? '#f59e0b' : '#d1d5db', fontSize:18 }}
+                          >★</span>
+                        );
+                      })}
+                    </div>
+                    <span style={{ color:'#6b7280', fontSize:13 }}>
+                      {ratingAvg != null ? ratingAvg.toFixed(1) : '—'} ({ratingCount}) {hoverStars ? `· דרג ${hoverStars}` : ''}
+                    </span>
                   </div>
 
                   {(() => {
@@ -319,5 +416,11 @@ export default function Recipes() {
       )}
 
     </div>
+    {toast && (
+      <div style={{ position:'fixed', bottom:16, insetInlineEnd:16, background:'#111827', color:'#fff', padding:'10px 14px', borderRadius:8, boxShadow:'0 6px 12px rgba(0,0,0,0.2)', zIndex:1000 }}>
+        {toast}
+      </div>
+    )}
+    </>
   )
 }

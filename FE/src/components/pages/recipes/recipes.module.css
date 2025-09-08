@@ -121,6 +121,9 @@
   box-shadow: 0 10px 30px rgba(0,0,0,0.15);
   overflow: hidden;
   animation: modalIn 160ms ease-out;
+  max-height: 90vh;           /* keep footer visible on small screens */
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes modalIn {
@@ -154,6 +157,20 @@
 
 .modalBody {
   padding: 16px;
+  overflow-y: auto;           /* content scrolls */
+  overflow-x: hidden;         /* prevent horizontal bar */
+  max-height: calc(90vh - 56px - 56px); /* header + footer approx */
+}
+
+.textarea {
+  width: 100%;
+  min-height: 90px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.95rem;
 }
 
 /* RTL utilities for Hebrew content */

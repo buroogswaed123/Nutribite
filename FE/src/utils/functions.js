@@ -227,6 +227,20 @@ export async function rateRecipeAPI(recipeId, stars) {
   return data; // { avg, count, userStars }
 }
 
+// Products by recipe helpers
+export async function getProductByRecipeAPI(recipeId) {
+  const { data } = await axios.get(`/api/menu/by-recipe/${recipeId}`);
+  return data; // { product_id, recipe_id, price, stock, ... }
+}
+
+export async function updateProductByRecipeAPI(recipeId, { price, stock }) {
+  const payload = {};
+  if (price != null) payload.price = price;
+  if (stock != null) payload.stock = stock;
+  const { data } = await axios.patch(`/api/admin/recipes/${recipeId}/product`, payload);
+  return data;
+}
+
 // =============================
 // Admin user management helpers
 // =============================

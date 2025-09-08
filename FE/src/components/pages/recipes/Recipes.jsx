@@ -1,8 +1,9 @@
 import styles from './recipes.module.css'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import axios from 'axios'
 import { useAuth } from '../../../hooks/useAuth'
-import { getRecipeRatingsAPI, rateRecipeAPI } from '../../../utils/functions'
+import { getRecipeRatingsAPI, rateRecipeAPI, getSessionUser, fetchDietTypes, fetchMenuCategoriesAPI, getProductByRecipeAPI, updateProductByRecipeAPI } from '../../../utils/functions'
 
 // Ensure image paths work like in Menu.jsx
 const ensureImageUrl = (val) => {
@@ -34,6 +35,32 @@ export default function Recipes() {
   const [diet, setDiet] = useState('');
   const [category, setCategory] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [dietTypeList, setDietTypeList] = useState([]);
+  const [categoryList, setCategoryList] = useState([]);
+  const [adminForm, setAdminForm] = useState({
+    name: '',
+    description: '',
+    instructions: '',
+    diet_type_id: '',
+    category_id: '',
+    price: '',
+    calories: '',
+    servings: '',
+    picture: '',
+    stock: '',
+  });
+  const [adminIngredients, setAdminIngredients] = useState([]);
+  const [adminIngInput, setAdminIngInput] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [imgUploading, setImgUploading] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editUploading, setEditUploading] = useState(false);
+  const [priceInfo, setPriceInfo] = useState({ current: null, newPrice: '', discountPct: '' });
+  const [savingPrice, setSavingPrice] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +71,21 @@ export default function Recipes() {
         // Use public endpoints (not admin) to avoid 403
         const data = await fetchPublicRecipes();
         if (!cancelled) setRecipes(Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
+        // admin context and lists
+        try {
+          const user = await getSessionUser();
+          if (!cancelled) setIsAdmin(!!user && String(user.user_type).toLowerCase() === 'admin');
+        } catch {}
+        try {
+          const [diets, cats] = await Promise.all([
+            fetchDietTypes().catch(()=>[]),
+            fetchMenuCategoriesAPI().catch(()=>[]),
+          ]);
+          if (!cancelled) {
+            setDietTypeList(Array.isArray(diets) ? diets : []);
+            setCategoryList(Array.isArray(cats) ? cats.map(c => ({ id: c.id, name: c.name })) : []);
+          }
+        } catch {}
       } catch (e) {
         if (!cancelled) setError(e.message || 'שגיאה');
       } finally {
@@ -177,6 +219,11 @@ export default function Recipes() {
     <>
     <div>
       <h1>מתכונים</h1>
+      {isAdmin && (
+        <div style={{ marginBottom: 10 }}>
+          <button className={styles.btn} onClick={() => setAdminModalOpen(true)}>הוסף מתכון</button>
+        </div>
+      )}
       {/* Filters */}
       <div className={styles.filters}>
         <input
@@ -295,9 +342,9 @@ export default function Recipes() {
 
       {openId && (
         <div className={styles.modalOverlay} onClick={() => { setOpenId(null); setSelected(null); }}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.modal} style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h3 className={styles.modalTitle}>{selected?.name || 'מתכון'}</h3>
+              <h3 className={styles.modalTitle}>{editMode ? 'עריכת מתכון' : (selected?.name || 'מתכון')}</h3>
               <button className={styles.closeBtn} onClick={() => { setOpenId(null); setSelected(null); setSearchParams({}); }}>×</button>
             </div>
             <div className={`${styles.modalBody} ${styles.rtl}`}>
@@ -305,17 +352,83 @@ export default function Recipes() {
                 <div>טוען...</div>
               ) : selected ? (
                 <div>
-                  {(() => {
-                    const img = ensureImageUrl(selected.picture || selected.imageUrl || selected.image);
-                    return img ? (
-                      <img src={img} alt={selected.name} className={styles.modalImg} />
-                    ) : null;
-                  })()}
-                  {selected.description && <p className={`${styles.mt12} ${styles.detailDesc}`}>{selected.description}</p>}
+                  {!editMode ? (
+                    <>
+                      {(() => {
+                        const img = ensureImageUrl(selected.picture || selected.imageUrl || selected.image);
+                        return img ? (
+                          <img src={img} alt={selected.name} className={styles.modalImg} />
+                        ) : null;
+                      })()}
+                      {selected.description && <p className={`${styles.mt12} ${styles.detailDesc}`}>{selected.description}</p>}
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        <label className={styles.btn} style={{ cursor:'pointer' }}>
+                          העלה תמונה
+                          <input type="file" accept="image/*" style={{ display:'none' }} onChange={async (e)=>{
+                            const file = e.target.files && e.target.files[0];
+                            if (!file) return;
+                            try {
+                              setEditUploading(true);
+                              const fd = new FormData();
+                              fd.append('image', file);
+                              const resp = await fetch('http://localhost:3000/api/admin/recipes/upload-image', { method:'POST', credentials:'include', body: fd });
+                              const ok = resp.ok; const data = await resp.json().catch(()=>({}));
+                              if (!ok) throw new Error(data?.message || 'העלאת תמונה נכשלה');
+                              setEditForm(f => ({ ...f, picture: data?.path || f.picture }));
+                            } catch (er) {
+                              showToast(er.message || 'העלאת תמונה נכשלה');
+                            } finally { setEditUploading(false); }
+                          }} />
+                        </label>
+                        {editUploading && <span style={{ color:'#6b7280' }}>מעלה...</span>}
+                        {editForm?.picture && (
+                          <img src={ensureImageUrl(editForm.picture)} alt="preview" style={{ height:48, borderRadius:6, border:'1px solid #e5e7eb' }} />
+                        )}
+                      </div>
+                      <label style={{ display:'block', marginTop:8 }}>שם
+                        <input className={styles.search} value={editForm?.name || ''} onChange={e=>setEditForm(f=>({...f, name: e.target.value}))} />
+                      </label>
+                      <label style={{ display:'block', marginTop:8 }}>תיאור
+                        <textarea className={styles.textarea} value={editForm?.description || ''} onChange={e=>setEditForm(f=>({...f, description: e.target.value}))} />
+                      </label>
+                    </>
+                  )}
                   <div className={styles.metaRow}>
-                    {selected.calories != null && <span className={styles.calories}>{selected.calories} קלוריות</span>}
-                    {(selected.diet_type || selected.diet_name) && <span>דיאטה: {selected.diet_type || selected.diet_name}</span>}
-                    {(selected.category || selected.category_name) && <span>קטגוריה: {selected.category || selected.category_name}</span>}
+                    {!editMode ? (
+                      <>
+                        {selected.calories != null && <span className={styles.calories}>{selected.calories} קלוריות</span>}
+                        {(selected.diet_type || selected.diet_name) && <span>דיאטה: {selected.diet_type || selected.diet_name}</span>}
+                        {(selected.category || selected.category_name) && <span>קטגוריה: {selected.category || selected.category_name}</span>}
+                      </>
+                    ) : (
+                      <div style={{ display:'flex', gap:8, flexWrap:'wrap', width:'100%' }}>
+                        <label>קלוריות
+                          <input className={styles.search} inputMode="numeric" value={editForm?.calories ?? ''} onChange={e=>setEditForm(f=>({...f, calories: e.target.value.replace(/[^0-9]/g,'')}))} />
+                        </label>
+                        <label>מנות
+                          <input className={styles.search} inputMode="numeric" value={editForm?.servings ?? ''} onChange={e=>setEditForm(f=>({...f, servings: e.target.value.replace(/[^0-9]/g,'')}))} />
+                        </label>
+                        <label>סוג דיאטה
+                          <select className={styles.select} value={editForm?.diet_type_id ?? ''} onChange={e=>setEditForm(f=>({...f, diet_type_id: e.target.value}))}>
+                            <option value="">בחר</option>
+                            {dietTypeList.map(dt => (
+                              <option key={dt.diet_id||dt.id} value={dt.diet_id||dt.id}>{dt.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>קטגוריה
+                          <select className={styles.select} value={editForm?.category_id ?? ''} onChange={e=>setEditForm(f=>({...f, category_id: e.target.value}))}>
+                            <option value="">בחר</option>
+                            {categoryList.map(c => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    )}
                   </div>
 
                   {/* Ratings */}
@@ -355,7 +468,7 @@ export default function Recipes() {
                     </span>
                   </div>
 
-                  {(() => {
+                  {!editMode && (() => {
                     // Build ingredients array from string/array
                     let ingredientsArr = [];
                     if (Array.isArray(selected.ingredients)) {
@@ -409,13 +522,281 @@ export default function Recipes() {
               )}
             </div>
             <div className={styles.modalFooter}>
-              <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => { setOpenId(null); setSelected(null); setSearchParams({}); }}>סגור</button>
+              {isAdmin && !editMode && (
+                <button className={styles.btn} onClick={()=>{
+                  setEditMode(true);
+                  // derive IDs from names if missing
+                  const dietName = selected.diet_type || selected.diet_name || '';
+                  const catName = selected.category || selected.category_name || '';
+                  const dietMatch = dietTypeList.find(dt => String(dt.name).toLowerCase() === String(dietName).toLowerCase());
+                  const catMatch = categoryList.find(c => String(c.name).toLowerCase() === String(catName).toLowerCase());
+                  setEditForm({
+                    id: selected.id || selected.recipe_id,
+                    name: selected.name || '',
+                    description: selected.description || '',
+                    instructions: selected.instructions || '',
+                    calories: selected.calories ?? '',
+                    servings: selected.servings ?? '',
+                    diet_type_id: selected.diet_type_id || dietMatch?.diet_id || dietMatch?.id || '',
+                    category_id: selected.category_id || catMatch?.id || '',
+                    picture: selected.picture || selected.imageUrl || selected.image || '',
+                  });
+                  // fetch product price for this recipe
+                  (async ()=>{
+                    try {
+                      const rid = selected.id || selected.recipe_id;
+                      const p = await getProductByRecipeAPI(rid);
+                      setPriceInfo({ current: Number(p?.price ?? 0), newPrice: '', discountPct: '' });
+                    } catch (_) {
+                      // Fallback: fetch menu list and find by recipe_id
+                      try {
+                        const { data } = await axios.get('/api/menu');
+                        const items = Array.isArray(data?.items) ? data.items : [];
+                        const rid = selected.id || selected.recipe_id;
+                        const found = items.find(it => Number(it.recipe_id) === Number(rid));
+                        if (found && found.price != null) {
+                          setPriceInfo({ current: Number(found.price), newPrice: '', discountPct: '' });
+                        } else {
+                          setPriceInfo({ current: null, newPrice: '', discountPct: '' });
+                        }
+                      } catch {
+                        setPriceInfo({ current: null, newPrice: '', discountPct: '' });
+                      }
+                    }
+                  })();
+                }}>עדכן</button>
+              )}
+              {isAdmin && editMode && (
+                <>
+                  <button className={styles.btn} onClick={async ()=>{
+                    try{
+                      const rid = editForm.id;
+                      const body = {
+                        name: editForm.name,
+                        description: editForm.description,
+                        instructions: editForm.instructions,
+                        calories: editForm.calories ? Number(editForm.calories) : null,
+                        servings: editForm.servings ? Number(editForm.servings) : null,
+                        diet_type_id: editForm.diet_type_id || null,
+                        category_id: editForm.category_id || null,
+                        picture: editForm.picture || '',
+                      };
+                      const resp = await fetch(`http://localhost:3000/api/admin/recipes/${rid}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+                      if (!resp.ok) { const j = await resp.json().catch(()=>({})); throw new Error(j?.message || 'שמירה נכשלה'); }
+                      // refresh selected details
+                      const full = await fetchPublicRecipe(rid);
+                      setSelected(full?.item || full);
+                      showToast('נשמר בהצלחה');
+                      setEditMode(false);
+                    }catch(e){ showToast(e.message || 'שמירה נכשלה'); }
+                  }}>שמור</button>
+                  <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=>{ setEditMode(false); }}>בטל</button>
+                </>
+              )}
+              {isAdmin && editMode && (
+                <div style={{ display:'flex', flexDirection:'column', gap:8, marginInlineStart:'auto' }}>
+                  <div style={{ color:'#6b7280', fontSize:12 }}>מחיר נוכחי: {priceInfo.current != null ? `${priceInfo.current}₪` : '—'}</div>
+                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                    <input
+                      className={styles.search}
+                      placeholder="מחיר חדש ₪"
+                      inputMode="decimal"
+                      value={priceInfo.newPrice}
+                      onChange={(e)=> setPriceInfo(pi=>({ ...pi, newPrice: e.target.value.replace(/[^0-9.]/g,'') }))}
+                      style={{ width: 130 }}
+                    />
+                    <input
+                      className={styles.search}
+                      placeholder="הנחה %"
+                      inputMode="numeric"
+                      value={priceInfo.discountPct}
+                      onChange={(e)=> setPriceInfo(pi=>({ ...pi, discountPct: e.target.value.replace(/[^0-9]/g,'') }))}
+                      style={{ width: 110 }}
+                    />
+                    <button
+                      className={styles.btn}
+                      disabled={savingPrice || (priceInfo.newPrice === '' && (priceInfo.discountPct === '' || priceInfo.current == null))}
+                      onClick={async ()=>{
+                        try {
+                          setSavingPrice(true);
+                          const rid = editForm.id;
+                          let priceToApply = null;
+                          if (priceInfo.newPrice !== '') {
+                            // clamp to 2 decimals
+                            priceToApply = Math.round(Number(priceInfo.newPrice) * 100) / 100;
+                          } else if (priceInfo.discountPct !== '' && priceInfo.current != null) {
+                            const pct = Number(priceInfo.discountPct);
+                            // Reduce by percent: price * (1 - pct/100)
+                            priceToApply = Number(priceInfo.current) * (1 - (pct/100));
+                            priceToApply = Math.round(priceToApply * 100) / 100;
+                          }
+                          if (priceToApply == null || isNaN(priceToApply)) return;
+                          if (priceToApply <= 0) priceToApply = 0.01;
+                          await updateProductByRecipeAPI(rid, { price: priceToApply });
+                          setPriceInfo(pi=>({ ...pi, current: priceToApply }));
+                          showToast('המחיר עודכן');
+                        } catch (e) {
+                          showToast(e?.message || 'עדכון מחיר נכשל');
+                        } finally {
+                          setSavingPrice(false);
+                        }
+                      }}
+                    >עדכן מחיר</button>
+                  </div>
+                </div>
+              )}
+              {!editMode && (
+                <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => { setOpenId(null); setSelected(null); setSearchParams({}); }}>סגור</button>
+              )}
             </div>
           </div>
         </div>
       )}
 
     </div>
+    {adminModalOpen && (
+      <div className={styles.modalOverlay} onClick={() => setAdminModalOpen(false)}>
+        <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.modalHeader}>
+            <h3 className={styles.modalTitle}>הוסף מתכון</h3>
+            <button className={styles.closeBtn} onClick={() => setAdminModalOpen(false)}>×</button>
+          </div>
+          <div className={styles.modalBody}>
+            <div className={styles.rtl} style={{ display:'grid', gap:10 }}>
+              <label>שם
+                <input className={styles.search} value={adminForm.name} onChange={e=>setAdminForm(f=>({...f, name: e.target.value}))} />
+                {errors.name && <div style={{ color:'#b91c1c', fontSize:12 }}>{errors.name}</div>}
+              </label>
+              <label>תיאור
+                <textarea className={styles.textarea} value={adminForm.description} onChange={e=>setAdminForm(f=>({...f, description: e.target.value}))} />
+              </label>
+              <label>הוראות הכנה
+                <textarea className={styles.textarea} value={adminForm.instructions} onChange={e=>setAdminForm(f=>({...f, instructions: e.target.value}))} />
+              </label>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                <label>תמונה (אופציונלי)
+                  <input type="file" accept="image/*" onChange={async (e)=>{
+                    const file = e.target.files && e.target.files[0];
+                    if (!file) return;
+                    try {
+                      setImgUploading(true);
+                      const fd = new FormData();
+                      fd.append('image', file);
+                      const resp = await fetch('/api/admin/recipes/upload-image', { method:'POST', credentials:'include', body: fd });
+                      if (!resp.ok) { const j = await resp.json().catch(()=>({})); throw new Error(j?.message || 'העלאת תמונה נכשלה'); }
+                      const data = await resp.json();
+                      setAdminForm(f => ({ ...f, picture: data?.path || '' }));
+                    } catch (er) {
+                      showToast(er.message || 'העלאת תמונה נכשלה');
+                    } finally {
+                      setImgUploading(false);
+                    }
+                  }} />
+                </label>
+                {imgUploading && <span style={{ alignSelf:'center', color:'#6b7280' }}>מעלה...</span>}
+                {adminForm.picture && (
+                  <img src={`http://localhost:3000/${adminForm.picture}`} alt="preview" style={{ height:48, borderRadius:6, border:'1px solid #e5e7eb' }} />
+                )}
+              </div>
+              <div>
+                <label>מרכיבים</label>
+                <div style={{ display:'flex', gap:6, marginTop:4 }}>
+                  <input className={styles.search} placeholder="הוספת מרכיב" value={adminIngInput} onChange={e=>setAdminIngInput(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); if(adminIngInput.trim()){ setAdminIngredients(a=>[...a, adminIngInput.trim()]); setAdminIngInput(''); } } }} />
+                  <button type="button" className={styles.btn} onClick={()=>{ if(adminIngInput.trim()){ setAdminIngredients(a=>[...a, adminIngInput.trim()]); setAdminIngInput(''); } }}>הוסף</button>
+                </div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                  {adminIngredients.map((ing, idx)=>(
+                    <span key={idx} style={{ background:'#eef0f3', padding:'4px 8px', borderRadius:9999 }}>
+                      {ing}
+                      <button type="button" onClick={()=>setAdminIngredients(arr=>arr.filter((_,i)=>i!==idx))} style={{ border:'none', background:'transparent', marginInlineStart:6, cursor:'pointer' }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                <label>סוג דיאטה
+                  <select className={styles.select} value={adminForm.diet_type_id} onChange={e=>setAdminForm(f=>({...f, diet_type_id: e.target.value}))}>
+                    <option value="">בחר</option>
+                    {dietTypeList.map(dt => (
+                      <option key={dt.diet_id||dt.id} value={dt.diet_id||dt.id}>{dt.name}</option>
+                    ))}
+                  </select>
+                  {errors.diet_type_id && <div style={{ color:'#b91c1c', fontSize:12 }}>{errors.diet_type_id}</div>}
+                </label>
+                <label>קטגוריה
+                  <select className={styles.select} value={adminForm.category_id} onChange={e=>setAdminForm(f=>({...f, category_id: e.target.value}))}>
+                    <option value="">בחר</option>
+                    {categoryList.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  {errors.category_id && <div style={{ color:'#b91c1c', fontSize:12 }}>{errors.category_id}</div>}
+                </label>
+                <label>מחיר
+                  <input className={styles.search} inputMode="decimal" value={adminForm.price} onChange={e=>setAdminForm(f=>({...f, price: e.target.value.replace(/[^0-9.]/g,'')}))} />
+                  {errors.price && <div style={{ color:'#b91c1c', fontSize:12 }}>{errors.price}</div>}
+                </label>
+                <label>קלוריות
+                  <input className={styles.search} inputMode="numeric" value={adminForm.calories} onChange={e=>setAdminForm(f=>({...f, calories: e.target.value.replace(/[^0-9]/g,'')}))} />
+                </label>
+                <label>מנות
+                  <input className={styles.search} inputMode="numeric" value={adminForm.servings} onChange={e=>setAdminForm(f=>({...f, servings: e.target.value.replace(/[^0-9]/g,'')}))} />
+                </label>
+                <label>מלאי התחלתי
+                  <input className={styles.search} inputMode="numeric" value={adminForm.stock} onChange={e=>setAdminForm(f=>({...f, stock: e.target.value.replace(/[^0-9]/g,'')}))} />
+                </label>
+              </div>
+            </div>
+          </div>
+          <div className={styles.modalFooter}>
+            <button className={styles.btn} onClick={async ()=>{
+              try{
+                setSubmitting(true);
+                // validations
+                const errs = {};
+                if (!adminForm.name.trim()) errs.name = 'נדרש שם';
+                if (!adminForm.price || isNaN(Number(adminForm.price))) errs.price = 'נדרש מחיר תקין';
+                if (!adminForm.diet_type_id) errs.diet_type_id = 'בחר סוג דיאטה';
+                if (!adminForm.category_id) errs.category_id = 'בחר קטגוריה';
+                setErrors(errs);
+                if (Object.keys(errs).length) { setSubmitting(false); showToast('יש למלא את כל השדות הנדרשים'); return; }
+                const body = {
+                  name: adminForm.name,
+                  description: adminForm.description,
+                  instructions: adminForm.instructions,
+                  diet_type_id: adminForm.diet_type_id || null,
+                  category_id: adminForm.category_id || null,
+                  price: adminForm.price ? Number(adminForm.price) : null,
+                  ingredients: adminIngredients,
+                  calories: adminForm.calories ? Number(adminForm.calories) : null,
+                  servings: adminForm.servings ? Number(adminForm.servings) : null,
+                  picture: adminForm.picture || '',
+                  stock: adminForm.stock ? Number(adminForm.stock) : 0,
+                };
+                const resp = await fetch('http://localhost:3000/api/admin/recipes/full_create', {
+                  method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+                });
+                if(!resp.ok){ const j = await resp.json().catch(()=>({})); throw new Error(j?.message || 'שגיאה ביצירה'); }
+                // refresh recipes list
+                const fresh = await fetchPublicRecipes();
+                setRecipes(Array.isArray(fresh?.items) ? fresh.items : (Array.isArray(fresh) ? fresh : []));
+                setAdminModalOpen(false);
+                setAdminForm({ name:'', description:'', instructions:'', diet_type_id:'', category_id:'', price:'', calories:'', servings:'', picture:'', stock:'' });
+                setAdminIngredients([]);
+                setErrors({});
+                showToast('נוצר בהצלחה');
+              }catch(e){
+                console.error(e);
+                showToast(e.message || 'שגיאה ביצירה');
+              } finally { setSubmitting(false); }
+            }} disabled={submitting}>
+              {submitting ? 'שומר…' : 'שמור'}
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=>setAdminModalOpen(false)}>בטל</button>
+          </div>
+        </div>
+      </div>
+    )}
     {toast && (
       <div style={{ position:'fixed', bottom:16, insetInlineEnd:16, background:'#111827', color:'#fff', padding:'10px 14px', borderRadius:8, boxShadow:'0 6px 12px rgba(0,0,0,0.2)', zIndex:1000 }}>
         {toast}

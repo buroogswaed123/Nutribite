@@ -317,7 +317,6 @@ try {
 }
 
 // Serve uploaded files (profile images, etc.)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Basic Routes
 app.get('/', (req, res) => {

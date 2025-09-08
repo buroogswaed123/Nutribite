@@ -191,10 +191,6 @@ export default function Menu() {
   }
 
   // Admin action handlers (stubs)
-  const onAdd = () => {
-    // TODO: open add dialog or navigate to admin add page
-    alert('Add recipe - to be implemented')
-  }
   const onEdit = (recipe) => {
     alert(`Edit recipe ${recipe?.recipe_id} - to be implemented`)
   }
@@ -298,15 +294,12 @@ export default function Menu() {
         </div>
 
         {isAdmin && (
-          <>
-            <div style={{display:'flex', alignItems:'center', gap:8}}>
-              <label>מלאי מ-</label>
-              <input type="number" value={stockMin} onChange={(e)=>setStockMin(onlyDigits(e.target.value))} style={{width:80}}/>
-              <label>עד</label>
-              <input type="number" value={stockMax} onChange={(e)=>setStockMax(onlyDigits(e.target.value))} style={{width:80}}/>
-            </div>
-            <button className={styles.btn} onClick={onAdd}>הוסף מתכון</button>
-          </>
+          <div style={{display:'flex', alignItems:'center', gap:8}}>
+            <label>מלאי מ-</label>
+            <input type="number" value={stockMin} onChange={(e)=>setStockMin(onlyDigits(e.target.value))} style={{width:80}}/>
+            <label>עד</label>
+            <input type="number" value={stockMax} onChange={(e)=>setStockMax(onlyDigits(e.target.value))} style={{width:80}}/>
+          </div>
         )}
       </div>
 

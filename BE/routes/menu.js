@@ -18,6 +18,38 @@ function query(sql, params = []) {
         if (err) return reject(err);
         resolve(results);
       });
+
+// GET /api/menu/by-recipe/:recipeId
+// Returns the product row joined with recipe info for a given recipe_id
+router.get('/by-recipe/:recipeId(\\d+)', async (req, res) => {
+  try {
+    const recipeId = Number(req.params.recipeId);
+    if (!Number.isFinite(recipeId)) return res.status(400).json({ message: 'Invalid recipe id' });
+    const sql = `
+      SELECT 
+        p.product_id,
+        p.recipe_id,
+        p.price,
+        p.stock,
+        r.name,
+        r.picture,
+        r.calories,
+        r.diet_type_id,
+        r.category_id
+      FROM products p
+      INNER JOIN recipes r ON r.recipe_id = p.recipe_id
+      WHERE p.recipe_id = ? AND r.deleted_at IS NULL
+      ORDER BY p.product_id DESC
+      LIMIT 1
+    `;
+    const rows = await query(sql, [recipeId]);
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Product not found for recipe' });
+    return res.json(rows[0]);
+  } catch (err) {
+    console.error('PUBLIC MENU BY-RECIPE ERROR:', err);
+    return res.status(500).json({ message: 'Error fetching product', error: err.message });
+  }
+});
     });
   }
   throw new Error('Unsupported DB client on connection');

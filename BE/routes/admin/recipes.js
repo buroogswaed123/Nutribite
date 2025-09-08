@@ -2,6 +2,9 @@
 
 const express = require('express');
 const db = require('../../dbSingleton');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const router = express.Router();
 
 // DB helper returning rows[] consistently
@@ -22,9 +25,63 @@ function query(sql, params = []) {
   throw new Error('Unsupported DB client on connection');
 }
 
+// PATCH /api/admin/recipes/:id/product
+// Update product price/stock by recipe_id (admin utility from modal)
+router.patch('/:id/product', async (req, res) => {
+  try {
+    const recipeId = Number(req.params.id);
+    if (!Number.isFinite(recipeId)) return res.status(400).json({ message: 'Invalid recipe id' });
+    const { price, stock } = req.body || {};
+    const sets = [];
+    const params = [];
+    if (price != null) { sets.push('price = ?'); params.push(Number(price)); }
+    if (stock != null) { sets.push('stock = ?'); params.push(Number(stock)); }
+    if (sets.length === 0) return res.status(400).json({ message: 'No fields to update' });
+    params.push(recipeId);
+    const sql = `UPDATE products SET ${sets.join(', ')} WHERE recipe_id = ?`;
+    const [result] = await conn.promise().query(sql, params);
+    return res.json({ success: true, affected: result?.affectedRows || 0 });
+  } catch (err) {
+    console.error('ADMIN UPDATE PRODUCT ERROR:', err);
+    return res.status(500).json({ message: 'Failed to update product', error: err.message });
+  }
+});
+
 /// admin recipes router ///
 
 
+
+// Ensure upload route is registered once at top-level
+if (!router._uploadConfigured) {
+  // Configure multer storage under backend /uploads directory
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch {}
+  }
+  const storage = multer.diskStorage({
+    destination: function (req, file, cb) { cb(null, uploadsDir); },
+    filename: function (req, file, cb) {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      const safe = String(path.basename(file.originalname || 'image', ext)).replace(/[^a-z0-9_\-]+/gi, '_');
+      cb(null, `${Date.now()}_${safe}${ext}`);
+    }
+  });
+  const upload = multer({ storage });
+
+  // POST /api/admin/recipes/upload-image
+  router.post('/upload-image', upload.single('image'), (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+      const relPath = `uploads/${req.file.filename}`;
+      const url = `http://localhost:3000/${relPath}`;
+      return res.status(201).json({ filename: req.file.filename, path: relPath, url });
+    } catch (err) {
+      console.error('UPLOAD IMAGE ERROR:', err);
+      return res.status(500).json({ message: 'Failed to upload image', error: err.message });
+    }
+  });
+  router._uploadConfigured = true;
+}
 
 // GET /api/admin/recipes
 // get all recipes
@@ -206,3 +263,96 @@ router.post('/:id/restore', async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /api/admin/recipes/full_create
+// Create recipe + product + map components by ingredient names (if provided)
+router.post('/full_create', async (req, res) => {
+  const {
+    name,
+    description,
+    calories,
+    servings,
+    ingredients, // array of strings or single string
+    instructions,
+    picture,
+    diet_type_id,
+    category_id,
+    price,
+    stock = 0,
+  } = req.body || {};
+
+  const tx = conn.promise();
+  try {
+    await tx.query('START TRANSACTION');
+
+    const ingArr = Array.isArray(ingredients)
+      ? ingredients.map(s => String(s || '').trim()).filter(Boolean)
+      : String(ingredients || '').split(/\r?\n|,\s*/).map(s => s.trim()).filter(Boolean);
+    const ingredientsStr = ingArr.join(', ');
+
+    // 1) Insert recipe
+    const [insRecipe] = await tx.query(
+      'INSERT INTO recipes (name, description, calories, servings, ingredients, instructions, picture, diet_type_id, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, description, calories, servings, ingredientsStr, instructions, picture, diet_type_id, category_id]
+    );
+    const recipeId = insRecipe.insertId;
+
+    // 2) Insert product linked to recipe
+    const priceNum = Number(price);
+    const stockNum = Number(stock) || 0;
+    await tx.query(
+      'INSERT INTO products (recipe_id, price, stock) VALUES (?, ?, ?)',
+      [recipeId, priceNum, stockNum]
+    );
+    // Optionally mirror selected fields into products if those columns exist in your schema
+    try {
+      await tx.query(
+        'UPDATE products SET name = ?, calories = ?, diet_type_id = ?, category_id = ? WHERE recipe_id = ?',
+        [name || null, (Number.isFinite(Number(calories)) ? Number(calories) : null), diet_type_id || null, category_id || null, recipeId]
+      );
+    } catch (e) {
+      // Silently ignore if columns don't exist; many schemas keep these only in recipes
+    }
+
+    // 3) Map ingredients to components (ensure components exist), link to product via product_contains_components
+    if (ingArr.length) {
+      // resolve product_id for this recipe (assuming 1:1 for now)
+      const [prodRows] = await tx.query('SELECT product_id FROM products WHERE recipe_id = ? ORDER BY product_id DESC LIMIT 1', [recipeId]);
+      const productId = prodRows && prodRows[0] ? prodRows[0].product_id : null;
+      if (productId) {
+        for (const compNameRaw of ingArr) {
+          const compName = String(compNameRaw).trim();
+          if (!compName) continue;
+          // Try find component by exact name
+          let compId = null;
+          try {
+            const [rows] = await tx.query('SELECT comp_id FROM components WHERE name = ? LIMIT 1', [compName]);
+            if (rows && rows[0] && rows[0].comp_id) compId = rows[0].comp_id;
+          } catch {}
+          // Insert if missing
+          if (!compId) {
+            try {
+              const [ins] = await tx.query('INSERT INTO components (name) VALUES (?)', [compName]);
+              compId = ins && ins.insertId ? ins.insertId : null;
+            } catch (e) {
+              // Race: another insert may have happened; re-select
+              const [rows2] = await tx.query('SELECT comp_id FROM components WHERE name = ? LIMIT 1', [compName]);
+              if (rows2 && rows2[0] && rows2[0].comp_id) compId = rows2[0].comp_id;
+            }
+          }
+          // Link component to product
+          if (compId) {
+            await tx.query('INSERT IGNORE INTO product_contains_components (product_id, comp_id) VALUES (?, ?)', [productId, compId]);
+          }
+        }
+      }
+    }
+
+    await tx.query('COMMIT');
+    return res.status(201).json({ recipe_id: recipeId });
+  } catch (err) {
+    try { await tx.query('ROLLBACK'); } catch {}
+    console.error('ADMIN FULL CREATE ERROR:', err);
+    return res.status(500).json({ message: 'Error creating recipe with product/components', error: err.message });
+  }
+});

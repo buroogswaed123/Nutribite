@@ -58,23 +58,97 @@ router.post('/:cust_id/allergies', (req, res) => {
     const compName = String(name).trim();
     const conn = getConn();
 
+    // Optional: group expansions (maps a group keyword to concrete component names)
+    const GROUPS = [
+      // Eggs
+      {
+        aliases: new Set([
+          'ביצה','ביצים','egg','eggs','yolk','egg yolk','egg white','albumen','חלמון','חלבון'
+        ]),
+        children: ['ביצה','חלמון','חלבון']
+      },
+      // Dairy
+      {
+        aliases: new Set(['מוצרי חלב','חלב','dairy','milk products','乳製品','לקטוז','גבינה','חמאה','יוגורט']),
+        children: ['חלב','גבינה','חמאה','יוגורט','לקטוז']
+      },
+      // Gluten / Wheat
+      {
+        aliases: new Set(['גלוטן','חיטה','gluten','wheat']),
+        children: ['גלוטן','חיטה']
+      },
+      // Peanuts
+      {
+        aliases: new Set(['בוטן','בוטנים','peanut','peanuts']),
+        children: ['בוטן','בוטנים']
+      },
+      // Tree nuts
+      {
+        aliases: new Set(['אגוזים','אגוז','nuts','nut','almond','walnut','cashew','hazelnut','pistachio','pecan','שקד','אגוז מלך','קשיו','לוז','פיסטוק','פקאן','שקדים']),
+        children: ['שקד','אגוז מלך','קשיו','לוז','פיסטוק','פקאן']
+      },
+      // Soy
+      {
+        aliases: new Set(['סויה','soy','soya']),
+        children: ['סויה']
+      },
+      // Sesame
+      {
+        aliases: new Set(['שומשום','sesame','טחינה','tahini']),
+        children: ['שומשום','טחינה']
+      },
+      // Fish
+      {
+        aliases: new Set(['דג','דגים','fish']),
+        children: ['דג','דגים']
+      },
+      // Seafood / Shellfish
+      {
+        aliases: new Set(['פירות ים','שרימפס','סרטנים','לובסטר','צדפות','mussel','clam','shrimp','prawn','crab','lobster','shellfish']),
+        children: ['פירות ים','שרימפס','סרטנים','לובסטר','צדפות']
+      },
+    ];
+
+    function matchGroup(input) {
+      const low = String(input).toLowerCase();
+      return GROUPS.find(g => Array.from(g.aliases).some(a => String(a).toLowerCase() === low));
+    }
+
     // Ensure a component exists for this name. Requires UNIQUE KEY on components.name for ideal behavior.
     const insertCompSql = `
       INSERT INTO components (name)
       VALUES (?)
       ON DUPLICATE KEY UPDATE comp_id = LAST_INSERT_ID(comp_id)
     `;
-    conn.query(insertCompSql, [compName], (compErr, compRes) => {
+    conn.query(insertCompSql, [compName], async (compErr, compRes) => {
       if (compErr) return sendError(res, compErr);
       const compId = compRes && compRes.insertId ? compRes.insertId : null;
       if (!compId) return sendError(res, new Error('Failed to resolve comp_id for allergy'));
 
       // Link customer to component (avoid duplicates)
       const linkSql = `INSERT IGNORE INTO customer_allergies (customer_id, comp_id) VALUES (?, ?)`;
-      conn.query(linkSql, [req.params.cust_id, compId], (linkErr, linkRes) => {
+      conn.query(linkSql, [req.params.cust_id, compId], async (linkErr, linkRes) => {
         if (linkErr) return sendError(res, linkErr);
+
+        // If compName matches a known group, also add all child components
+        const group = matchGroup(compName);
+        if (group && Array.isArray(group.children) && group.children.length) {
+          try {
+            for (const childName of group.children) {
+              // ensure child component exists
+              const [childIns] = await conn.promise().query(insertCompSql, [childName]);
+              const childId = childIns && childIns.insertId ? childIns.insertId : null;
+              if (childId) {
+                await conn.promise().query(linkSql, [req.params.cust_id, childId]);
+              }
+            }
+          } catch (e) {
+            console.error('Group expansion failed (non-fatal):', e?.message || e);
+          }
+        }
+
         const created = (linkRes && linkRes.affectedRows > 0);
-        return res.status(created ? 201 : 200).json({ comp_id: compId, name: compName });
+        return res.status(created ? 201 : 200).json({ comp_id: compId, name: compName, expanded: !!group });
       });
     });
   } catch (e) { sendError(res, e); }

@@ -327,6 +327,13 @@ export async function deletePlanProductAPI(planId, linkId) {
   return data;
 }
 
+// Renew a plan: sets start_date=today and end_date=today+7 on server
+export async function renewPlanAPI(planId) {
+  if (!planId) throw new Error('Missing planId');
+  const { data } = await axios.post(`/api/plan/${planId}/renew`);
+  return data;
+}
+
 // Eligible menu items for a given customer and optional diet type
 export async function fetchEligibleMenuAPI({ customer_id, dietType } = {}) {
   const params = {};

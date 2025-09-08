@@ -1,13 +1,28 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { renewPlanAPI, markNotificationReadAPI } from '../../utils/functions';
 import styles from './Notifications.module.css';
 
 export default function NotificationItem({ notification, onOpen, onDelete }) {
+  const navigate = useNavigate();
   if (!notification) return null;
-  const { id, computedTitle, title, description, is_read, status } = notification;
+  const { id, computedTitle, title, description, is_read, status, type, related_id } = notification;
   const displayTitle = (computedTitle || title || 'התראה');
   const subtitle = description || '';
   const isRead = is_read || status === 'read';
+
+  async function renewPlan(e) {
+    e.stopPropagation();
+    try {
+      if (related_id) await renewPlanAPI(related_id);
+      if (id) await markNotificationReadAPI(id);
+      // Soft close by simulating delete (panel parent usually refreshes after delete)
+      if (onDelete && id) onDelete(id);
+    } catch (err) {
+      console.error('Failed to renew plan from notification:', err);
+    }
+  }
 
   return (
     <div className={`${styles.item} ${isRead ? styles.readItem : ''}`} onClick={() => onOpen?.(notification)}>
@@ -19,6 +34,16 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
         {subtitle ? (
           <p className={styles.subtitle} title={subtitle}>{subtitle}</p>
         ) : null}
+        {type === 'plan' && (
+          <div className={styles.inlineActions} onClick={(e)=> e.stopPropagation()}>
+            <button className={styles.inlinePrimary} onClick={() => navigate('/plan-maker')}>
+              כן, חשב מחדש
+            </button>
+            <button className={styles.inlineSecondary} onClick={renewPlan}>
+              לא, חדש לשבוע
+            </button>
+          </div>
+        )}
       </div>
       <div className={styles.itemActions} onClick={(e) => e.stopPropagation()}>
         <button className={styles.trashBtn} aria-label="Delete notification" title="Delete"

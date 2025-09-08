@@ -14,6 +14,13 @@ function serverErr(res, err, msg = 'Internal error') {
   return res.status(500).json({ message: msg, error: err?.message || String(err) });
 }
 
+// Top-level helper: add days to a date/ISO string and return YYYY-MM-DD
+function addDays(dateOrIso, days) {
+  const d = new Date(dateOrIso);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 function pickPlanFields(body) {
   const fields = {
     customer_id: body.customer_id,
@@ -88,6 +95,34 @@ router.get('/', async (req, res) => {
       `,
       params
     );
+    // If a customer_id was provided, optionally enqueue a 'plan' notification if the latest plan ended
+    try {
+      if (customer_id && rows && rows.length > 0) {
+        const latest = rows[0];
+        const endIso = latest.end_date && latest.end_date.toISOString ? latest.end_date.toISOString().slice(0,10) : String(latest.end_date || '');
+        const todayIso = new Date().toISOString().slice(0,10);
+        if (endIso && endIso <= todayIso) {
+          // find user_id for this customer
+          const [[custRow]] = await conn.promise().query('SELECT user_id FROM customers WHERE cust_id = ? LIMIT 1', [Number(customer_id)]);
+          const userId = custRow && custRow.user_id;
+          if (userId) {
+            const [notifRows] = await conn.promise().query(
+              'SELECT notification_id FROM notifications WHERE user_id = ? AND type = ? AND related_id = ? LIMIT 1',
+              [userId, 'plan', latest.plan_id]
+            );
+            if (!notifRows || notifRows.length === 0) {
+              await conn.promise().query(
+                'INSERT INTO notifications (user_id, type, related_id, title, description) VALUES (?, ?, ?, ?, ?)',
+                [userId, 'plan', latest.plan_id, 'התוכנית הסתיימה', 'התוכנית השבועית הסתיימה. תרצה לחדש?']
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed creating plan renewal notification (non-fatal):', e?.message || e);
+    }
+
     return ok(res, rows);
   } catch (err) {
     return serverErr(res, err, 'Failed to list plans');
@@ -166,7 +201,8 @@ router.post('/', requireActiveUser, async (req, res) => {
     // Default start_date to today if not provided
     const todayIso = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     const startDate = data.start_date ?? todayIso;
-    const endDate = data.end_date ?? null;
+    // Default end_date to start_date + 7 days when not provided
+    const endDate = data.end_date ?? addDays(startDate, 7);
 
     const [result] = await conn.promise().query(
       `
@@ -237,6 +273,27 @@ router.delete('/:id', requireActiveUser, async (req, res) => {
     return ok(res, { success: true, deleted: id });
   } catch (err) {
     return serverErr(res, err, 'Failed to delete plan');
+  }
+});
+
+// POST /api/plan/:id/renew
+router.post('/:id/renew', requireActiveUser, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return bad(res, 'Invalid id');
+
+    const todayIso = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const endDate = addDays(todayIso, 7);
+
+    const [result] = await conn.promise().query(
+      `UPDATE nutritionplan SET start_date = ?, end_date = ? WHERE plan_id = ?`,
+      [todayIso, endDate, id]
+    );
+    if (result.affectedRows === 0) return notFound(res, 'Plan not found');
+
+    return ok(res, { success: true, plan_id: id });
+  } catch (err) {
+    return serverErr(res, err, 'Failed to renew plan');
   }
 });
 

@@ -216,6 +216,17 @@ export async function fetchPublicRecipeAPI(recipeId) {
   return data?.item || data;
 }
 
+// Ratings API
+export async function getRecipeRatingsAPI(recipeId) {
+  const { data } = await axios.get(`/api/recipes/${recipeId}/ratings`);
+  return data; // { avg, count, userStars }
+}
+
+export async function rateRecipeAPI(recipeId, stars) {
+  const { data } = await axios.post(`/api/recipes/${recipeId}/ratings`, { stars });
+  return data; // { avg, count, userStars }
+}
+
 // =============================
 // Admin user management helpers
 // =============================

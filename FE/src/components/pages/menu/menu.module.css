@@ -69,14 +69,16 @@
 
  .actions { margin-top: 8px; }
  .btn {
-   background: #10b981;
-   color: #fff;
-   border: none;
-   padding: 8px 12px;
-   border-radius: 8px;
-   cursor: pointer;
- }
- .btn:hover { background: #0ea371; }
+  background: linear-gradient(to right, #3b82f6, #2563eb);
+  color: #fff;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+.btn:hover { background: linear-gradient(to right, #2563eb, #1e40af); }
 
  .emptyBox {
    border: 1px dashed #cbd5e1;

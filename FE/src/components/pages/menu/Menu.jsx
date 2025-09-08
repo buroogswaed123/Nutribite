@@ -341,6 +341,21 @@ export default function Menu() {
               )}
               <h3 style={{margin:'0 0 6px 0', fontSize:16}}>{r.name}</h3>
               <p style={{margin:'0 0 8px 0', color:'#6b7280', fontSize:14}}>{r.description}</p>
+              {/* Read-only rating */}
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                <div style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                  {[1,2,3,4,5].map(n => {
+                    const avg = Number(r.rating_avg ?? 0)
+                    const active = Math.round(avg) >= n
+                    return (
+                      <span key={n} style={{ color: active ? '#f59e0b' : '#d1d5db', fontSize:16 }}>★</span>
+                    )
+                  })}
+                </div>
+                <span style={{ color:'#6b7280', fontSize:12 }}>
+                  {r.rating_avg != null ? Number(r.rating_avg).toFixed(1) : '—'}
+                </span>
+              </div>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                 <span className={styles.calories}>{r.calories} קלוריות</span>
               </div>
@@ -379,6 +394,21 @@ export default function Menu() {
                   <span>קלוריות: {selected.calories}</span>
                   {selected.diet_name && <span>דיאטה: {selected.diet_name}</span>}
                   {selected.category_name && <span>קטגוריה: {selected.category_name}</span>}
+                </div>
+                {/* Read-only rating in modal */}
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                    {[1,2,3,4,5].map(n => {
+                      const avg = Number(selected.rating_avg ?? 0)
+                      const active = Math.round(avg) >= n
+                      return (
+                        <span key={n} style={{ color: active ? '#f59e0b' : '#d1d5db', fontSize:18 }}>★</span>
+                      )
+                    })}
+                  </div>
+                  <span style={{ color:'#6b7280', fontSize:13 }}>
+                    {selected.rating_avg != null ? Number(selected.rating_avg).toFixed(1) : '—'}
+                  </span>
                 </div>
                 <div>מחיר: {selected.price != null ? `${selected.price}₪` : '—'}</div>
                 {isAdmin && (

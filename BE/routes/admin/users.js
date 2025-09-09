@@ -27,7 +27,8 @@ const pickUserFields = (u) => ({
   username: u.username,
   email: u.email,
   user_type: u.user_type,
-  profile_image: u.profile_image
+  profile_image: u.profile_image,
+  status: u.status || null,
 });
 
 // GET /api/admin/users
@@ -53,7 +54,7 @@ router.get('/', async (req, res) => {
     // combines the 2 previous conditions into one query and executes them at once
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const [rows] = await runQuery(
-      `SELECT user_id, username, email, user_type, profile_image
+      `SELECT user_id, username, email, user_type, profile_image, status
        FROM users
        ${where}
        ORDER BY user_id DESC`,
@@ -73,7 +74,7 @@ router.get('/:id', async (req, res) => {
   try {
     const userId = req.params.id;
     const [rows] = await runQuery(
-      'SELECT user_id, username, email, user_type, profile_image FROM users WHERE user_id = ? LIMIT 1',
+      'SELECT user_id, username, email, user_type, profile_image, status FROM users WHERE user_id = ? LIMIT 1',
       [userId]
     );
     const user = rows[0];
@@ -152,6 +153,46 @@ router.post('/:id/unban', async (req, res) => {
   } catch (err) {
     console.error('ADMIN USERS UNBAN ERROR:', err);
     return res.status(500).json({ message: 'Error unbanning user', error: err.message });
+  }
+});
+
+// DELETE /api/admin/users/:id
+// Soft-delete a user by setting status = 'deleted'.
+// If an admin deletes their own account, end their session.
+router.delete('/:id', async (req, res) => {
+  try {
+    const targetUserId = req.params.id;
+    const [result] = await runQuery(
+      `UPDATE users SET status = 'deleted' WHERE user_id = ?`,
+      [targetUserId]
+    );
+
+    // If deleting own account, destroy session
+    const adminId = (req.session && req.session.user_id) || null;
+    if (req.session && String(targetUserId) === String(adminId)) {
+      await new Promise((resolve) => req.session.destroy(() => resolve()));
+    }
+
+    return res.json({ ok: true, affectedRows: result?.affectedRows || 0 });
+  } catch (err) {
+    console.error('ADMIN USERS DELETE ERROR:', err);
+    return res.status(500).json({ message: 'Error deleting user', error: err.message });
+  }
+});
+
+// POST /api/admin/users/:id/restore
+// Restore a soft-deleted user (set status back to 'active')
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const targetUserId = req.params.id;
+    const [result] = await runQuery(
+      `UPDATE users SET status = 'active' WHERE user_id = ? AND status = 'deleted'`,
+      [targetUserId]
+    );
+    return res.json({ ok: true, affectedRows: result?.affectedRows || 0 });
+  } catch (err) {
+    console.error('ADMIN USERS RESTORE ERROR:', err);
+    return res.status(500).json({ message: 'Error restoring user', error: err.message });
   }
 });
 

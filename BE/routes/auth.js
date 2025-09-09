@@ -138,6 +138,12 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'Account is banned' });
     }
 
+    // Block soft-deleted accounts with a clear message
+    const isDeleted = user.status && String(user.status).toLowerCase() === 'deleted';
+    if (isDeleted) {
+      return res.status(403).json({ message: 'Account deleted. Please contact support if this is unexpected.' });
+    }
+
     if (!req.session) {
       console.error('Session not configured!');
       return res.status(500).json({ message: 'Session not configured' });

@@ -349,6 +349,13 @@ export async function deleteUserAPI(userId) {
   return data;
 }
 
+// Restore a soft-deleted user
+export async function adminRestoreUserAPI(userId) {
+  if (!userId) throw new Error('Missing userId');
+  const { data } = await axios.post(`/api/admin/users/${userId}/restore`);
+  return data;
+}
+
 //for calorie calculator
 const activityMultipliers = {
   עצמוני: 1.2,

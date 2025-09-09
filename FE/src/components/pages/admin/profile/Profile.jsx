@@ -178,33 +178,15 @@ export default function Profile() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
               className={styles.iconCircleBtn}
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate('/adminhome')}
               aria-label="חזרה"
               title="חזרה"
             >
               <ArrowLeft size={18} />
             </button>
-            <Link to="/admin" className={headerStyles.logo}>
+            <Link to="/adminhome" className={headerStyles.logo}>
               <span className={headerStyles.brand}>Nutribite</span>
             </Link>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              className={styles.saveBtn}
-              onClick={() => {
-                // TODO: Implement save all profile data
-                console.log('Saving all profile data:', profileData);
-                alert('פרטי הפרופיל נשמרו בהצלחה!');
-              }}
-            >
-              Save
-            </button>
-            <button
-              className={styles.backBtn}
-              onClick={() => window.history.back()}
-            >
-              Back
-            </button>
           </div>
         </div>
       </div>

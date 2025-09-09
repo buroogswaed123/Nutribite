@@ -14,7 +14,7 @@
 }
 
 .headerRight {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .avatarContainer {

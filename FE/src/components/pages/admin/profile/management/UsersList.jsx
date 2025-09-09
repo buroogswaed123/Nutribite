@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import styles from './users.module.css'
 import { useAuth } from '../../../../../hooks/useAuth';
 import { ArrowUpDown, X } from 'lucide-react';
-import { getSessionUser } from '../../../../../utils/functions';
+import { getSessionUser, adminRestoreUserAPI } from '../../../../../utils/functions';
 
 export default function UsersList() {
     const [recentUsers, setRecentUsers] = useState([]);
@@ -23,6 +23,13 @@ export default function UsersList() {
   const [savingBan, setSavingBan] = useState(false);
   const [banDescription, setBanDescription] = useState('');
   const [adminId, setAdminId] = useState(null);
+
+  // Derive status flags for the currently selected user (for modal button logic)
+  const selectedStatus = selectedUser
+    ? String(selectedUser.status ?? (selectedUser.is_banned ? 'banned' : 'active')).toLowerCase()
+    : null;
+  const isSelectedDeleted = selectedStatus === 'deleted';
+  const isSelectedBanned = selectedStatus === 'banned';
 
   const addToast = (type, message) => {
     const id = Date.now() + Math.random();
@@ -78,7 +85,9 @@ export default function UsersList() {
 
   const filteredAndSorted = () => {
     const q = query.trim().toLowerCase();
+    // Exclude the currently logged-in admin (me)
     let list = recentUsers.filter(u => {
+      if (adminId && Number(u.user_id) === Number(adminId)) return false;
       if (!q) return true;
       return (
         String(u.username || '').toLowerCase().includes(q) ||
@@ -200,7 +209,9 @@ export default function UsersList() {
                   <X size={18} />
                 </button>
               </div>
+
               <div className={styles.modalBody}>
+                {/* User info rows */}
                 <div className={styles.infoRow}>
                   <span className={styles.infoLabel}>שם משתמש:</span>
                   <span className={styles.infoValue}>{selectedUser.username}</span>
@@ -211,16 +222,17 @@ export default function UsersList() {
                 </div>
                 <div className={styles.infoRow}>
                   <span className={styles.infoLabel}>תאריך הצטרפות:</span>
-                  <span className={styles.infoValue}>{new Date(selectedUser.created_at).toLocaleDateString('he-IL')}</span>
+                  <span className={styles.infoValue}>{selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString('he-IL') : '—'}</span>
                 </div>
                 <div className={styles.infoRow}>
-                  <span className={styles.infoLabel}>סטטוס:</span>
+                  <span className={styles.infoLabel}>סטטוס חיבור:</span>
                   <span className={`${styles.statusLabel} ${selectedUser.is_online ? styles.active : styles.inactive}`}>
                     {selectedUser.is_online ? 'מחובר' : 'לא מחובר'}
                   </span>
                 </div>
 
-                <div className={styles.actionsBlock}>
+                {/* Role change (hidden if deleted) */}
+                {!isSelectedDeleted && (
                   <div className={styles.fieldGroup}>
                     <label className={styles.infoLabel} htmlFor="roleSelect">תפקיד:</label>
                     <select
@@ -242,133 +254,155 @@ export default function UsersList() {
                       <option value="courier">שליח</option>
                     </select>
                   </div>
+                )}
 
-                  {pendingRole && (
-                    <div className={styles.confirmBar}>
-                      <span className={styles.confirmText}>לאשר שינוי תפקיד ל- {pendingRole}?</span>
-                      <div className={styles.confirmActions}>
-                        <button
-                          className={styles.confirmBtn}
-                          disabled={savingRole}
-                          onClick={async () => {
-                            try {
-                              setSavingRole(true);
-                              await updateUserRole(selectedUser.user_id, pendingRole);
-                              setSelectedUser((prev) => ({ ...prev, user_type: pendingRole }));
-                              setRecentUsers((list) => list.map(u => u.user_id === selectedUser.user_id ? { ...u, user_type: pendingRole } : u));
-                              addToast('success', 'התפקיד עודכן בהצלחה');
-                              setPendingRole(null);
-                            } catch (err) {
-                              console.error('Failed to update role', err);
-                              addToast('error', 'עדכון התפקיד נכשל');
-                            } finally {
-                              setSavingRole(false);
-                            }
-                          }}
-                        >
-                          אשר
-                        </button>
-                        <button
-                          className={styles.cancelBtn}
-                          disabled={savingRole}
-                          onClick={() => setPendingRole(null)}
-                        >
-                          ביטול
-                        </button>
-                      </div>
+                {pendingRole && !isSelectedDeleted && (
+                  <div className={styles.confirmBar}>
+                    <span className={styles.confirmText}>לאשר שינוי תפקיד ל- {pendingRole}?</span>
+                    <div className={styles.confirmActions}>
+                      <button
+                        className={styles.confirmBtn}
+                        disabled={savingRole}
+                        onClick={async () => {
+                          try {
+                            setSavingRole(true);
+                            await updateUserRole(selectedUser.user_id, pendingRole);
+                            setSelectedUser((prev) => ({ ...prev, user_type: pendingRole }));
+                            setRecentUsers((list) => list.map(u => u.user_id === selectedUser.user_id ? { ...u, user_type: pendingRole } : u));
+                            addToast('success', 'התפקיד עודכן בהצלחה');
+                            setPendingRole(null);
+                          } catch (err) {
+                            console.error('Failed to update role', err);
+                            addToast('error', 'עדכון התפקיד נכשל');
+                          } finally {
+                            setSavingRole(false);
+                          }
+                        }}
+                      >
+                        אשר
+                      </button>
+                      <button
+                        className={styles.cancelBtn}
+                        disabled={savingRole}
+                        onClick={() => setPendingRole(null)}
+                      >
+                        ביטול
+                      </button>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  <div className={styles.buttonsRow}>
+                {/* Action buttons row */}
+                <div className={styles.buttonsRow}>
+                  {/* Ban/Unban only if not deleted */}
+                  {!isSelectedDeleted && (
                     <button
                       className={styles.primaryBtn}
                       onClick={() => {
-                        const next = !selectedUser.is_banned;
-                        setPendingBan(next);
+                        // if currently banned, pendingBan=false triggers unban flow below
+                        setPendingBan(!isSelectedBanned);
                       }}
                     >
-                      {selectedUser.is_banned ? 'בטל חסימה' : 'חסום משתמש'}
+                      {isSelectedBanned ? 'בטל חסימה' : 'חסום משתמש'}
                     </button>
+                  )}
+                  {/* Delete vs Restore */}
+                  {isSelectedDeleted ? (
+                    <button
+                      className={styles.primaryBtn}
+                      onClick={async () => {
+                        try {
+                          await adminRestoreUserAPI(selectedUser.user_id);
+                          setSelectedUser(prev => ({ ...prev, status: 'active' }));
+                          setRecentUsers(list => list.map(u => u.user_id === selectedUser.user_id ? { ...u, status: 'active' } : u));
+                          addToast('success', 'המשתמש שוחזר');
+                        } catch (e) {
+                          addToast('error', 'שחזור המשתמש נכשל');
+                        }
+                      }}
+                    >בטל מחיקה</button>
+                  ) : (
                     <button
                       className={styles.dangerBtn}
                       onClick={() => setConfirmingDelete(true)}
                     >
                       מחק משתמש
                     </button>
-                  </div>
-
-                  {pendingBan !== null && (
-                    <div className={styles.confirmBar}>
-                      <span className={styles.confirmText}>
-                        {pendingBan ? 'לחסום משתמש זה?' : 'לבטל חסימה למשתמש זה?'}
-                      </span>
-                      <div className={styles.confirmActions}>
-                        <button
-                          className={styles.confirmBtn}
-                          onClick={async () => {
-                            if (pendingBan === true) {
-                              // Open ban scheduling form instead of immediate ban
-                              setIsBanFormOpen(true);
-                              return;
-                            }
-                            // Unban flow immediate
-                            try {
-                              await adminUnbanUser(selectedUser.user_id);
-                              setSelectedUser((prev) => ({ ...prev, is_banned: false }));
-                              setRecentUsers((list) => list.map(u => u.user_id === selectedUser.user_id ? { ...u, is_banned: false } : u));
-                              addToast('success', 'החסימה בוטלה');
-                            } catch (e) {
-                              console.error('Unban failed', e);
-                              addToast('error', 'פעולת החסימה נכשלה');
-                            } finally {
-                              setPendingBan(null);
-                            }
-                          }}
-                        >
-                          אשר
-                        </button>
-                        <button
-                          className={styles.cancelBtn}
-                          onClick={() => setPendingBan(null)}
-                        >
-                          ביטול
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {confirmingDelete && (
-                    <div className={styles.confirmBar}>
-                      <span className={styles.confirmText}>למחוק משתמש זה? פעולה זו אינה הפיכה</span>
-                      <div className={styles.confirmActions}>
-                        <button
-                          className={styles.confirmBtn}
-                          onClick={async () => {
-                            try {
-                              await deleteUser(selectedUser.user_id);
-                              setRecentUsers((list) => list.filter(u => u.user_id !== selectedUser.user_id));
-                              setIsModalOpen(false);
-                              addToast('success', 'המשתמש נמחק');
-                            } catch (e) {
-                              console.error('Delete failed', e);
-                              addToast('error', 'מחיקת המשתמש נכשלה');
-                            } finally {
-                              setConfirmingDelete(false);
-                            }
-                          }}
-                        >
-                          אשר
-                        </button>
-                        <button
-                          className={styles.cancelBtn}
-                          onClick={() => setConfirmingDelete(false)}
-                        >
-                          ביטול
-                        </button>
-                      </div>
-                    </div>
                   )}
                 </div>
+
+                {pendingBan !== null && !isSelectedDeleted && (
+                  <div className={styles.confirmBar}>
+                    <span className={styles.confirmText}>
+                      {pendingBan ? 'לחסום משתמש זה?' : 'לבטל חסימה למשתמש זה?'}
+                    </span>
+                    <div className={styles.confirmActions}>
+                      <button
+                        className={styles.confirmBtn}
+                        onClick={async () => {
+                          if (pendingBan === true) {
+                            // Open ban scheduling form instead of immediate ban
+                            setIsBanFormOpen(true);
+                            return;
+                          }
+                          // Unban flow immediate
+                          try {
+                            await adminUnbanUser(selectedUser.user_id);
+                            setSelectedUser((prev) => ({ ...prev, is_banned: false }));
+                            setRecentUsers((list) => list.map(u => u.user_id === selectedUser.user_id ? { ...u, status: 'active' } : u));
+                            addToast('success', 'החסימה בוטלה');
+                          } catch (e) {
+                            console.error('Unban failed', e);
+                            addToast('error', 'פעולת החסימה נכשלה');
+                          } finally {
+                            setPendingBan(null);
+                          }
+                        }}
+                      >
+                        אשר
+                      </button>
+                      <button
+                        className={styles.cancelBtn}
+                        onClick={() => setPendingBan(null)}
+                      >
+                        ביטול
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {confirmingDelete && (
+                  <div className={styles.confirmBar}>
+                    <span className={styles.confirmText}>למחוק משתמש זה? פעולה זו אינה הפיכה</span>
+                    <div className={styles.confirmActions}>
+                      <button
+                        className={styles.confirmBtn}
+                        onClick={async () => {
+                          try {
+                            await deleteUser(selectedUser.user_id);
+                            setRecentUsers((list) => list.filter(u => u.user_id !== selectedUser.user_id));
+                            setIsModalOpen(false);
+                            addToast('success', 'המשתמש נמחק');
+                          } catch (e) {
+                            console.error('Delete failed', e);
+                            addToast('error', 'מחיקת המשתמש נכשלה');
+                          } finally {
+                            setConfirmingDelete(false);
+                          }
+                        }}
+                      >
+                        אשר
+                      </button>
+                      <button
+                        className={styles.cancelBtn}
+                        onClick={() => setConfirmingDelete(false)}
+                      >
+                        ביטול
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </div>
               <div className={styles.modalFooter}>
                 <button className={styles.closeFooterBtn} onClick={() => setIsModalOpen(false)}>סגור</button>

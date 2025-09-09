@@ -30,6 +30,9 @@ import RecipeDetail from "../components/pages/recipes/RecipeDetail";
 import Menu from "../components/pages/menu/Menu";
 import Contact from "../components/pages/contact/ContactUs";
 import PlanMaker from "../components/pages/customer/plan/CalorieCalc";
+import Cart from "../components/pages/customer/cart_and_notifications/Cart";
+import Order from "../components/pages/cart/Order";
+import OrderDetails from "../components/pages/cart/OrderDetails";
 
 function QAWrapper() {
   const { articleId } = useParams();
@@ -261,6 +264,42 @@ function App() {
     <div className={classes.withNav}>
       <Header />
       <Menu />
+      <Footer />
+    </div>
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/cart"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      <Header />
+      <Cart />
+      <Footer />
+    </div>
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/order"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      <Header />
+      <Order />
+      <Footer />
+    </div>
+    </RequireAuth>
+  }
+/>
+<Route
+  path="/orders/:id"
+  element={
+    <RequireAuth>
+    <div className={classes.withNav}>
+      <Header />
+      <OrderDetails />
       <Footer />
     </div>
     </RequireAuth>

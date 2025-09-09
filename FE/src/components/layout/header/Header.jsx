@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Bell } from 'lucide-react';
+import { Menu, X, Bell, ShoppingCart } from 'lucide-react';
 import styles from './header.module.css';
 import { AuthContext } from '../../../app/App';
 import { getCurrentCustomerId } from '../../../utils/functions';
@@ -145,6 +145,12 @@ export default function Header() {
             </Link>
             {userLoggedIn() && (
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                {/* Cart icon for customers */}
+                {isCustomer && (
+                  <Link to="/cart" aria-label="Cart" title="Cart" style={{ display: 'inline-flex', alignItems: 'center', marginInlineEnd: 8 }}>
+                    <ShoppingCart size={20} color={solid ? '#111827' : '#ffffff'} />
+                  </Link>
+                )}
                 <button
                   type="button"
                   aria-label="Notifications"

@@ -237,7 +237,7 @@ export default function HomeEnhanced() {
       title: "ניהול תגובות",
       description: "אשר ומחק תגובות",
       icon: MessageSquare,
-      path: "/admin/comments",
+      path: "/faq",
       color: "#dc2626",
     },
     {
@@ -716,6 +716,7 @@ export default function HomeEnhanced() {
                               <input
                                 type="number"
                                 min={0}
+                                step={1}
                                 className={styles.input}
                                 value={stock}
                                 placeholder="מלאי"
@@ -728,9 +729,18 @@ export default function HomeEnhanced() {
                                 className={styles.actionCard}
                                 style={{ padding:'6px 12px' }}
                                 onClick={async()=>{
+                                  // Validate: non-negative integer only
+                                  const n = Number(stock);
+                                  if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+                                    setSaveStatus((prev)=>({ ...prev, [rid]: 'error' }));
+                                    setTimeout(()=>{
+                                      setSaveStatus((prev)=>{ const m={...prev}; delete m[rid]; return m; });
+                                    }, 2000);
+                                    return;
+                                  }
                                   setStocks((prev)=>({ ...prev, [rid]: { ...(prev[rid]||{}), loading:true } }));
                                   try{
-                                    await updateProductByRecipeAPI(rid, { stock: Number(stock) });
+                                    await updateProductByRecipeAPI(rid, { stock: n });
                                     setSaveStatus((prev)=>({ ...prev, [rid]: 'success' }));
                                     setTimeout(()=>{
                                       setSaveStatus((prev)=>{ const n={...prev}; delete n[rid]; return n; });
@@ -749,7 +759,7 @@ export default function HomeEnhanced() {
                                 <span style={{ marginInlineStart: 8, color: '#059669', fontSize: 12 }}>✓ נשמר</span>
                               )}
                               {saveStatus[rid] === 'error' && (
-                                <span style={{ marginInlineStart: 8, color: '#dc2626', fontSize: 12 }}>✗ שגיאה</span>
+                                <span style={{ marginInlineStart: 8, color: '#dc2626', fontSize: 12 }}>✗ שגיאה (מספר שלם ≥ 0 בלבד)</span>
                               )}
                             </div>
                           </div>

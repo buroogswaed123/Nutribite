@@ -34,8 +34,22 @@ router.patch('/:id/product', async (req, res) => {
     const { price, stock } = req.body || {};
     const sets = [];
     const params = [];
-    if (price != null) { sets.push('price = ?'); params.push(Number(price)); }
-    if (stock != null) { sets.push('stock = ?'); params.push(Number(stock)); }
+    if (price != null) {
+      const p = Number(price);
+      if (!Number.isFinite(p) || p < 0) {
+        return res.status(400).json({ message: 'price must be a non-negative number' });
+      }
+      sets.push('price = ?');
+      params.push(p);
+    }
+    if (stock != null) {
+      const s = Number(stock);
+      if (!Number.isFinite(s) || s < 0 || !Number.isInteger(s)) {
+        return res.status(400).json({ message: 'stock must be an integer >= 0' });
+      }
+      sets.push('stock = ?');
+      params.push(s);
+    }
     if (sets.length === 0) return res.status(400).json({ message: 'No fields to update' });
     params.push(recipeId);
     const sql = `UPDATE products SET ${sets.join(', ')} WHERE recipe_id = ?`;

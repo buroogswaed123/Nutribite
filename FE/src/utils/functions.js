@@ -6,6 +6,15 @@ import axios from "axios";
 axios.defaults.baseURL = axios.defaults.baseURL || 'http://localhost:3000';
 axios.defaults.withCredentials = true;
 
+// Normalize image URLs to absolute backend-served paths
+export function ensureImageUrl(val) {
+  if (!val) return '';
+  const cleaned = String(val).replace(/^\/+/, '');
+  if (/^https?:\/\//i.test(cleaned)) return cleaned;
+  if (/^uploads\//i.test(cleaned)) return `http://localhost:3000/${cleaned}`;
+  return `http://localhost:3000/uploads/${cleaned}`;
+}
+
 function extractOrThrow(responseData, fallbackMsg) {
   // Expecting { user, ... } on success
   if (responseData?.user) return responseData.user;
@@ -14,6 +23,17 @@ function extractOrThrow(responseData, fallbackMsg) {
   if (responseData?.field) err.field = responseData.field;
   if (responseData?.code) err.code = responseData.code;
   throw err;
+}
+
+// Convenience: get top-rated summary for dashboard cards
+// Returns array of { name, image, rating }
+export async function getTopRatedSummaryAPI(limit = 3) {
+  const items = await fetchTopRatedRecipesAPI(limit);
+  return (items || []).map((r) => ({
+    name: r.title || r.name || 'מתכון',
+    image: ensureImageUrl(r.picture || r.imageUrl || r.image || ''),
+    rating: Number(r.rating_avg ?? r.avg_rating ?? r.rating ?? 0) || 0,
+  }));
 }
 
 //login
@@ -216,6 +236,23 @@ export async function fetchPublicRecipeAPI(recipeId) {
   return data?.item || data;
 }
 
+// Fetch top-rated recipes (max N). Tries backend endpoint first; falls back to client-side sort.
+export async function fetchTopRatedRecipesAPI(limit = 3) {
+  try {
+    const { data } = await axios.get('/api/recipes/top-reviewed', { params: { limit }, withCredentials: false });
+    const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+    return items.slice(0, limit);
+  } catch (err) {
+    // Fallback: fetch all public recipes and sort by rating average if endpoint is missing
+    const all = await fetchPublicRecipesAPI();
+    const norm = (all || []).map(r => ({
+      ...r,
+      __rating: Number(r.rating_avg ?? r.avg_rating ?? r.rating ?? 0) || 0,
+    }));
+    return norm.sort((a, b) => b.__rating - a.__rating).slice(0, limit);
+  }
+}
+
 // Ratings API
 export async function getRecipeRatingsAPI(recipeId) {
   const { data } = await axios.get(`/api/recipes/${recipeId}/ratings`);
@@ -229,8 +266,27 @@ export async function rateRecipeAPI(recipeId, stars) {
 
 // Products by recipe helpers
 export async function getProductByRecipeAPI(recipeId) {
-  const { data } = await axios.get(`/api/menu/by-recipe/${recipeId}`);
-  return data; // { product_id, recipe_id, price, stock, ... }
+  // Try admin endpoint first for richer data; fallback to public menu endpoint
+  const tryAdmin = async () => {
+    const { data } = await axios.get(`/api/admin/recipes/${recipeId}/product`);
+    return data;
+  };
+  const tryPublic = async () => {
+    const { data } = await axios.get(`/api/menu/by-recipe/${recipeId}`);
+    return data;
+  };
+  let data;
+  try {
+    data = await tryAdmin();
+  } catch (err) {
+    // If admin route not available or unauthorized, try public route
+    data = await tryPublic();
+  }
+  // Normalize stock field for callers
+  const stock = Number(
+    data?.stock ?? data?.quantity ?? data?.qty ?? data?.available_stock ?? data?.inStock ?? 0
+  ) || 0;
+  return { ...data, stock };
 }
 
 export async function updateProductByRecipeAPI(recipeId, { price, stock }) {
@@ -239,6 +295,20 @@ export async function updateProductByRecipeAPI(recipeId, { price, stock }) {
   if (stock != null) payload.stock = stock;
   const { data } = await axios.patch(`/api/admin/recipes/${recipeId}/product`, payload);
   return data;
+}
+
+// Bulk fetch all menu products once and build a quick lookup by recipe_id
+export async function fetchMenuProductsMap() {
+  const { data } = await axios.get('/api/menu');
+  const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+  const map = {};
+  for (const it of items) {
+    const rid = it.recipe_id || it.recipe || it.rid;
+    if (!rid) continue;
+    const stock = Number(it.stock ?? it.quantity ?? it.qty ?? 0) || 0;
+    map[rid] = stock;
+  }
+  return map;
 }
 
 // =============================

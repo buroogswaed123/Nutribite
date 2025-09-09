@@ -6,7 +6,7 @@ import classes from "./app.module.css";
 
 //Home Page imports
 import CustomerHome from "../components/pages/customer/home/Home";
-import HomeEnhanced from "../components/pages/admin/home/HomeEnhanced";
+import HomeEnhanced from "../components/pages/admin/home/Home";
 import CourierHome from "../components/pages/courier/home/Home";
 import UsersList from "../components/pages/admin/profile/management/UsersList";
 

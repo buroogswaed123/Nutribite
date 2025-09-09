@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styles from './menu.module.css'
-import { fetchDietTypes, fetchRecipes, getSessionUser, bulkUpdateRecipePrices, fetchMenuCategoriesAPI } from '../../../utils/functions'
+import { fetchDietTypes, fetchRecipes, getSessionUser, bulkUpdateRecipePrices, fetchMenuCategoriesAPI, addToCartAPI, getProductByRecipeAPI } from '../../../utils/functions'
 
 export default function Menu() {
   const navigate = useNavigate()
+  const [toast, setToast] = useState(null) // { type: 'success'|'error', text: string }
 
   // Normalize image URLs coming from DB (filename or uploads path)
   const resolveImageUrl = (raw) => {
@@ -200,9 +201,18 @@ export default function Menu() {
   const onChangePrice = (recipe) => {
     alert(`Change price for recipe ${recipe?.recipe_id} - to be implemented`)
   }
-  const onBuyNow = (recipe) => {
-    // Placeholder
-    alert(`Buy now: ${recipe?.name}`)
+  const onAddToCart = async (recipe) => {
+    try {
+      const rid = recipe?.recipe_id || recipe?.id;
+      if (!rid) throw new Error('מזהה מתכון חסר');
+      const product = await getProductByRecipeAPI(rid);
+      const pid = product?.product_id;
+      if (!pid) throw new Error('לא ניתן לאתר מוצר עבור מתכון זה');
+      await addToCartAPI(pid, 1);
+      setToast({ type: 'success', text: 'נוסף לעגלה' });
+    } catch (e) {
+      setToast({ type: 'error', text: e?.response?.data?.message || e.message || 'שגיאה בהוספה לעגלה' });
+    }
   }
 
   // Selection handlers (admin)
@@ -239,10 +249,17 @@ export default function Menu() {
     }
   }
 
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(timer)
+  }, [toast])
+
   return (
     <div className={styles.menu}>
       {error && <div style={{color:'#b91c1c', marginBottom: 8}}>{error}</div>}
       {loading && <div style={{marginBottom: 8}}>טוען מתכונים...</div>}
+      {/* toast renderer moved to bottom */}
 
       <div className={styles.group}>
         <div className={styles.row}>
@@ -418,7 +435,7 @@ export default function Menu() {
                     </>
                   ) : (
                     <>
-                      <button className={styles.btn} onClick={() => onBuyNow(selected)}>קנה עכשיו</button>
+                      <button className={styles.btn} onClick={() => onAddToCart(selected)}>הוסף לעגלה</button>
                       <button className={styles.btn} onClick={() => onViewRecipe(selected)}>הצג מתכון</button>
                     </>
                   )}
@@ -427,6 +444,21 @@ export default function Menu() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Lightweight toast */}
+      {toast && (
+        <div
+          role="status"
+          style={{
+            position:'fixed', top:16, right:16, zIndex: 2000,
+            background: toast.type === 'success' ? '#10b981' : '#ef4444',
+            color:'#fff', padding:'10px 14px', borderRadius:8, boxShadow:'0 4px 12px rgba(0,0,0,0.15)'
+          }}
+          onAnimationEnd={()=>{}}
+        >
+          {toast.text}
         </div>
       )}
     </div>

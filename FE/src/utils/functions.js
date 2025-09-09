@@ -15,6 +15,26 @@ export function ensureImageUrl(val) {
   return `http://localhost:3000/uploads/${cleaned}`;
 }
 
+// Get current plan daily calorie goal (calories_per_day) from nutritionplan
+export async function getCurrentPlanGoalAPI() {
+  const customerId = await getCurrentCustomerId();
+  const plans = await listPlansAPI(customerId);
+  const planId = Array.isArray(plans) && plans[0] ? plans[0].plan_id : null;
+  if (!planId) return null;
+  const plan = await getPlanAPI(planId);
+  const goal = Number(plan?.calories_per_day || 0) || null;
+  return goal;
+}
+
+// Overwrite a plan's products with exactly the provided list
+// items: Array<{ product_id: number, servings?: number }>
+export async function replacePlanProductsAPI(planId, items) {
+  if (!planId) throw new Error('Missing planId');
+  const payload = { items: Array.isArray(items) ? items : [] };
+  const { data } = await axios.post(`/api/plan/${planId}/replace_products`, payload);
+  return data; // { success, plan_id, replaced }
+}
+
 function extractOrThrow(responseData, fallbackMsg) {
   // Expecting { user, ... } on success
   if (responseData?.user) return responseData.user;
@@ -275,12 +295,36 @@ export async function getProductByRecipeAPI(recipeId) {
     const { data } = await axios.get(`/api/menu/by-recipe/${recipeId}`);
     return data;
   };
+  const tryScanMenu = async () => {
+    // Last-resort: scan public menu list and find matching recipe_id
+    const { data } = await axios.get('/api/menu');
+    const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+    const found = items.find(it => String(it.recipe_id) === String(recipeId));
+    if (!found) {
+      const err = new Error('Product not found for recipe');
+      err.status = 404;
+      throw err;
+    }
+    return {
+      product_id: found.product_id,
+      recipe_id: found.recipe_id,
+      price: found.price,
+      stock: found.stock,
+      name: found.name,
+      picture: found.picture,
+    };
+  };
   let data;
   try {
     data = await tryAdmin();
   } catch (err) {
     // If admin route not available or unauthorized, try public route
-    data = await tryPublic();
+    try {
+      data = await tryPublic();
+    } catch (err2) {
+      // As a final fallback, scan /api/menu
+      data = await tryScanMenu();
+    }
   }
   // Normalize stock field for callers
   const stock = Number(
@@ -502,4 +546,93 @@ export async function deleteAllNotificationsAPI(userId) {
   if (!userId) throw new Error('Missing userId');
   const { data } = await axios.delete(`/api/notifications/user/${userId}`);
   return data;
+}
+
+// =============================
+// Cart API helpers
+// =============================
+export async function getCartAPI() {
+  const { data } = await axios.get('/api/cart');
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+export async function getCartSummaryAPI() {
+  const { data } = await axios.get('/api/cart/summary');
+  return data || { total_price: 0, total_items: 0, total_calories: 0 };
+}
+
+export async function addToCartAPI(product_id, quantity = 1) {
+  const payload = { product_id, quantity };
+  const { data } = await axios.post('/api/cart', payload);
+  return data;
+}
+
+export async function updateCartItemAPI(id, quantity) {
+  const { data } = await axios.patch(`/api/cart/${id}`, { quantity });
+  return data;
+}
+
+export async function removeCartItemAPI(id) {
+  const { data } = await axios.delete(`/api/cart/${id}`);
+  return data;
+}
+
+export async function clearCartAPI() {
+  const { data } = await axios.delete('/api/cart');
+  return data;
+}
+
+// Calorie goal (temporary local persistence)
+const CAL_GOAL_KEY = 'nb_calorie_goal';
+export function getCalorieGoal() {
+  const v = (typeof localStorage !== 'undefined') ? localStorage.getItem(CAL_GOAL_KEY) : null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 2000; // default 2000 kcal
+}
+export function setCalorieGoal(val) {
+  const n = Number(val);
+  if (typeof localStorage !== 'undefined' && Number.isFinite(n) && n > 0) {
+    localStorage.setItem(CAL_GOAL_KEY, String(n));
+  }
+}
+
+// =============================
+// Orders API helpers
+// =============================
+export async function checkoutOrderAPI({ schedule = {}, applyToAll = null } = {}) {
+  const payload = { schedule, applyToAll };
+  const { data } = await axios.post('/api/orders/checkout', payload);
+  return data; // { order_id }
+}
+
+export async function listOrdersAPI() {
+  const { data } = await axios.get('/api/orders');
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+export async function getOrderAPI(orderId) {
+  const { data } = await axios.get(`/api/orders/${orderId}`);
+  return data; // { order, items }
+}
+
+// Add exact plan items to cart (server-side), no client suggestion logic
+export async function addPlanToCartAPI(planId, { clear = true, quantityMode = 'one' } = {}) {
+  const { data } = await axios.post(`/api/plan/${planId}/add_to_cart`, { clear, quantityMode });
+  return data; // { added }
+}
+
+// Get all meals (products) in nutrition_plan_contains_products for the current plan
+// Returns array of rows from GET /api/plan/:id/products
+export async function getCurrentPlanProductsAPI() {
+  // Resolve current customer -> latest plan -> products
+  const customerId = await getCurrentCustomerId();
+  const plans = await listPlansAPI(customerId);
+  const planId = Array.isArray(plans) && plans[0] ? plans[0].plan_id : null;
+  if (!planId) return [];
+  const { data } = await axios.get(`/api/plan/${planId}/products`);
+  const rows = Array.isArray(data) ? data : [];
+  return rows.map(it => ({
+    ...it,
+    picture: ensureImageUrl(it.picture)
+  }));
 }

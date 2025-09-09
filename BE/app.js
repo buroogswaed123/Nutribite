@@ -164,8 +164,27 @@ const initDatabase = () => {
         console.error('Error details:', formatDbError(err));
         return;
       }
-
-      console.log('Database initialized successfully');
+      // Ensure cart_items table exists
+      const createCartItemsTable = `
+        CREATE TABLE IF NOT EXISTS cart_items (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          product_id INT NOT NULL,
+          quantity INT NOT NULL DEFAULT 1,
+          price DECIMAL(10, 2) NOT NULL,
+          added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+          CONSTRAINT fk_cart_product FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE CASCADE
+        )
+      `;
+      db.query(createCartItemsTable, (cartErr) => {
+        if (cartErr) {
+          console.error('Error creating cart_items table:', formatDbError(cartErr));
+          return;
+        }
+        console.log('Database initialized successfully');
+      });
     });
   });
 };
@@ -263,6 +282,20 @@ const customersRoutes = require('./routes/customers');
 app.use('/api/customers', customersRoutes);
 const usersRoutes = require('./routes/users');
 app.use('/api/users', usersRoutes);
+// Orders routes
+try {
+  const ordersRoutes = require('./routes/orders');
+  app.use('/api/orders', requireActiveUser, ordersRoutes);
+} catch (e) {
+  console.error('Failed to mount /api/orders routes:', e?.message || e);
+}
+// Cart routes
+try {
+  const cartRoutes = require('./routes/cart');
+  app.use('/api/cart', requireActiveUser, cartRoutes);
+} catch (e) {
+  console.error('Failed to mount /api/cart routes:', e?.message || e);
+}
 // Courier routes
 try {
   const courierRoutes = require('./routes/courier');

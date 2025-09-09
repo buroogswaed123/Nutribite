@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchRecipes, getCurrentCustomerId, listPlansAPI, getPlanAPI, createPlanAPI, addPlanProductAPI, updatePlanProductAPI, deletePlanProductAPI, fetchCustomerAllergiesAPI } from '../../../../utils/functions';
+import { fetchRecipes, getCurrentCustomerId, listPlansAPI, getPlanAPI, createPlanAPI, addPlanProductAPI, updatePlanProductAPI, deletePlanProductAPI, fetchCustomerAllergiesAPI, addPlanToCartAPI, replacePlanProductsAPI } from '../../../../utils/functions';
+import { useNavigate } from 'react-router-dom';
 import { buildAllergenSetFromNames, itemHasAllergen } from '../../../../utils/allergens';
 import styles from './plan.module.css';
 import { useEligibleMenu } from '../../../../hooks/useMenu';
@@ -359,6 +360,7 @@ function SwapModal({ open, onClose, candidates, recipesLoading, onConfirm }) {
 // ---------- Main Component ----------
 
 export default function Plan() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [customerId, setCustomerId] = useState(null);
@@ -675,14 +677,13 @@ export default function Plan() {
         <button
           onClick={async () => {
             try {
+              // Build exact on-screen selection: the currently suggested pick per category + optional extra
               const itemsToSave = [...(suggestions.picks || [])];
               if (suggestions.extra) itemsToSave.push(suggestions.extra);
-              const existing = new Set((plan.items || []).map(it => Number(it.product_id)));
-              for (const it of itemsToSave) {
-                const pid = Number(it.product_id);
-                if (!Number.isFinite(pid) || existing.has(pid)) continue;
-                await addPlanProductAPI(plan.plan_id, pid, 1);
-              }
+              const payload = itemsToSave
+                .map(it => ({ product_id: Number(it.product_id), servings: 1 }))
+                .filter(x => Number.isFinite(x.product_id) && x.product_id > 0);
+              await replacePlanProductsAPI(plan.plan_id, payload);
               await refreshPlan();
               if (!hasShownSaveSuccess) {
                 setSaveSuccessOpen(true);
@@ -697,7 +698,23 @@ export default function Plan() {
           שמור תוכנית
         </button>
         <button
-          onClick={() => alert('TODO: הזמנה של כל הפריטים בתוכנית')}
+          onClick={async () => {
+            try {
+              // 1) Overwrite DB with EXACTLY what's on screen now
+              const itemsToSave = [...(suggestions.picks || [])];
+              if (suggestions.extra) itemsToSave.push(suggestions.extra);
+              const payload = itemsToSave
+                .map(it => ({ product_id: Number(it.product_id), servings: 1 }))
+                .filter(x => Number.isFinite(x.product_id) && x.product_id > 0);
+              await replacePlanProductsAPI(plan.plan_id, payload);
+              // 2) Add saved items to cart (server-side exact copy)
+              await addPlanToCartAPI(plan.plan_id, { clear: true, quantityMode: 'one' });
+              navigate('/cart');
+            } catch (e) {
+              console.error('Add plan to cart failed', e);
+              alert('שגיאה בהזמנה מהתוכנית');
+            }
+          }}
           className={styles.btnSuccess}
         >
           הזמן הכל

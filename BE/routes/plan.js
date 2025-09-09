@@ -129,6 +129,38 @@ router.get('/', async (req, res) => {
   }
 });
 
+// POST /api/plan/:id/replace_products
+// Body: { items: Array<{ product_id: number, servings?: number }> }
+// Overwrites nutrition_plan_contains_products with exactly the provided list
+router.post('/:id/replace_products', requireActiveUser, async (req, res) => {
+  const tx = conn.promise();
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return bad(res, 'Invalid id');
+
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    await tx.query('DELETE FROM nutrition_plan_contains_products WHERE plan_id = ?', [id]);
+    if (items.length === 0) return ok(res, { success: true, plan_id: id, replaced: 0 });
+
+    const values = [];
+    for (const it of items) {
+      const pid = Number(it.product_id);
+      if (!Number.isFinite(pid) || pid <= 0) continue;
+      const servings = Math.max(1, Number(it.servings || 1));
+      values.push([id, pid, servings]);
+    }
+    if (values.length) {
+      await tx.query(
+        'INSERT INTO nutrition_plan_contains_products (plan_id, product_id, servings) VALUES ?'
+        , [values]
+      );
+    }
+    return ok(res, { success: true, plan_id: id, replaced: values.length });
+  } catch (err) {
+    return serverErr(res, err, 'Failed to replace plan products');
+  }
+});
+
 // GET /api/plan/:id  (includes products)
 router.get('/:id', async (req, res) => {
   try {
@@ -174,10 +206,14 @@ router.get('/:id', async (req, res) => {
         r.calories,
         r.protein_g,
         r.carbs_g,
-        r.fats_g
+        r.fats_g,
+        r.picture,
+        r.category_id,
+        c.name AS category_name
       FROM nutrition_plan_contains_products pp
       JOIN products p ON p.product_id = pp.product_id
       JOIN recipes r ON r.recipe_id = p.recipe_id
+      LEFT JOIN categories c ON c.category_id = r.category_id
       WHERE pp.plan_id = ?
       ORDER BY pp.plan_product_id ASC
       `,
@@ -318,10 +354,14 @@ router.get('/:id/products', async (req, res) => {
         r.calories,
         r.protein_g,
         r.carbs_g,
-        r.fats_g
+        r.fats_g,
+        r.picture,
+        r.category_id,
+        c.name AS category_name
       FROM nutrition_plan_contains_products pp
       JOIN products p ON p.product_id = pp.product_id
       JOIN recipes r ON r.recipe_id = p.recipe_id
+      LEFT JOIN categories c ON c.category_id = r.category_id
       WHERE pp.plan_id = ?
       ORDER BY pp.plan_product_id ASC
       `,
@@ -439,6 +479,70 @@ router.get('/:id/allergies', requireActiveUser, async (req, res) => {
     return ok(res, rows);
   } catch (err) {
     return serverErr(res, err, 'Failed to list plan allergies');
+  }
+});
+
+// POST /api/plan/:id/add_to_cart
+// Copy exact saved plan items (nutrition_plan_contains_products) into cart_items for the logged-in user.
+// Body options: { clear?: boolean (default true), quantityMode?: 'one' | 'servings' }
+router.post('/:id/add_to_cart', requireActiveUser, async (req, res) => {
+  const tx = conn.promise();
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return bad(res, 'Invalid id');
+
+    const userId = req.session && req.session.user_id ? Number(req.session.user_id) : null;
+    if (!Number.isFinite(userId)) return res.status(401).json({ message: 'Not logged in' });
+
+    const clear = req.body && typeof req.body.clear !== 'undefined' ? !!req.body.clear : true;
+    const quantityMode = (req.body?.quantityMode === 'servings') ? 'servings' : 'one';
+
+    // Load exact saved plan items
+    const [items] = await tx.query(
+      `
+      SELECT pp.product_id, COALESCE(pp.servings, 1) AS servings
+      FROM nutrition_plan_contains_products pp
+      WHERE pp.plan_id = ?
+      ORDER BY pp.plan_product_id ASC
+      `,
+      [id]
+    );
+
+    if (!items || items.length === 0) {
+      return ok(res, { added: 0 });
+    }
+
+    if (clear) {
+      await tx.query('DELETE FROM cart_items WHERE user_id = ?', [userId]);
+    }
+
+    // For each saved item: determine qty and cap by stock
+    let added = 0;
+    for (const it of items) {
+      const pid = Number(it.product_id);
+      if (!Number.isFinite(pid) || pid <= 0) continue;
+      const qtyRaw = quantityMode === 'servings' ? Number(it.servings || 1) : 1;
+      const qty = Math.max(1, qtyRaw);
+      // Fetch current stock and price
+      const [pRows] = await tx.query('SELECT price, stock FROM products WHERE product_id = ? LIMIT 1', [pid]);
+      const price = Number(pRows?.[0]?.price || 0);
+      const stock = Math.max(0, Number(pRows?.[0]?.stock || 0));
+      const finalQty = Math.min(qty, stock || qty);
+      if (finalQty <= 0) continue;
+
+      // Upsert by user+product: set/replace exact quantity
+      const [existRows] = await tx.query('SELECT id FROM cart_items WHERE user_id = ? AND product_id = ? LIMIT 1', [userId, pid]);
+      if (existRows && existRows[0]) {
+        await tx.query('UPDATE cart_items SET quantity = ?, price = ? WHERE id = ?', [finalQty, price, existRows[0].id]);
+      } else {
+        await tx.query('INSERT INTO cart_items (user_id, product_id, quantity, price) VALUES (?, ?, ?, ?)', [userId, pid, finalQty, price]);
+      }
+      added += 1;
+    }
+
+    return ok(res, { added });
+  } catch (err) {
+    return serverErr(res, err, 'Failed to add plan items to cart');
   }
 });
 

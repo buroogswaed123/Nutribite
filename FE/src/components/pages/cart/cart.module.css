@@ -1,0 +1,137 @@
+.page {
+    padding: 16px;
+  }
+  
+  /* Buttons (matching Plan page style) */
+  .btn {
+    border: 1px solid #e5e7eb;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+  }
+  .btnPrimary {
+    background: linear-gradient(to right, #3b82f6, #2563eb);
+    color: #fff;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  .btnPrimary:hover {
+    background: linear-gradient(to right, #2563eb, #1e40af);
+  }
+  .btnDanger {
+    color: #b91c1c;
+  }
+  
+  /* Header like the Plan page */
+  .planHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .planHeaderRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .planTitle {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+  }
+  .planCalories {
+    color: #374151;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  
+  /* Utilities (copied from Plan for consistent look) */
+  .smallMuted { font-size: 12px; color: #6b7280; }
+  .smallDark  { font-size: 13px; color: #374151; }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 9999px;
+    display: inline-block;
+    background: conic-gradient(#8b5cf6, #3b82f6, #10b981, #f59e0b, #ef4444, #8b5cf6);
+  }
+  
+  /* Cart item rows (card look like Plan’s cards) */
+  .itemRow {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .itemThumb {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #f3f4f6;
+  }
+
+  /* Grouped sections for Order/OrderDetails (mirrors Plan list styling) */
+  .mealSection {
+    padding-block: 8px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .mealHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .mealTitle {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .mealCalories {
+    color: #374151;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+  }
+  .mealList {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0 0;
+    display: block;
+  }
+  .mealItem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+  }
+  .mealThumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #f3f4f6;
+  }
+  .mealBody { flex: 1; }
+  .mealNameLink {
+    color: #2563eb;
+    font-weight: 600;
+  }
+
+  /* Footer actions area */
+  .footerActions {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }

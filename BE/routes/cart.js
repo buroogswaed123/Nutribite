@@ -41,10 +41,12 @@ router.get('/', async (req, res) => {
         r.name AS recipe_name,
         r.picture,
         COALESCE(r.calories, 0) AS calories,
-        r.category_id
+        r.category_id,
+        c.name AS category_name
       FROM cart_items ci
       INNER JOIN products p ON p.product_id = ci.product_id
       INNER JOIN recipes r ON r.recipe_id = p.recipe_id
+      LEFT JOIN categories c ON c.category_id = r.category_id
       WHERE ci.user_id = ?
       ORDER BY ci.id DESC
     `, [userId]);

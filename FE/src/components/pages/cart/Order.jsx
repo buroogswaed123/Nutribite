@@ -8,6 +8,27 @@ import {
   ensureImageUrl,
 } from '../../../utils/functions';
 
+// Order of categories for display: breakfast → drink → snack → lunch → dinner → dessert
+const HEBREW_CATEGORY_ORDER = new Map([
+  ['ארוחת בוקר', 1],
+  ['משקה', 2],
+  ['משקאות', 2],
+  ['חטיף', 3],
+  ['חטיפים', 3],
+  ['ארוחת צהריים', 4],
+  ['ארוחת צהרים', 4],
+  ['צהריים', 4],
+  ['צהרים', 4],
+  ['ארוחת ערב', 5],
+  ['קינוח', 6],
+  ['קינוחים', 6],
+]);
+
+function orderIndexForCategory(name) {
+  const he = String(name || '').trim();
+  return HEBREW_CATEGORY_ORDER.get(he) ?? 999;
+}
+
 export default function Order() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
@@ -40,7 +61,14 @@ export default function Order() {
       if (!map.has(key)) map.set(key, { id: it.category_id || 0, name: it.category_name || 'אחר', items: [] });
       map.get(key).items.push(it);
     }
-    return Array.from(map.values());
+    const arr = Array.from(map.values());
+    arr.sort((a, b) => {
+      const ai = orderIndexForCategory(a.name);
+      const bi = orderIndexForCategory(b.name);
+      if (ai !== bi) return ai - bi;
+      return String(a.name).localeCompare(String(b.name));
+    });
+    return arr;
   }, [items]);
 
   const validateTime = (dateStr, timeStr) => {
@@ -67,7 +95,13 @@ export default function Order() {
         }
       }
 
-      const payload = { schedule };
+      // Build payload: backend expects schedule[categoryId] as an ISO-like datetime string
+      const payloadSchedule = {};
+      for (const g of groups) {
+        const sc = schedule[g.id] || {};
+        payloadSchedule[String(g.id)] = `${sc.date}T${sc.time}`;
+      }
+      const payload = { schedule: payloadSchedule };
       const data = await checkoutOrderAPI(payload);
       const orderId = data?.order_id;
       if (!orderId) throw new Error('Order creation failed');
@@ -94,7 +128,7 @@ export default function Order() {
 
       {!loading && groups.map(g => {
         const sc = schedule[g.id] || {};
-        const catTotalPrice = g.items.reduce((s, it) => s + Number(it.price) * Number(it.quantity), 0);
+        const catTotalPrice = g.items.reduce((s, it) => s + Number(it.unit_price_gross ?? it.price) * Number(it.quantity), 0);
         const catTotalCal = g.items.reduce((s, it) => s + Number(it.calories || 0) * Number(it.quantity), 0);
         return (
           <section key={g.id} className={styles.mealSection}>
@@ -134,8 +168,14 @@ export default function Order() {
                   <div className={styles.mealBody}>
                     <div className={styles.mealNameLink}>{it.recipe_name}</div>
                     <div className={styles.smallDark}>{Number(it.calories || 0)} ק״ק למנה • כמות: {it.quantity}</div>
+                    <div className={styles.smallMuted}>
+                      מחיר ליחידה (כולל מע"מ): {(Number(it.unit_price_gross ?? it.price) || 0).toFixed(2)} ₪
+                      {typeof it.tax_amount !== 'undefined' && (
+                        <> • מע"מ ליחידה: {(Number(it.tax_amount) || 0).toFixed(2)} ₪</>
+                      )}
+                    </div>
                   </div>
-                  <div>{(Number(it.price) * Number(it.quantity)).toFixed(2)} ₪</div>
+                  <div>{(Number(it.unit_price_gross ?? it.price) * Number(it.quantity)).toFixed(2)} ₪</div>
                 </li>
               ))}
             </ul>

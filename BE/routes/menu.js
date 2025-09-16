@@ -59,7 +59,16 @@ router.get('/by-recipe/:recipeId(\\d+)', async (req, res) => {
 // List all products where linked recipe is not soft-deleted
 router.get('/', async (req, res) => {
   try {
-    const sql = `
+    const lim = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const off = Math.max(Number(req.query.offset) || 0, 0);
+
+    const countSql = `
+      SELECT COUNT(*) AS total
+      FROM products p
+      INNER JOIN recipes r ON r.recipe_id = p.recipe_id
+      WHERE r.deleted_at IS NULL
+    `;
+    const selectSql = `
       SELECT 
         p.product_id,
         p.recipe_id,
@@ -81,9 +90,13 @@ router.get('/', async (req, res) => {
       INNER JOIN recipes r ON r.recipe_id = p.recipe_id
       WHERE r.deleted_at IS NULL
       ORDER BY p.product_id DESC
+      LIMIT ? OFFSET ?
     `;
-    const rows = await query(sql);
-    return res.json({ items: rows });
+
+    const countRows = await query(countSql);
+    const total = countRows && countRows[0] ? Number(countRows[0].total) : 0;
+    const rows = await query(selectSql, [lim, off]);
+    return res.json({ items: rows, meta: { limit: lim, offset: off, total } });
   } catch (err) {
     console.error('PUBLIC MENU LIST ERROR:', err);
     return res.status(500).json({ message: 'Error listing products', error: err.message });

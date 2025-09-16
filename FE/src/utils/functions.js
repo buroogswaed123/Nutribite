@@ -139,6 +139,29 @@ export async function fetchRecipes({ search = '', categoryId = 'all', dietId = '
   return Array.isArray(data?.items) ? data.items : [];
 }
 
+// Paginated variant that returns { items, meta } with server-side pagination for Menu endpoints
+export async function fetchRecipesPaged({ search = '', categoryId = 'all', dietId = 'all', minPrice, maxPrice, minCalories, maxCalories, page = 1, limit = 20 } = {}) {
+  const hasFilters = (search && search.trim()) || categoryId !== 'all' || dietId !== 'all' ||
+    minPrice != null || maxPrice != null || minCalories != null || maxCalories != null;
+  const params = {};
+  if (search && search.trim()) params.q = search.trim();
+  if (categoryId !== 'all') params.category = categoryId;
+  if (dietId !== 'all') params.dietType = dietId;
+  if (minPrice != null && minPrice !== '') params.minPrice = Number(minPrice);
+  if (maxPrice != null && maxPrice !== '') params.maxPrice = Number(maxPrice);
+  if (minCalories != null && minCalories !== '') params.minCalories = Number(minCalories);
+  if (maxCalories != null && maxCalories !== '') params.maxCalories = Number(maxCalories);
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
+  const safePage = Math.max(1, Number(page) || 1);
+  params.limit = safeLimit;
+  params.offset = (safePage - 1) * safeLimit;
+  const path = hasFilters ? '/api/menu/search' : '/api/menu';
+  const { data } = await axios.get(path, { params });
+  const items = Array.isArray(data?.items) ? data.items : [];
+  const meta = data?.meta || { limit: safeLimit, offset: params.offset, total: items.length };
+  return { items, meta };
+}
+
 // Fetch diet types for filters
 export async function fetchDietTypes() {
   const { data } = await axios.get('/api/diet/types');

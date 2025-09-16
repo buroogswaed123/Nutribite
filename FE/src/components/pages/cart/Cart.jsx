@@ -27,13 +27,15 @@ export default function Cart() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [busyId, setBusyId] = useState(null); // disable row controls during async
   const [summary, setSummary] = useState({ total_price: 0, total_items: 0, total_calories: 0 });
   const [goal, setGoal] = useState(getCalorieGoal());
   const [showExceed, setShowExceed] = useState(false);
   // plan items viewer removed
 
-  const refresh = async () => {
-    setLoading(true);
+  const refresh = async (silent = false) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const [list, sum] = await Promise.all([
@@ -45,7 +47,7 @@ export default function Cart() {
     } catch (e) {
       setError(e?.message || 'שגיאה בטעינת העגלה');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -69,24 +71,42 @@ export default function Cart() {
   // plan viewer removed
 
   const onQtyChange = async (row, nextQty) => {
-    const q = Math.max(0, Math.min(Number(nextQty) || 0, Number(row.stock || 0)));
+    const requested = Math.max(1, Math.min(Number(nextQty) || 1, Number(row.stock || 0)));
     try {
-      await updateCartItemAPI(row.id, q);
-      await refresh();
+      setBusyId(row.id);
+      const res = await updateCartItemAPI(row.id, requested);
+      const serverQty = Number(res?.quantity ?? requested);
+      if (serverQty < requested) {
+        setNotice(`הכמות עודכנה למקסימום במלאי (${serverQty}) עבור "${row.recipe_name}"`);
+        // auto-clear after a short delay
+        setTimeout(() => setNotice(''), 3000);
+      }
+      await refresh(true);
     } catch (e) {
       setError(e?.response?.data?.message || e.message || 'שגיאה בעדכון כמות');
+    }
+    finally {
+      setBusyId(null);
     }
   };
 
   const onRemove = async (row) => {
-    try { await removeCartItemAPI(row.id); await refresh(); }
+    try { 
+      setBusyId(row.id);
+      await removeCartItemAPI(row.id); await refresh(true); 
+    }
     catch (e) { setError(e?.response?.data?.message || e.message || 'שגיאה במחיקה'); }
+    finally { setBusyId(null); }
   };
 
   const onClear = async () => {
     if (!window.confirm('לנקות את כל העגלה?')) return;
-    try { await clearCartAPI(); await refresh(); }
+    try { 
+      setBusyId('clear');
+      await clearCartAPI(); await refresh(); 
+    }
     catch (e) { setError(e?.response?.data?.message || e.message || 'שגיאה בניקוי העגלה'); }
+    finally { setBusyId(null); }
   };
 
   const exceedGoal = useMemo(() => Number(summary.total_calories || 0) > Number(goal || 0), [summary, goal]);
@@ -122,12 +142,18 @@ export default function Cart() {
       </div>
 
       {error && <div style={{ color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
+      {notice && (
+        <div style={{ position:'fixed', top: 16, right: 16, zIndex: 2000, color: '#065f46', background:'#ecfdf5', border:'1px solid #a7f3d0', padding:'8px 12px', borderRadius:6 }}>
+          {notice}
+        </div>
+      )}
       {loading && <div>טוען עגלה...</div>}
 
       {!loading && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
           {items.map((it) => (
             <div key={it.id} className={styles.itemRow}>
+
               <img
                 src={resolveImageUrl(it.picture)}
                 alt={it.recipe_name}
@@ -137,24 +163,34 @@ export default function Cart() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>{it.recipe_name}</div>
                 <div className={styles.smallDark}>{Number(it.calories || 0)} קלוריות למנה</div>
-                <div className={styles.smallMuted}>מלאי: {it.stock ?? '—'}</div>
+                <div className={styles.smallMuted}>
+                  מחיר ליחידה (כולל מע"מ): {(Number(it.unit_price_gross ?? it.price) || 0).toFixed(2)} ₪
+                  {typeof it.tax_amount !== 'undefined' && (
+                    <> • מע"מ ליחידה: {(Number(it.tax_amount) || 0).toFixed(2)} ₪</>
+                  )}
+                </div>
+                {/* Stock hidden from customers */}
               </div>
+
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button className={styles.btn} onClick={() => onQtyChange(it, Math.max(0, Number(it.quantity) - 1))}>-</button>
+                <button className={styles.btn} disabled={busyId===it.id || Number(it.quantity) <= 1} onClick={() => onQtyChange(it, Math.max(1, Number(it.quantity) - 1))}>-</button>
                 <input
                   type="number"
                   value={it.quantity}
-                  min={0}
+                  min={1}
                   max={Number(it.stock || 0)}
                   onChange={(e) => onQtyChange(it, e.target.value)}
                   style={{ width: 64, textAlign: 'center' }}
                 />
-                <button className={styles.btn} onClick={() => onQtyChange(it, Math.min(Number(it.stock || 0), Number(it.quantity) + 1))}>+</button>
+                <button className={styles.btn} disabled={busyId===it.id} onClick={() => onQtyChange(it, Math.min(Number(it.stock || 0), Number(it.quantity) + 1))}>+</button>
               </div>
-              <div style={{ width: 100, textAlign: 'end' }}>{(Number(it.price) * Number(it.quantity)).toFixed(2)} ₪</div>
-              <button className={`${styles.btn} ${styles.btnDanger}`} onClick={() => onRemove(it)}>הסר</button>
+              <div style={{ width: 120, textAlign: 'end' }}>
+                {(Number(it.unit_price_gross ?? it.price) * Number(it.quantity)).toFixed(2)} ₪
+              </div>
+              <button className={`${styles.btn} ${styles.btnDanger}`} disabled={busyId===it.id} onClick={() => onRemove(it)}>הסר</button>
             </div>
           ))}
+
           {items.length === 0 && (
             <div className={styles.itemRow}>העגלה ריקה</div>
           )}

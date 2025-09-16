@@ -23,9 +23,21 @@ function getUserId(req){ return req.session && req.session.user_id ? Number(req.
 
 const TAX_RATE_PERCENT = Number(process.env.TAX_RATE_PERCENT ?? 18.0);
 
-// Ensure order_items table exists if not present
+// Ensure orders and order_items tables exist if not present
 (async () => {
   try {
+    // Create orders table first (referenced by order_items)
+    await query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        order_id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'pending',
+        total_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        total_calories INT NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL
+      )
+    `);
+
     await query(`
       CREATE TABLE IF NOT EXISTS order_items (
         id INT AUTO_INCREMENT PRIMARY KEY,

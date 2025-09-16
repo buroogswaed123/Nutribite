@@ -526,6 +526,7 @@ router.post('/:id/add_to_cart', requireActiveUser, async (req, res) => {
     }
 
     // For each saved item: determine qty and cap by stock
+    const TAX_RATE_PERCENT = Number(process.env.TAX_RATE_PERCENT ?? 18.0); // configurable tax rate
     let added = 0;
     for (const it of items) {
       const pid = Number(it.product_id);
@@ -534,7 +535,9 @@ router.post('/:id/add_to_cart', requireActiveUser, async (req, res) => {
       const qty = Math.max(1, qtyRaw);
       // Fetch current stock and price
       const [pRows] = await tx.query('SELECT price, stock FROM products WHERE product_id = ? LIMIT 1', [pid]);
-      const price = Number(pRows?.[0]?.price || 0);
+      const unitNet = Number(pRows?.[0]?.price || 0);
+      const taxAmount = Number(((unitNet * TAX_RATE_PERCENT) / 100).toFixed(2));
+      const unitGross = Number((unitNet + taxAmount).toFixed(2));
       const stock = Math.max(0, Number(pRows?.[0]?.stock || 0));
       const finalQty = Math.min(qty, stock || qty);
       if (finalQty <= 0) continue;
@@ -542,9 +545,15 @@ router.post('/:id/add_to_cart', requireActiveUser, async (req, res) => {
       // Upsert by user+product: set/replace exact quantity
       const [existRows] = await tx.query('SELECT id FROM cart_items WHERE user_id = ? AND product_id = ? LIMIT 1', [userId, pid]);
       if (existRows && existRows[0]) {
-        await tx.query('UPDATE cart_items SET quantity = ?, price = ? WHERE id = ?', [finalQty, price, existRows[0].id]);
+        await tx.query(
+          'UPDATE cart_items SET quantity = ?, price = ?, unit_price_net = ?, tax_rate = ?, tax_amount = ?, unit_price_gross = ? WHERE id = ?',
+          [finalQty, unitGross, unitNet, TAX_RATE_PERCENT, taxAmount, unitGross, existRows[0].id]
+        );
       } else {
-        await tx.query('INSERT INTO cart_items (user_id, product_id, quantity, price) VALUES (?, ?, ?, ?)', [userId, pid, finalQty, price]);
+        await tx.query(
+          'INSERT INTO cart_items (user_id, product_id, quantity, price, unit_price_net, tax_rate, tax_amount, unit_price_gross) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [userId, pid, finalQty, unitGross, unitNet, TAX_RATE_PERCENT, taxAmount, unitGross]
+        );
       }
       added += 1;
     }

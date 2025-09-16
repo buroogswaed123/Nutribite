@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styles from './menu.module.css'
-import { fetchDietTypes, fetchRecipes, getSessionUser, bulkUpdateRecipePrices, fetchMenuCategoriesAPI, addToCartAPI, getProductByRecipeAPI } from '../../../utils/functions'
+import { fetchDietTypes, fetchRecipesPaged, getSessionUser, bulkUpdateRecipePrices, fetchMenuCategoriesAPI, addToCartAPI, getProductByRecipeAPI } from '../../../utils/functions'
 
 export default function Menu() {
   const navigate = useNavigate()
@@ -66,6 +66,9 @@ export default function Menu() {
   }
 
   const [recipes, setRecipes] = useState([])
+  const [page, setPage] = useState(1)
+  const [limit] = useState(20)
+  const [total, setTotal] = useState(0)
   const [dietTypes, setDietTypes] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
@@ -117,14 +120,14 @@ export default function Menu() {
     return () => { cancelled = true }
   }, [])
 
-  // Load recipes when filters/search change
+  // Load recipes when filters/search/page change
   useEffect(() => {
     let cancelled = false
     async function load() {
       try {
         setLoading(true)
         setError('')
-        const items = await fetchRecipes({
+        const { items, meta } = await fetchRecipesPaged({
           search,
           categoryId,
           dietId,
@@ -132,9 +135,12 @@ export default function Menu() {
           maxPrice: priceMax,
           minCalories: calMin,
           maxCalories: calMax,
+          page,
+          limit,
         })
         if (cancelled) return
         setRecipes(items)
+        setTotal(Number(meta?.total || 0))
       } catch (e) {
         if (!cancelled) setError(e.message || 'שגיאה בטעינת מתכונים')
       } finally {
@@ -142,8 +148,8 @@ export default function Menu() {
       }
     }
     load()
-    return () => { cancelled = true }
-  }, [search, categoryId, dietId, priceMin, priceMax, calMin, calMax])
+    return () => { cancelled = false }
+  }, [search, categoryId, dietId, priceMin, priceMax, calMin, calMax, page, limit])
 
   const filtered = useMemo(() => {
     // If server filtered, keep client filter as safety
@@ -207,11 +213,22 @@ export default function Menu() {
       if (!rid) throw new Error('מזהה מתכון חסר');
       const product = await getProductByRecipeAPI(rid);
       const pid = product?.product_id;
+      const pStock = Number(product?.stock ?? 0);
       if (!pid) throw new Error('לא ניתן לאתר מוצר עבור מתכון זה');
+      if (!(pStock > 0)) {
+        setToast({ type: 'error', text: 'המוצר הזה לא זמיו' });
+        return;
+      }
       await addToCartAPI(pid, 1);
       setToast({ type: 'success', text: 'נוסף לעגלה' });
     } catch (e) {
-      setToast({ type: 'error', text: e?.response?.data?.message || e.message || 'שגיאה בהוספה לעגלה' });
+      const msg = e?.response?.data?.message || e.message || 'שגיאה בהוספה לעגלה';
+      // Normalize common out-of-stock wording
+      if (/out of stock|stock/i.test(String(msg))) {
+        setToast({ type: 'error', text: 'המוצר הזה לא זמיו' });
+      } else {
+        setToast({ type: 'error', text: msg });
+      }
     }
   }
 
@@ -238,8 +255,9 @@ export default function Menu() {
       const ids = Array.from(selectedIds)
       await bulkUpdateRecipePrices({ recipeIds: ids, newPrice: bulkPrice })
       // reload recipes
-      const items = await fetchRecipes({ search, categoryId, dietId })
+      const { items, meta } = await fetchRecipesPaged({ search, categoryId, dietId, page, limit })
       setRecipes(items)
+      setTotal(Number(meta?.total || 0))
       setSelectedIds(new Set())
       setSelectAll(false)
       setBulkPrice('')
@@ -307,7 +325,7 @@ export default function Menu() {
               ))}
             </select>
           </span>
-          <button className={styles.btn} style={{marginInlineStart:'auto'}} onClick={() => { setSearch(''); setCategoryId('all'); setDietId('all'); setPriceMin(''); setPriceMax(''); setCalMin(''); setCalMax(''); }}>נקה סינון</button>
+          <button className={styles.btn} style={{marginInlineStart:'auto'}} onClick={() => { setSearch(''); setCategoryId('all'); setDietId('all'); setPriceMin(''); setPriceMax(''); setCalMin(''); setCalMax(''); setPage(1); }}>נקה סינון</button>
         </div>
 
         {isAdmin && (
@@ -336,8 +354,18 @@ export default function Menu() {
       )}
 
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:16}}>
-        {filtered.map(r => (
-          <div key={r.recipe_id} onClick={() => openModal(r)} style={{cursor:'pointer', background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
+        {filtered.map(r => {
+          const out = !(Number(r.stock ?? 0) > 0);
+          const handleCardClick = () => {
+            if (out) { setToast({ type: 'error', text: 'המוצר הזה לא זמיו' }); return; }
+            openModal(r);
+          };
+          return (
+          <div key={r.recipe_id} onClick={handleCardClick} style={{
+            cursor: out ? 'not-allowed' : 'pointer',
+            opacity: out ? 0.5 : 1,
+            background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', boxShadow:'0 1px 3px rgba(0,0,0,0.05)'
+          }}>
             <img src={resolveImageUrl(r.picture || r.imageUrl)} alt={r.name} style={{width:'100%', height:150, objectFit:'cover'}} onError={(e)=>{ try{ console.error('Image failed to load:', resolveImageUrl(r.picture || r.imageUrl)); }catch(_){} e.currentTarget.style.display='none' }} />
             <div style={{padding:12, position:'relative'}}>
               {isAdmin && (
@@ -371,10 +399,27 @@ export default function Menu() {
               </div>
             </div>
           </div>
-        ))}
+          )
+        })}
         {filtered.length === 0 && (
           <div className={styles.emptyBox}>לא נמצאו מתכונים תואמים</div>
         )}
+      </div>
+
+      {/* Bottom-centered pagination */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginTop:16 }}>
+        {(() => {
+          const totalPages = Math.max(1, Math.ceil((Number(total)||0) / limit));
+          return (
+            <>
+              {/* Left chevron navigates forward (next) in RTL */}
+              <button className={styles.btn} disabled={page >= totalPages} onClick={() => setPage(p=>p+1)}>{'<'}</button>
+              <span style={{ color:'#6b7280' }}>עמוד {page} מתוך {totalPages}</span>
+              {/* Right chevron navigates backward (prev) in RTL */}
+              <button className={styles.btn} disabled={page <= 1} onClick={() => setPage(p=>Math.max(1, p-1))}>{'>'}</button>
+            </>
+          )
+        })()}
       </div>
 
       {showModal && selected && (
@@ -435,7 +480,10 @@ export default function Menu() {
                     </>
                   ) : (
                     <>
-                      <button className={styles.btn} onClick={() => onAddToCart(selected)}>הוסף לעגלה</button>
+                      <button className={styles.btn} disabled={!(Number(selected?.stock ?? 0) > 0)} onClick={() => {
+                        if (!(Number(selected?.stock ?? 0) > 0)) { setToast({ type:'error', text:'המוצר הזה לא זמיו' }); return; }
+                        onAddToCart(selected);
+                      }}>הוסף לעגלה</button>
                       <button className={styles.btn} onClick={() => onViewRecipe(selected)}>הצג מתכון</button>
                     </>
                   )}

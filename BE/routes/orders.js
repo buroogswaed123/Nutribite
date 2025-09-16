@@ -21,6 +21,8 @@ function query(sql, params = []) {
 
 function getUserId(req){ return req.session && req.session.user_id ? Number(req.session.user_id) : null; }
 
+const TAX_RATE_PERCENT = Number(process.env.TAX_RATE_PERCENT ?? 18.0);
+
 // Ensure order_items table exists if not present
 (async () => {
   try {
@@ -31,12 +33,23 @@ function getUserId(req){ return req.session && req.session.user_id ? Number(req.
         product_id INT NOT NULL,
         quantity INT NOT NULL DEFAULT 1,
         price DECIMAL(10,2) NOT NULL,
+        unit_price_net DECIMAL(10,2) NULL,
+        tax_rate DECIMAL(5,2) NULL,
+        tax_amount DECIMAL(10,2) NULL,
+        unit_price_gross DECIMAL(10,2) NULL,
         category_id INT NULL,
         delivery_at DATETIME NULL,
         CONSTRAINT fk_oi_order FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE,
         CONSTRAINT fk_oi_product FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE RESTRICT
       )
     `);
+    // Add missing tax columns if table already existed
+    const cols = await query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'order_items'");
+    const have = new Set(cols.map(c => c.COLUMN_NAME));
+    if (!have.has('unit_price_net')) await query("ALTER TABLE order_items ADD COLUMN unit_price_net DECIMAL(10,2) NULL AFTER price");
+    if (!have.has('tax_rate')) await query("ALTER TABLE order_items ADD COLUMN tax_rate DECIMAL(5,2) NULL AFTER unit_price_net");
+    if (!have.has('tax_amount')) await query("ALTER TABLE order_items ADD COLUMN tax_amount DECIMAL(10,2) NULL AFTER tax_rate");
+    if (!have.has('unit_price_gross')) await query("ALTER TABLE order_items ADD COLUMN unit_price_gross DECIMAL(10,2) NULL AFTER tax_amount");
   } catch (e) { /* ignore */ }
 })();
 
@@ -95,7 +108,7 @@ router.post('/checkout', async (req, res) => {
 
     // Fetch cart items for the user joined to recipe for category & calories
     const cart = await tx.query(`
-      SELECT ci.id, ci.product_id, ci.quantity, ci.price, r.recipe_id, r.calories, r.category_id
+      SELECT ci.id, ci.product_id, ci.quantity, ci.price, ci.unit_price_net, ci.tax_rate, ci.tax_amount, ci.unit_price_gross, r.recipe_id, r.calories, r.category_id
       FROM cart_items ci
       INNER JOIN products p ON p.product_id = ci.product_id
       INNER JOIN recipes r ON r.recipe_id = p.recipe_id
@@ -104,7 +117,7 @@ router.post('/checkout', async (req, res) => {
 
     if (!cart || cart.length === 0) return res.status(400).json({ message: 'Cart is empty' });
 
-    const totalPrice = cart.reduce((s,it)=> s + Number(it.price||0)*Number(it.quantity||0), 0);
+    const totalPrice = cart.reduce((s,it)=> s + Number((it.unit_price_gross ?? it.price) || 0) * Number(it.quantity||0), 0);
     const totalCalories = cart.reduce((s,it)=> s + Number(it.calories||0)*Number(it.quantity||0), 0);
 
     // Create order
@@ -128,9 +141,16 @@ router.post('/checkout', async (req, res) => {
           deliveryAt = null;
         }
       }
+      // Snapshot tax fields into order_items; fallback compute if cart row doesn't have them
+      const unitNet = (typeof it.unit_price_net !== 'undefined' && it.unit_price_net !== null) ? Number(it.unit_price_net) : Number(it.price);
+      const taxRate = (typeof it.tax_rate !== 'undefined' && it.tax_rate !== null) ? Number(it.tax_rate) : TAX_RATE_PERCENT;
+      const taxAmount = (typeof it.tax_amount !== 'undefined' && it.tax_amount !== null) ? Number(it.tax_amount) : Number(((unitNet * taxRate) / 100).toFixed(2));
+      const unitGross = (typeof it.unit_price_gross !== 'undefined' && it.unit_price_gross !== null) ? Number(it.unit_price_gross) : Number((unitNet + taxAmount).toFixed(2));
+
       await tx.query(
-        `INSERT INTO order_items (order_id, product_id, quantity, price, category_id, delivery_at) VALUES (?, ?, ?, ?, ?, ?)`,
-        [orderId, it.product_id, it.quantity, it.price, it.category_id ?? null, deliveryAt]
+        `INSERT INTO order_items (order_id, product_id, quantity, price, unit_price_net, tax_rate, tax_amount, unit_price_gross, category_id, delivery_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, it.product_id, it.quantity, unitGross, unitNet, taxRate, taxAmount, unitGross, it.category_id ?? null, deliveryAt]
       );
     }
 

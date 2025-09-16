@@ -19,6 +19,8 @@ export default function Recipes() {
   const [recipes, setRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
   const [openId, setOpenId] = useState(null);
   const [selected, setSelected] = useState(null);
   const [loadingItem, setLoadingItem] = useState(false);
@@ -175,6 +177,16 @@ export default function Recipes() {
     });
   }, [recipes, search, calories, diet, category]);
 
+  // Reset to first page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, calories, diet, category]);
+
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const offset = (page - 1) * limit;
+  const currentItems = filtered.slice(offset, offset + limit);
+
   // Helper to slugify names for URLs
   const slugify = (str) => String(str || '')
     .toLowerCase()
@@ -254,7 +266,7 @@ export default function Recipes() {
       </div>
 
       <div className={styles.cardsGrid}>
-        {filtered.map((recipe) => (
+        {currentItems.map((recipe) => (
           <div key={recipe.id || recipe.recipe_id} className={styles.cardNarrow}>
             <img
               src={ensureImageUrl(recipe.picture || recipe.imageUrl || recipe.image)}
@@ -338,6 +350,15 @@ export default function Recipes() {
             }}>קרא עוד</button>
           </div>
         ))}
+      </div>
+
+      {/* Pagination controls */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, margin:'12px 0' }}>
+        {/* Left chevron navigates forward (next) in RTL */}
+        <button className={styles.btn} disabled={page >= totalPages} onClick={() => setPage(p=>Math.min(totalPages, p+1))}>{'<'}</button>
+        <span style={{ color:'#6b7280' }}>עמוד {page} מתוך {totalPages}</span>
+        {/* Right chevron navigates backward (prev) in RTL */}
+        <button className={styles.btn} disabled={page <= 1} onClick={() => setPage(p=>Math.max(1, p-1))}>{'>'}</button>
       </div>
 
       {openId && (

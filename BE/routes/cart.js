@@ -24,6 +24,9 @@ function getUserId(req) {
   return req.session && req.session.user_id ? Number(req.session.user_id) : null;
 }
 
+// Tax rate (percent). Read from env; default 18%.
+const TAX_RATE_PERCENT = Number(process.env.TAX_RATE_PERCENT ?? 18.0);
+
 // GET /api/cart -> list cart items for current user (joined with product and recipe info)
 router.get('/', async (req, res) => {
   try {
@@ -34,7 +37,11 @@ router.get('/', async (req, res) => {
         ci.id,
         ci.product_id,
         ci.quantity,
-        ci.price,
+        ci.price, -- legacy gross unit price
+        ci.unit_price_net,
+        ci.tax_rate,
+        ci.tax_amount,
+        ci.unit_price_gross,
         p.recipe_id,
         p.stock,
         p.price AS current_price,
@@ -75,14 +82,26 @@ router.post('/', async (req, res) => {
     const allowedQty = Math.min(qty, Math.max(0, Number(prod.stock) || 0));
     if (allowedQty <= 0) return res.status(400).json({ message: 'Out of stock' });
 
+    // Compute tax based on product price as net for now
+    const unitNet = Number(prod.price || 0);
+    const taxRate = TAX_RATE_PERCENT;
+    const taxAmount = Number(((unitNet * taxRate) / 100).toFixed(2));
+    const unitGross = Number((unitNet + taxAmount).toFixed(2));
+
     // upsert: if exists, increment (capped by stock), else insert
     const existing = await query('SELECT id, quantity FROM cart_items WHERE user_id = ? AND product_id = ? LIMIT 1', [userId, productId]);
     if (existing && existing[0]) {
       const newQty = Math.min((Number(existing[0].quantity) || 0) + allowedQty, Math.max(0, Number(prod.stock) || 0));
-      await query('UPDATE cart_items SET quantity = ?, price = ? WHERE id = ?', [newQty, prod.price, existing[0].id]);
+      await query(
+        'UPDATE cart_items SET quantity = ?, price = ?, unit_price_net = ?, tax_rate = ?, tax_amount = ?, unit_price_gross = ? WHERE id = ?',
+        [newQty, unitGross, unitNet, taxRate, taxAmount, unitGross, existing[0].id]
+      );
       return res.status(200).json({ ok: true, id: existing[0].id, quantity: newQty });
     }
-    const ins = await query('INSERT INTO cart_items (user_id, product_id, quantity, price) VALUES (?, ?, ?, ?)', [userId, productId, allowedQty, prod.price]);
+    const ins = await query(
+      'INSERT INTO cart_items (user_id, product_id, quantity, price, unit_price_net, tax_rate, tax_amount, unit_price_gross) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, productId, allowedQty, unitGross, unitNet, taxRate, taxAmount, unitGross]
+    );
     return res.status(201).json({ ok: true, id: ins.insertId, quantity: allowedQty });
   } catch (err) {
     console.error('CART ADD ERROR:', err);
@@ -112,7 +131,14 @@ router.patch('/:id', async (req, res) => {
     const prod = prodRows && prodRows[0];
     const cap = Math.max(0, Number(prod?.stock) || 0);
     const newQty = Math.min(qty, cap);
-    await query('UPDATE cart_items SET quantity = ?, price = ? WHERE id = ? AND user_id = ?', [newQty, prod?.price || 0, id, userId]);
+    const unitNet = Number(prod?.price || 0);
+    const taxRate = TAX_RATE_PERCENT;
+    const taxAmount = Number(((unitNet * taxRate) / 100).toFixed(2));
+    const unitGross = Number((unitNet + taxAmount).toFixed(2));
+    await query(
+      'UPDATE cart_items SET quantity = ?, price = ?, unit_price_net = ?, tax_rate = ?, tax_amount = ?, unit_price_gross = ? WHERE id = ? AND user_id = ?',
+      [newQty, unitGross, unitNet, taxRate, taxAmount, unitGross, id, userId]
+    );
     return res.json({ ok: true, id, quantity: newQty });
   } catch (err) {
     console.error('CART UPDATE ERROR:', err);
@@ -154,7 +180,7 @@ router.get('/summary', async (req, res) => {
     if (!userId) return res.status(401).json({ message: 'Not logged in' });
     const rows = await query(`
       SELECT 
-        SUM(ci.quantity * ci.price) AS total_price,
+        SUM(ci.quantity * COALESCE(ci.unit_price_gross, ci.price)) AS total_price,
         SUM(ci.quantity) AS total_items,
         SUM(ci.quantity * COALESCE(r.calories,0)) AS total_calories
       FROM cart_items ci

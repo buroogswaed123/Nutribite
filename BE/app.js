@@ -234,7 +234,7 @@ initDatabase();
 // Middleware
 // ========================
 // Allow multiple dev origins via whitelist
-const DEV_ORIGINS = ['http://localhost:3001', 'http://localhost:5173'];
+const DEV_ORIGINS = ['http://localhost:3001', 'http://localhost:5173', 'http://127.0.0.1:5173'];
 const CORS_WHITELIST = Array.from(new Set([FRONTEND_ORIGIN, ...DEV_ORIGINS].filter(Boolean)));
 
 app.use(cors({
@@ -250,14 +250,36 @@ app.use(cors({
 app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Optional persistent session store using MySQL; falls back to MemoryStore if not available
+let sessionStore = undefined;
+try {
+  const MySQLStore = require('express-mysql-session')(session);
+  sessionStore = new MySQLStore({
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASS || '',
+    database: process.env.DB_NAME || 'nutribite_db',
+    clearExpired: true,
+    checkExpirationInterval: 1000 * 60 * 15, // prune every 15m
+    expiration: 1000 * 60 * 60 * 24 * 7, // 7 days
+    createDatabaseTable: true
+  });
+} catch (e) {
+  console.warn('express-mysql-session not installed; using in-memory session store for dev. To persist sessions, install it: npm i express-mysql-session');
+}
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'someSecretHere123',
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false, // avoid setting empty sessions
+  rolling: true,            // refresh cookie on each response
+  store: sessionStore,      // may be undefined; express-session will use MemoryStore
   cookie: {
     httpOnly: true,
-    maxAge: 1000 * 60 * 30, // 30 mins
-    sameSite: 'lax'
+    maxAge: 1000 * 60 * 30, // 30 mins, refreshed by rolling
+    sameSite: 'lax',
+    secure: false           // set true behind HTTPS/proxy in prod
   }
 }));
 

@@ -435,11 +435,35 @@ export default function Plan() {
 
   // Reset cat selection when categories change
   useEffect(() => {
-    const next = {};
-    for (const c of (categoryData.cats || [])) next[c.catId] = 0;
-    setCatIdx(next);
+    setCatIdx(prev => {
+      const next = { ...prev };
+      for (const c of (categoryData.cats || [])) {
+        if (typeof next[c.catId] !== 'number') next[c.catId] = 0;
+      }
+      return next;
+    });
     autoOptimizedRef.current = false;
   }, [categoryData.cats?.map(c => c.catId).join(',')]);
+
+  // Align current selection with SAVED plan items when possible so UI matches DB
+  useEffect(() => {
+    if (!plan?.items || !(categoryData.cats || []).length) return;
+    setCatIdx(prev => {
+      const next = { ...prev };
+      for (const c of (categoryData.cats || [])) {
+        const arr = c.items || [];
+        if (!arr.length) continue;
+        // Find an item in this category whose product_id exists in saved plan
+        let foundIndex = -1;
+        for (let i = 0; i < arr.length; i++) {
+          const pid = Number(arr[i].product_id);
+          if (plan.items.some(it => Number(it.product_id) === pid)) { foundIndex = i; break; }
+        }
+        if (foundIndex >= 0) next[c.catId] = foundIndex;
+      }
+      return next;
+    });
+  }, [JSON.stringify(plan?.items?.map(it => it.product_id)?.sort() || []), categoryData.cats]);
 
   // Suggestions snapshot from current selections
   const suggestions = useMemo(
@@ -609,7 +633,8 @@ export default function Plan() {
           const leftDefs = [
             { label: 'ארוחת בוקר', aliases: ['ארוחת בוקר'] },
             { label: 'משקאות', aliases: ['משקה','משקאות'] },
-            { label: 'ארוחת צהריים', aliases: ['ארוחת צהריים'] },
+            // Include common variants for lunch naming/spelling to ensure display
+            { label: 'ארוחת צהריים', aliases: ['ארוחת צהריים', 'ארוחת צהרים', 'צהריים', 'צהרים'] },
           ];
           const rightDefs = [
             { label: 'חטיפים', aliases: ['חטיף','חטיפים'] },
@@ -677,12 +702,17 @@ export default function Plan() {
         <button
           onClick={async () => {
             try {
-              // Build exact on-screen selection: the currently suggested pick per category + optional extra
+              // Build exact on-screen selection: ONLY the currently suggested pick per category (no auto extra)
               const itemsToSave = [...(suggestions.picks || [])];
-              if (suggestions.extra) itemsToSave.push(suggestions.extra);
-              const payload = itemsToSave
-                .map(it => ({ product_id: Number(it.product_id), servings: 1 }))
-                .filter(x => Number.isFinite(x.product_id) && x.product_id > 0);
+              // Build payload and dedupe by product_id (safety)
+              const payload = (() => {
+                const arr = itemsToSave
+                  .map(it => ({ product_id: Number(it.product_id), servings: 1 }))
+                  .filter(x => Number.isFinite(x.product_id) && x.product_id > 0);
+                const byId = new Map();
+                for (const r of arr) if (!byId.has(r.product_id)) byId.set(r.product_id, r);
+                return Array.from(byId.values());
+              })();
               await replacePlanProductsAPI(plan.plan_id, payload);
               await refreshPlan();
               if (!hasShownSaveSuccess) {
@@ -700,13 +730,19 @@ export default function Plan() {
         <button
           onClick={async () => {
             try {
-              // 1) Overwrite DB with EXACTLY what's on screen now
+              // 1) Overwrite DB with EXACTLY what's on screen now: ONLY picks per category (no auto extra)
               const itemsToSave = [...(suggestions.picks || [])];
-              if (suggestions.extra) itemsToSave.push(suggestions.extra);
-              const payload = itemsToSave
-                .map(it => ({ product_id: Number(it.product_id), servings: 1 }))
-                .filter(x => Number.isFinite(x.product_id) && x.product_id > 0);
+              const payload = (() => {
+                const arr = itemsToSave
+                  .map(it => ({ product_id: Number(it.product_id), servings: 1 }))
+                  .filter(x => Number.isFinite(x.product_id) && x.product_id > 0);
+                const byId = new Map();
+                for (const r of arr) if (!byId.has(r.product_id)) byId.set(r.product_id, r);
+                return Array.from(byId.values());
+              })();
               await replacePlanProductsAPI(plan.plan_id, payload);
+              // Ensure FE state and backend are aligned before adding to cart
+              await refreshPlan();
               // 2) Add saved items to cart (server-side exact copy)
               await addPlanToCartAPI(plan.plan_id, { clear: true, quantityMode: 'one' });
               navigate('/cart');

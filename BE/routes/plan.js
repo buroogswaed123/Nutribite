@@ -139,6 +139,9 @@ router.post('/:id/replace_products', requireActiveUser, async (req, res) => {
     if (!Number.isFinite(id)) return bad(res, 'Invalid id');
 
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    try {
+      console.debug('[plan.replace_products] plan_id=', id, 'incoming items=', items);
+    } catch {}
     await tx.query('DELETE FROM nutrition_plan_contains_products WHERE plan_id = ?', [id]);
     if (items.length === 0) return ok(res, { success: true, plan_id: id, replaced: 0 });
 
@@ -155,6 +158,9 @@ router.post('/:id/replace_products', requireActiveUser, async (req, res) => {
         , [values]
       );
     }
+    try {
+      console.debug('[plan.replace_products] plan_id=', id, 'inserted rows count=', values.length, 'product_ids=', values.map(v=>v[1]));
+    } catch {}
     return ok(res, { success: true, plan_id: id, replaced: values.length });
   } catch (err) {
     return serverErr(res, err, 'Failed to replace plan products');
@@ -507,6 +513,9 @@ router.post('/:id/add_to_cart', requireActiveUser, async (req, res) => {
       `,
       [id]
     );
+    try {
+      console.debug('[plan.add_to_cart] plan_id=', id, 'loaded plan items=', items);
+    } catch {}
 
     if (!items || items.length === 0) {
       return ok(res, { added: 0 });

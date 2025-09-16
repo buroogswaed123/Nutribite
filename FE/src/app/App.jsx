@@ -1,8 +1,15 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
-import { createContext, useContext } from "react";
+import { getSessionUser } from "../utils/functions";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useParams,
+} from "react-router-dom";
+import { createContext, useContext, useEffect } from "react";
 import { useState } from "react";
 import classes from "./app.module.css";
-
 
 //Home Page imports
 import CustomerHome from "../components/pages/customer/home/Home";
@@ -13,11 +20,11 @@ import UsersList from "../components/pages/admin/profile/management/UsersList";
 //Profile Page imports
 import AdminProfile from "../components/pages/admin/profile/Profile";
 import CustomerProfile from "../components/pages/customer/profile/Profile";
-import  CourierProfile from "../components/pages/courier/profile/Profile";
+import CourierProfile from "../components/pages/courier/profile/Profile";
 
 //Regular imports
 import Login from "../components/pages/Login";
-import Plan from "../components/pages/customer/plan/Plan";  
+import Plan from "../components/pages/customer/plan/Plan";
 import PasswordReset from "../components/pages/PasswordReset";
 import NotFound from "../components/pages/NotFound";
 import Footer from "../components/layout/footer/Footer";
@@ -43,7 +50,12 @@ export const AuthContext = createContext();
 
 const RequireAuth = ({ children, allowGuest = false }) => {
   const location = useLocation();
-  const { isLoggedIn } = useContext(AuthContext);
+  const { isLoggedIn, authReady } = useContext(AuthContext);
+
+  // Wait for initial auth check to complete to avoid flicker
+  if (!allowGuest && !authReady) {
+    return null; // or a small loader
+  }
 
   if (!isLoggedIn && !allowGuest) {
     return <Navigate to="/" state={{ from: location }} replace />;
@@ -55,6 +67,7 @@ const RequireAuth = ({ children, allowGuest = false }) => {
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
 
   const handleLogin = (user) => {
     setIsLoggedIn(true);
@@ -69,9 +82,45 @@ function App() {
   const auth = {
     isLoggedIn,
     currentUser,
+    authReady,
     handleLogin,
-    handleLogout
+    handleLogout,
   };
+
+  // Hydrate session from backend (/api/me), with a single retry to smooth races
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const tryFetch = async () => {
+        try {
+          const user = await getSessionUser();
+          if (cancelled) return null;
+          if (user && user.user_id) return user;
+          return null;
+        } catch (_) {
+          return null;
+        }
+      };
+      let user = await tryFetch();
+      if (!user) {
+        // Retry once after short delay (handles immediate nav after login)
+        await new Promise(r => setTimeout(r, 250));
+        user = await tryFetch();
+      }
+      if (!cancelled) {
+        if (user) {
+          setIsLoggedIn(true);
+          setCurrentUser(user);
+        } else {
+          setIsLoggedIn(false);
+          setCurrentUser(null);
+        }
+        setAuthReady(true);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <BrowserRouter>
@@ -80,115 +129,109 @@ function App() {
           <Routes>
             <Route path="/" element={<Login onLoginSuccess={handleLogin} />} />
             <Route
-  path="/customerhome"
-  element={
-    <RequireAuth allowGuest={true}>
-    <div className={classes.withNav}>
-      <Header />
-      <CustomerHome />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/adminhome"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      <Header />
-      <HomeEnhanced />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/users"
-  element={
-    <RequireAuth>
-      <div className={classes.withNav}>
-        <Header />
-        <UsersList />
-        <Footer />
-      </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/courierhome"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      <Header />
-      <CourierHome />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/contact"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      <Header />
-      <Contact />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/plan-maker"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      <Header />
-      <PlanMaker />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/customerprofile"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      
-      <CustomerProfile />
-      
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/adminprofile"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      
-      <AdminProfile />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/courierprofile"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      
-      <CourierProfile />
-      
-    </div>
-    </RequireAuth>
-  }
-/>
-    
-             
+              path="/customerhome"
+              element={
+                <RequireAuth allowGuest={true}>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <CustomerHome />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/adminhome"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <HomeEnhanced />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/users"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <UsersList />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/courierhome"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <CourierHome />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/contact"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <Contact />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/plan-maker"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <PlanMaker />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/customerprofile"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <CustomerProfile />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/adminprofile"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <AdminProfile />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/courierprofile"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <CourierProfile />
+                  </div>
+                </RequireAuth>
+              }
+            />
+
             <Route
               path="/plan"
               element={
@@ -242,69 +285,69 @@ function App() {
                 </div>
               }
             />
-            
+
             <Route path="/password-reset" element={<PasswordReset />} />
             <Route path="*" element={<NotFound />} />
             <Route
-  path="/recipes"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      <Header />
-      <Recipes />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/menu"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      <Header />
-      <Menu />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/cart"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      <Header />
-      <Cart />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/order"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      <Header />
-      <Order />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
-<Route
-  path="/orders/:id"
-  element={
-    <RequireAuth>
-    <div className={classes.withNav}>
-      <Header />
-      <OrderDetails />
-      <Footer />
-    </div>
-    </RequireAuth>
-  }
-/>
+              path="/recipes"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <Recipes />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/menu"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <Menu />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/cart"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <Cart />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/order"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <Order />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/orders/:id"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <OrderDetails />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
           </Routes>
         </div>
       </AuthContext.Provider>

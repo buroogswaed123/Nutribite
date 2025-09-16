@@ -39,7 +39,7 @@ import Contact from "../components/pages/contact/ContactUs";
 import PlanMaker from "../components/pages/customer/plan/CalorieCalc";
 import Cart from "../components/pages/cart/Cart";
 import Order from "../components/pages/cart/Order";
-import OrderDetails from "../components/pages/cart/OrderDetails";
+import OrderDetails from "../components/pages/orders/OrderDetails";
 
 function QAWrapper() {
   const { articleId } = useParams();

@@ -85,8 +85,9 @@ export async function isAdmin(userId) {
 // Get current session user (via /api/me)
 export async function getSessionUser() {
   try {
-    const { data } = await axios.get('/api/me');
-    return data; // expected to be full user row
+    const res = await axios.get('/api/me', { validateStatus: () => true });
+    if (res && res.status === 200) return res.data;
+    return null;
   } catch (err) {
     // Not logged in or error
     return null;

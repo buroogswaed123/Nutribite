@@ -37,6 +37,7 @@ export default function Order() {
   const [err, setErr] = useState('');
   // schedule: { [category_id]: { date: 'YYYY-MM-DD', time: 'HH:mm' } }
   const [schedule, setSchedule] = useState({});
+  const DRAFT_KEY = 'nb_order_schedule';
 
   const refresh = async () => {
     setLoading(true);
@@ -53,6 +54,29 @@ export default function Order() {
   };
 
   useEffect(() => { refresh(); }, []);
+
+  // Load any saved schedule draft on first render
+  useEffect(() => {
+    try {
+      const raw = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem(DRAFT_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          setSchedule(parsed);
+        }
+      }
+    } catch (_) { /* ignore */ }
+    // no cleanup needed
+  }, []);
+
+  // Persist schedule draft as it changes
+  useEffect(() => {
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(schedule || {}));
+      }
+    } catch (_) { /* ignore */ }
+  }, [schedule]);
 
   const groups = useMemo(() => {
     const map = new Map();
@@ -105,9 +129,14 @@ export default function Order() {
       const data = await checkoutOrderAPI(payload);
       const orderId = data?.order_id;
       if (!orderId) throw new Error('Order creation failed');
+      // Clear draft after successful checkout
+      try { if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(DRAFT_KEY); } catch (_) {}
       navigate(`/orders/${orderId}`);
     } catch (e) {
-      setErr(e?.response?.data?.message || e.message || 'שגיאה בהזמנה');
+      const serverMsg = e?.response?.data?.message;
+      const serverErr = e?.response?.data?.error;
+      const full = serverMsg ? (serverErr ? `${serverMsg}: ${serverErr}` : serverMsg) : (e.message || 'שגיאה בהזמנה');
+      setErr(full);
     }
   };
 

@@ -50,6 +50,61 @@ router.get('/by-recipe/:recipeId(\\d+)', async (req, res) => {
     return res.status(500).json({ message: 'Error fetching product', error: err.message });
   }
 });
+
+// GET /api/menu/protein?min=&max=
+// Minimal: filter by protein_g (grams)
+router.get('/protein', async (req, res) => {
+  try {
+    const min = Number.isFinite(Number(req.query.min)) ? Number(req.query.min) : 0;
+    const max = Number.isFinite(Number(req.query.max)) ? Number(req.query.max) : 1e9;
+    const rows = await query(
+      `SELECT r.name, r.calories, r.protein_g
+       FROM products p JOIN recipes r ON r.recipe_id = p.recipe_id
+       WHERE r.deleted_at IS NULL AND r.protein_g BETWEEN ? AND ?
+       ORDER BY p.product_id DESC LIMIT 20`,
+      [min, max]
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    res.status(500).json({ message: 'Error searching by protein' });
+  }
+});
+
+// GET /api/menu/carbs?min=&max=
+router.get('/carbs', async (req, res) => {
+  try {
+    const min = Number.isFinite(Number(req.query.min)) ? Number(req.query.min) : 0;
+    const max = Number.isFinite(Number(req.query.max)) ? Number(req.query.max) : 1e9;
+    const rows = await query(
+      `SELECT r.name, r.calories, r.carbs_g
+       FROM products p JOIN recipes r ON r.recipe_id = p.recipe_id
+       WHERE r.deleted_at IS NULL AND r.carbs_g BETWEEN ? AND ?
+       ORDER BY p.product_id DESC LIMIT 20`,
+      [min, max]
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    res.status(500).json({ message: 'Error searching by carbs' });
+  }
+});
+
+// GET /api/menu/fats?min=&max=
+router.get('/fats', async (req, res) => {
+  try {
+    const min = Number.isFinite(Number(req.query.min)) ? Number(req.query.min) : 0;
+    const max = Number.isFinite(Number(req.query.max)) ? Number(req.query.max) : 1e9;
+    const rows = await query(
+      `SELECT r.name, r.calories, r.fats_g
+       FROM products p JOIN recipes r ON r.recipe_id = p.recipe_id
+       WHERE r.deleted_at IS NULL AND r.fats_g BETWEEN ? AND ?
+       ORDER BY p.product_id DESC LIMIT 20`,
+      [min, max]
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    res.status(500).json({ message: 'Error searching by fats' });
+  }
+});
     });
   }
   throw new Error('Unsupported DB client on connection');
@@ -136,6 +191,12 @@ router.get('/search', async (req, res) => {
     const maxP = Number(req.query.maxPrice);
     const minC = Number(req.query.minCalories);
     const maxC = Number(req.query.maxCalories);
+    const minProt = Number(req.query.minProtein);
+    const maxProt = Number(req.query.maxProtein);
+    const minCarb = Number(req.query.minCarbs);
+    const maxCarb = Number(req.query.maxCarbs);
+    const minFat  = Number(req.query.minFats);
+    const maxFat  = Number(req.query.maxFats);
     const dietType = req.query.dietType || '';
     const category = req.query.category || '';
     const lim = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
@@ -173,6 +234,18 @@ router.get('/search', async (req, res) => {
       where.push('r.calories <= ?');
       whereParams.push(maxC);
     }
+    // Macros
+    if (Number.isFinite(minProt) && Number.isFinite(maxProt)) { where.push('r.protein_g BETWEEN ? AND ?'); whereParams.push(minProt, maxProt); }
+    else if (Number.isFinite(minProt)) { where.push('r.protein_g >= ?'); whereParams.push(minProt); }
+    else if (Number.isFinite(maxProt)) { where.push('r.protein_g <= ?'); whereParams.push(maxProt); }
+
+    if (Number.isFinite(minCarb) && Number.isFinite(maxCarb)) { where.push('r.carbs_g BETWEEN ? AND ?'); whereParams.push(minCarb, maxCarb); }
+    else if (Number.isFinite(minCarb)) { where.push('r.carbs_g >= ?'); whereParams.push(minCarb); }
+    else if (Number.isFinite(maxCarb)) { where.push('r.carbs_g <= ?'); whereParams.push(maxCarb); }
+
+    if (Number.isFinite(minFat) && Number.isFinite(maxFat)) { where.push('r.fats_g BETWEEN ? AND ?'); whereParams.push(minFat, maxFat); }
+    else if (Number.isFinite(minFat)) { where.push('r.fats_g >= ?'); whereParams.push(minFat); }
+    else if (Number.isFinite(maxFat)) { where.push('r.fats_g <= ?'); whereParams.push(maxFat); }
     if (dietType) {
       where.push('r.diet_type_id = ?');
       whereParams.push(dietType);

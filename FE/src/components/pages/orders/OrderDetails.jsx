@@ -61,7 +61,7 @@ export default function OrderDetails() {
         setCustId(cid);
         // Load existing customer info
         try {
-          const resCust = await fetch(`http://localhost:3000/api/customers/${cid}`, { credentials: 'include' });
+          const resCust = await fetch(`/api/customers/${cid}`, { credentials: 'include' });
           if (resCust.ok) {
             const c = await resCust.json();
             setName(c.name || '');
@@ -71,7 +71,7 @@ export default function OrderDetails() {
         } catch {}
         // Load address
         try {
-          const resAddr = await fetch(`http://localhost:3000/api/customers/${cid}/address`, { credentials: 'include' });
+          const resAddr = await fetch(`/api/customers/${cid}/address`, { credentials: 'include' });
           if (resAddr.ok) {
             const a = await resAddr.json();
             setCity(a.city || '');
@@ -115,7 +115,7 @@ export default function OrderDetails() {
           city_code: cityCode,
           paypal_email: paypal,
         };
-        const res = await fetch(`http://localhost:3000/api/customers/${custId}`, {
+        const res = await fetch(`/api/customers/${custId}`, {
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },

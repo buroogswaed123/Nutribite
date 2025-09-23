@@ -307,6 +307,80 @@
   white-space: pre-wrap;
 }
 
+/* Small filter icon/button */
+.filterBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  font-weight: 600;
+}
+.filterBtn:hover { background: #e0e7ff; }
+.filterStar { color: #f59e0b; }
+
+/* Popular badge over image */
+.cardImageWrap { position: relative; }
+.popularBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+.popularBadge .star { color: #fff; }
+
+/* Compact circular filter icon (two bars) */
+.filterIconBtn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #1e293b;
+  cursor: pointer;
+}
+.filterIconBtn:hover { background: #eef2ff; }
+.filterIconBtn.active { background: #e0e7ff; border-color: #c7d2fe; }
+.filterIconGlyph { font-weight: 900; letter-spacing: 1px; }
+
+/* ===== Macro stats (colored dots) ===== */
+.macroList {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+}
+.macroRow {
+  display: grid;
+  grid-template-columns: auto 1fr; /* dot | text */
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0;
+}
+.macroDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  display: inline-block;
+}
+.macroDot.carb { background-color: #f59e0b; }
+.macroDot.fat { background-color: #06b6d4; }
+.macroDot.protein { background-color: #a78bfa; }
+
 /* ===== Recipe detail page ===== */
 .detail {
   max-width: 900px;

@@ -35,7 +35,7 @@ export default function Settings() {
                 setError('');
                 setSuccess('');
                 // Get customer by user
-                const resCust = await fetch(`http://localhost:3000/api/customers/by-user/${currentUser.user_id}`, { credentials: 'include' });
+                const resCust = await fetch(`/api/customers/by-user/${currentUser.user_id}`, { credentials: 'include' });
                 if (!resCust.ok) {
                     try { const j = await resCust.json(); throw new Error(j?.message || 'שגיאה בטעינת פרטי הלקוח'); } catch { throw new Error('שגיאה בטעינת פרטי הלקוח'); }
                 }
@@ -54,7 +54,7 @@ export default function Settings() {
                 }
                 // Try load address
                 if (customer.cust_id) {
-                    const resAddr = await fetch(`http://localhost:3000/api/customers/${customer.cust_id}/address`, { credentials: 'include' });
+                    const resAddr = await fetch(`/api/customers/${customer.cust_id}/address`, { credentials: 'include' });
                     if (resAddr.ok) {
                         const addr = await resAddr.json();
                         setCity(addr.city || '');
@@ -64,7 +64,7 @@ export default function Settings() {
                         setCityCode(addr.city_code || '');
                     }
                     // Load allergies
-                    const resAll = await fetch(`http://localhost:3000/api/customers/${customer.cust_id}/allergies`, { credentials: 'include' });
+                    const resAll = await fetch(`/api/customers/${customer.cust_id}/allergies`, { credentials: 'include' });
                     if (resAll.ok) {
                         const list = await resAll.json();
                         setAllergies(Array.isArray(list) ? list : []);
@@ -99,7 +99,7 @@ export default function Settings() {
             return;
         }
         try {
-            const res = await fetch(`http://localhost:3000/api/customers/${custId}/allergies`, {
+            const res = await fetch(`/api/customers/${custId}/allergies`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
@@ -119,7 +119,7 @@ export default function Settings() {
     const removeAllergy = async (comp_id) => {
         if (!custId) return;
         try {
-            const res = await fetch(`http://localhost:3000/api/customers/${custId}/allergies/${comp_id}`, {
+            const res = await fetch(`/api/customers/${custId}/allergies/${comp_id}`, {
                 method: 'DELETE',
                 credentials: 'include',
             });
@@ -159,7 +159,7 @@ export default function Settings() {
                 city_code: cityCode,
                 paypal_email: paypal,
             };
-            const res = await fetch(`http://localhost:3000/api/customers/${custId}`, {
+            const res = await fetch(`/api/customers/${custId}`, {
                 method: 'PUT',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },

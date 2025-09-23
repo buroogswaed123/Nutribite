@@ -18,7 +18,8 @@ const path = require("path");
 // ========================
 const app = express();
 const PORT = process.env.PORT || 3000;
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+const FRONTEND_ORIGIN = (process.env.FRONTEND_ORIGIN || 'http://localhost:3001').replace(/\/$/, '');
+
 
 // ========================
 // DB Connection
@@ -229,19 +230,23 @@ app.get('/test-tables', (req, res) => {
 
 // Initialize database when server starts
 initDatabase();
-
 // ========================
 // Middleware
 // ========================
 // Allow multiple dev origins via whitelist
-const DEV_ORIGINS = ['http://localhost:3001', 'http://localhost:5173', 'http://127.0.0.1:5173'];
+const DEV_ORIGINS = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://127.0.0.1:5173'].map(url => url.replace(/\/$/, ''));
 const CORS_WHITELIST = Array.from(new Set([FRONTEND_ORIGIN, ...DEV_ORIGINS].filter(Boolean)));
+// Allow any LAN IP (e.g., 192.168.x.x) on common dev ports (3000/3001/5173)
+const ALLOW_LAN_DEV = /^http:\/\/(?:localhost|127\.0\.0\.1|\d{1,3}(?:\.\d{1,3}){3}):(3000|3001|5173)$/i;
 
 app.use(cors({
   origin: (origin, cb) => {
     // Allow non-browser clients with no Origin
     if (!origin) return cb(null, true);
-    if (CORS_WHITELIST.includes(origin)) return cb(null, true);
+    const o = origin.replace(/\/$/, ''); // strip a trailing '/'
+    if (CORS_WHITELIST.includes(o)) return cb(null, true);
+    if (ALLOW_LAN_DEV.test(o)) return cb(null, true);
+    console.warn('CORS blocked Origin:', origin);
     return cb(new Error('Not allowed by CORS'));
   },
   credentials: true
@@ -362,8 +367,8 @@ try {
 
 try {
   const planRoutes = require('./routes/plan');
-  const requireActiveUser = require('./middleware/requireActiveUser');
-  app.use('/api/plan', requireActiveUser, planRoutes);
+  const requireActiveUser2 = require('./middleware/requireActiveUser');
+  app.use('/api/plan', requireActiveUser2, planRoutes);
   //console.log('Mounted /api/plan routes');
 } catch (e) {
   console.error('Failed to mount /api/plan routes:', e?.message || e);
@@ -372,13 +377,12 @@ try {
 }
 
 // Serve uploaded files (profile images, etc.)
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Basic Routes
 app.get('/', (req, res) => {
   res.send('Backend is running.');
 });
-
-
 
 // ========================
 // Error handling
@@ -394,8 +398,9 @@ app.use((err, req, res, next) => {
 // ========================
 // Startup
 // ========================
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Bind on 0.0.0.0 so phones on your LAN can reach the server
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on http://0.0.0.0:${PORT}`);
 });
 
 // ========================
@@ -430,9 +435,6 @@ const salesData = [
 app.get('/api/admin/sales', (req, res) => {
   res.json(salesData);
 });
-
-//use the photos folder
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Export server for testing
 module.exports = server;

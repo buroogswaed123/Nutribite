@@ -15,8 +15,64 @@ function query(sql, params = []) {
       if (err) return reject(err);
       resolve(results);
     });
+
+// GET /api/recipes/top-rated?limit=5
+// Return top-N recipes by rating (highest first)
+router.get('/top-rated', async (req, res) => {
+  try {
+    const lim = Math.min(Math.max(Number(req.query.limit) || 5, 1), 50);
+    const rows = await query(
+      `SELECT r.recipe_id AS id, r.name, r.rating
+       FROM recipes r
+       WHERE r.deleted_at IS NULL
+       ORDER BY r.rating IS NULL, r.rating DESC
+       LIMIT ?`,
+      [lim]
+    );
+    return res.json({ items: rows });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error fetching top-rated' });
+  }
+});
   });
 }
+
+// GET /api/recipes/macro_search
+// Query: macro=protein|carbs|fats, min (number), max (number), maxCalories (optional), minCalories (optional)
+// Returns minimal fields for quick filtering
+router.get('/macro_search', async (req, res) => {
+  try {
+    const macroKey = String(req.query.macro || '').toLowerCase();
+    const allowed = { protein: 'protein_g', carbs: 'carbs_g', fats: 'fats_g' };
+    const macroCol = allowed[macroKey];
+    if (!macroCol) return res.status(400).json({ message: 'macro must be one of protein|carbs|fats' });
+    const minVal = req.query.min != null ? Number(req.query.min) : null;
+    const maxVal = req.query.max != null ? Number(req.query.max) : null;
+    const minCal = req.query.minCalories != null ? Number(req.query.minCalories) : null;
+    const maxCal = req.query.maxCalories != null ? Number(req.query.maxCalories) : null;
+    const lim = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const off = Math.max(Number(req.query.offset) || 0, 0);
+
+    const cond = ['r.deleted_at IS NULL'];
+    const args = [];
+    if (Number.isFinite(minCal)) { cond.push('r.calories >= ?'); args.push(minCal); }
+    if (Number.isFinite(maxCal)) { cond.push('r.calories <= ?'); args.push(maxCal); }
+    if (Number.isFinite(minVal)) { cond.push(`r.${macroCol} >= ?`); args.push(minVal); }
+    if (Number.isFinite(maxVal)) { cond.push(`r.${macroCol} <= ?`); args.push(maxVal); }
+    const where = `WHERE ${cond.join(' AND ')}`;
+
+    const countRows = await query(`SELECT COUNT(*) AS total FROM recipes r ${where}`, args);
+    const total = countRows?.[0]?.total ? Number(countRows[0].total) : 0;
+    const items = await query(
+      `SELECT r.recipe_id AS id, r.name, r.calories, r.protein_g, r.carbs_g, r.fats_g FROM recipes r ${where} ORDER BY r.recipe_id DESC LIMIT ? OFFSET ?`,
+      [...args, lim, off]
+    );
+    return res.json({ items, meta: { limit: lim, offset: off, total } });
+  } catch (err) {
+    console.error('RECIPES MACRO_SEARCH ERROR:', err);
+    return res.status(500).json({ message: 'Error searching by macros', error: err.message });
+  }
+});
 
 async function ensureRatingsTable() {
   const sql = `
@@ -45,7 +101,7 @@ async function getCustomerIdFromSession(req) {
 router.get('/', async (req, res) => {
   try {
     const [rows] = 
-    await conn.promise().query('SELECT r.recipe_id AS id, r.name, r.description, r.calories, r.servings, r.ingredients, r.instructions, r.picture, r.rating AS rating_avg, (SELECT dt.name FROM diet_type dt WHERE dt.diet_id = r.diet_type_id LIMIT 1) AS diet_type, (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category FROM recipes r WHERE r.deleted_at IS NULL');
+    await conn.promise().query('SELECT r.recipe_id AS id, r.name, r.description, r.calories, r.protein_g, r.carbs_g, r.fats_g, r.servings, r.ingredients, r.instructions, r.picture, r.rating AS rating_avg, r.category_id AS category_id, r.diet_type_id AS diet_type_id, (SELECT dt.name FROM diet_type dt WHERE dt.diet_id = r.diet_type_id LIMIT 1) AS diet_type, (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category FROM recipes r WHERE r.deleted_at IS NULL');
     res.json(rows);
   } catch (err) {
     console.error('Failed to list recipes:', err);
@@ -53,15 +109,35 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/recipes/search_by_catname
+// Filters by recipe name LIKE and category name LIKE, joining categories directly.
+router.get('/search_by_catname', async (req, res) => {
+  try {
+    const q = String(req.query.q||'').trim(), c = String(req.query.categoryName||'').trim(); //q:substring match on recipes.name, categoryName:substring match on categories.name
+    const lim = Math.min(Math.max(+req.query.limit||20,1),100), off = Math.max(+req.query.offset||0,0); //limit (default 20, max 100), offset (default 0)
+    const base = 'FROM recipes r INNER JOIN categories c ON c.category_id=r.category_id';
+    const cond = ['r.deleted_at IS NULL'], args=[]; //exclude soft-deleted by default
+    if (q) { cond.push('r.name LIKE ?'); args.push(`%${q}%`); }
+    if (c) { cond.push('c.name LIKE ?'); args.push(`%${c}%`); }
+    const where = `WHERE ${cond.join(' AND ')}`;
+    const total = Number((await query(`SELECT COUNT(*) total ${base} ${where}`, args))[0]?.total||0);
+    const items = await query(`SELECT r.recipe_id id, r.name, c.name category_name ${base} ${where} ORDER BY r.recipe_id DESC LIMIT ? OFFSET ?`,[...args,lim,off]);
+    res.json({ items, meta:{ limit:lim, offset:off, total } });
+  } catch (err) { res.status(500).json({ message:'Error searching recipes by category name', error:err.message }); }
+});
+
 // GET /api/recipes/:id
 // get single recipe
 router.get('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: 'Invalid recipe id' });
+    }
     const sql = `
     SELECT 
       r.recipe_id AS id,
-      r.name, r.description, r.calories, r.servings,
+      r.name, r.description, r.calories, r.protein_g, r.carbs_g, r.fats_g, r.servings,
       r.ingredients, r.instructions, r.picture, r.rating AS rating_avg,
       (SELECT dt.name FROM diet_type dt WHERE dt.diet_id = r.diet_type_id LIMIT 1) AS diet_type,
       (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category
@@ -257,5 +333,103 @@ router.post('/:id/ratings', requireActiveUser, async (req, res) => {
   } catch (err) {
     console.error('POST ratings error:', err);
     return res.status(500).json({ message: 'Failed to save rating', error: err.message });
+  }
+});
+
+// Simple helpers to build WHERE clauses safely for macro ranges
+function buildRangeConds({ min, max, col }, conds, params, tableAlias = 'r') {
+  const c = `${tableAlias}.${col}`;
+  if (Number.isFinite(min) && Number.isFinite(max)) { conds.push(`${c} BETWEEN ? AND ?`); params.push(min, max); }
+  else if (Number.isFinite(min)) { conds.push(`${c} >= ?`); params.push(min); }
+  else if (Number.isFinite(max)) { conds.push(`${c} <= ?`); params.push(max); }
+}
+
+// GET /api/recipes/protein_range?min=&max=&minCalories=&maxCalories=&limit=&offset=
+router.get('/protein_range', async (req, res) => {
+  try {
+    const min = Number(req.query.min);
+    const max = Number(req.query.max);
+    const minCal = Number(req.query.minCalories);
+    const maxCal = Number(req.query.maxCalories);
+    const lim = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const off = Math.max(Number(req.query.offset) || 0, 0);
+
+    const cond = ['r.deleted_at IS NULL'];
+    const args = [];
+    if (Number.isFinite(minCal)) { cond.push('r.calories >= ?'); args.push(minCal); }
+    if (Number.isFinite(maxCal)) { cond.push('r.calories <= ?'); args.push(maxCal); }
+    buildRangeConds({ min, max, col: 'protein_g' }, cond, args, 'r');
+    const where = `WHERE ${cond.join(' AND ')}`;
+
+    const [countRows] = await conn.promise().query(`SELECT COUNT(*) AS total FROM recipes r ${where}`, args);
+    const total = countRows && countRows[0] ? Number(countRows[0].total) : 0;
+    const [rows] = await conn.promise().query(
+      `SELECT r.recipe_id AS id, r.name, r.calories, r.protein_g, r.carbs_g, r.fats_g, r.picture FROM recipes r ${where} ORDER BY r.recipe_id DESC LIMIT ? OFFSET ?`,
+      [...args, lim, off]
+    );
+    return res.json({ items: rows, meta: { limit: lim, offset: off, total } });
+  } catch (err) {
+    console.error('RECIPES PROTEIN_RANGE ERROR:', err);
+    return res.status(500).json({ message: 'Error searching by protein range', error: err.message });
+  }
+});
+
+// GET /api/recipes/carbs_range
+router.get('/carbs_range', async (req, res) => {
+  try {
+    const min = Number(req.query.min);
+    const max = Number(req.query.max);
+    const minCal = Number(req.query.minCalories);
+    const maxCal = Number(req.query.maxCalories);
+    const lim = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const off = Math.max(Number(req.query.offset) || 0, 0);
+
+    const cond = ['r.deleted_at IS NULL'];
+    const args = [];
+    if (Number.isFinite(minCal)) { cond.push('r.calories >= ?'); args.push(minCal); }
+    if (Number.isFinite(maxCal)) { cond.push('r.calories <= ?'); args.push(maxCal); }
+    buildRangeConds({ min, max, col: 'carbs_g' }, cond, args, 'r');
+    const where = `WHERE ${cond.join(' AND ')}`;
+
+    const [countRows] = await conn.promise().query(`SELECT COUNT(*) AS total FROM recipes r ${where}`, args);
+    const total = countRows && countRows[0] ? Number(countRows[0].total) : 0;
+    const [rows] = await conn.promise().query(
+      `SELECT r.recipe_id AS id, r.name, r.calories, r.protein_g, r.carbs_g, r.fats_g, r.picture FROM recipes r ${where} ORDER BY r.recipe_id DESC LIMIT ? OFFSET ?`,
+      [...args, lim, off]
+    );
+    return res.json({ items: rows, meta: { limit: lim, offset: off, total } });
+  } catch (err) {
+    console.error('RECIPES CARBS_RANGE ERROR:', err);
+    return res.status(500).json({ message: 'Error searching by carbs range', error: err.message });
+  }
+});
+
+// GET /api/recipes/fats_range
+router.get('/fats_range', async (req, res) => {
+  try {
+    const min = Number(req.query.min);
+    const max = Number(req.query.max);
+    const minCal = Number(req.query.minCalories);
+    const maxCal = Number(req.query.maxCalories);
+    const lim = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const off = Math.max(Number(req.query.offset) || 0, 0);
+
+    const cond = ['r.deleted_at IS NULL'];
+    const args = [];
+    if (Number.isFinite(minCal)) { cond.push('r.calories >= ?'); args.push(minCal); }
+    if (Number.isFinite(maxCal)) { cond.push('r.calories <= ?'); args.push(maxCal); }
+    buildRangeConds({ min, max, col: 'fats_g' }, cond, args, 'r');
+    const where = `WHERE ${cond.join(' AND ')}`;
+
+    const [countRows] = await conn.promise().query(`SELECT COUNT(*) AS total FROM recipes r ${where}`, args);
+    const total = countRows && countRows[0] ? Number(countRows[0].total) : 0;
+    const [rows] = await conn.promise().query(
+      `SELECT r.recipe_id AS id, r.name, r.calories, r.protein_g, r.carbs_g, r.fats_g, r.picture FROM recipes r ${where} ORDER BY r.recipe_id DESC LIMIT ? OFFSET ?`,
+      [...args, lim, off]
+    );
+    return res.json({ items: rows, meta: { limit: lim, offset: off, total } });
+  } catch (err) {
+    console.error('RECIPES FATS_RANGE ERROR:', err);
+    return res.status(500).json({ message: 'Error searching by fats range', error: err.message });
   }
 });

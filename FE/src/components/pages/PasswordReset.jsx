@@ -23,7 +23,7 @@ export default function PasswordReset() {
     }
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3000/api/password_reset_simple', {
+      const response = await fetch('/api/password_reset_simple', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: identifier.trim(), newPassword: newPassword.trim() })

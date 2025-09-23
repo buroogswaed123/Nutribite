@@ -2,8 +2,7 @@
 
 import axios from "axios";
 
-// Axios defaults for dev: backend on 3000, include cookies
-axios.defaults.baseURL = axios.defaults.baseURL || 'http://localhost:3000';
+// Axios defaults for dev: let CRA proxy forward relative /api requests; include cookies
 axios.defaults.withCredentials = true;
 
 // Normalize image URLs to absolute backend-served paths
@@ -11,8 +10,8 @@ export function ensureImageUrl(val) {
   if (!val) return '';
   const cleaned = String(val).replace(/^\/+/, '');
   if (/^https?:\/\//i.test(cleaned)) return cleaned;
-  if (/^uploads\//i.test(cleaned)) return `http://localhost:3000/${cleaned}`;
-  return `http://localhost:3000/uploads/${cleaned}`;
+  if (/^uploads\//i.test(cleaned)) return `/${cleaned}`;
+  return `/uploads/${cleaned}`;
 }
 
 // Get current plan daily calorie goal (calories_per_day) from nutritionplan
@@ -123,10 +122,12 @@ export async function getCurrentCustomerId() {
 }
 
 // Fetch recipes with optional query params (server may ignore unknown params; we also filter client-side)
-export async function fetchRecipes({ search = '', categoryId = 'all', dietId = 'all', minPrice, maxPrice, minCalories, maxCalories } = {}) {
+export async function fetchRecipes({ search = '', categoryId = 'all', dietId = 'all', minPrice, maxPrice, minCalories, maxCalories, minProtein, maxProtein, minCarbs, maxCarbs, minFats, maxFats } = {}) {
   // Menu items live under /api/menu. Use /search when any filter is active.
   const hasFilters = (search && search.trim()) || categoryId !== 'all' || dietId !== 'all' ||
-    minPrice != null || maxPrice != null || minCalories != null || maxCalories != null;
+    minPrice != null || maxPrice != null || minCalories != null || maxCalories != null ||
+    minProtein != null || maxProtein != null || minCarbs != null || maxCarbs != null ||
+    minFats != null || maxFats != null;
   const params = {};
   if (search && search.trim()) params.q = search.trim();
   if (categoryId !== 'all') params.category = categoryId;
@@ -135,15 +136,29 @@ export async function fetchRecipes({ search = '', categoryId = 'all', dietId = '
   if (maxPrice != null && maxPrice !== '') params.maxPrice = Number(maxPrice);
   if (minCalories != null && minCalories !== '') params.minCalories = Number(minCalories);
   if (maxCalories != null && maxCalories !== '') params.maxCalories = Number(maxCalories);
+  if (minProtein != null && minProtein !== '') params.minProtein = Number(minProtein);
+  if (maxProtein != null && maxProtein !== '') params.maxProtein = Number(maxProtein);
+  if (minCarbs != null && minCarbs !== '') params.minCarbs = Number(minCarbs);
+  if (maxCarbs != null && maxCarbs !== '') params.maxCarbs = Number(maxCarbs);
+  if (minFats != null && minFats !== '') params.minFats = Number(minFats);
+  if (maxFats != null && maxFats !== '') params.maxFats = Number(maxFats);
+  if (minProtein != null && minProtein !== '') params.minProtein = Number(minProtein);
+  if (maxProtein != null && maxProtein !== '') params.maxProtein = Number(maxProtein);
+  if (minCarbs != null && minCarbs !== '') params.minCarbs = Number(minCarbs);
+  if (maxCarbs != null && maxCarbs !== '') params.maxCarbs = Number(maxCarbs);
+  if (minFats != null && minFats !== '') params.minFats = Number(minFats);
+  if (maxFats != null && maxFats !== '') params.maxFats = Number(maxFats);
   const path = hasFilters ? '/api/menu/search' : '/api/menu';
   const { data } = await axios.get(path, { params });
   return Array.isArray(data?.items) ? data.items : [];
 }
 
 // Paginated variant that returns { items, meta } with server-side pagination for Menu endpoints
-export async function fetchRecipesPaged({ search = '', categoryId = 'all', dietId = 'all', minPrice, maxPrice, minCalories, maxCalories, page = 1, limit = 20 } = {}) {
+export async function fetchRecipesPaged({ search = '', categoryId = 'all', dietId = 'all', minPrice, maxPrice, minCalories, maxCalories, minProtein, maxProtein, minCarbs, maxCarbs, minFats, maxFats, page = 1, limit = 20 } = {}) {
   const hasFilters = (search && search.trim()) || categoryId !== 'all' || dietId !== 'all' ||
-    minPrice != null || maxPrice != null || minCalories != null || maxCalories != null;
+    minPrice != null || maxPrice != null || minCalories != null || maxCalories != null ||
+    minProtein != null || maxProtein != null || minCarbs != null || maxCarbs != null ||
+    minFats != null || maxFats != null;
   const params = {};
   if (search && search.trim()) params.q = search.trim();
   if (categoryId !== 'all') params.category = categoryId;
@@ -152,6 +167,12 @@ export async function fetchRecipesPaged({ search = '', categoryId = 'all', dietI
   if (maxPrice != null && maxPrice !== '') params.maxPrice = Number(maxPrice);
   if (minCalories != null && minCalories !== '') params.minCalories = Number(minCalories);
   if (maxCalories != null && maxCalories !== '') params.maxCalories = Number(maxCalories);
+  if (minProtein != null && minProtein !== '') params.minProtein = Number(minProtein);
+  if (maxProtein != null && maxProtein !== '') params.maxProtein = Number(maxProtein);
+  if (minCarbs != null && minCarbs !== '') params.minCarbs = Number(minCarbs);
+  if (maxCarbs != null && maxCarbs !== '') params.maxCarbs = Number(maxCarbs);
+  if (minFats != null && minFats !== '') params.minFats = Number(minFats);
+  if (maxFats != null && maxFats !== '') params.maxFats = Number(maxFats);
   const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
   const safePage = Math.max(1, Number(page) || 1);
   params.limit = safeLimit;

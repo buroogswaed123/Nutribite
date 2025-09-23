@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ArrowUpDown, Star } from 'lucide-react'
 import styles from './menu.module.css'
-import { fetchDietTypes, fetchRecipesPaged, getSessionUser, bulkUpdateRecipePrices, fetchMenuCategoriesAPI, addToCartAPI, getProductByRecipeAPI } from '../../../utils/functions'
+import { fetchDietTypes, /*fetchRecipesPaged,*/ getSessionUser, bulkUpdateRecipePrices, fetchMenuCategoriesAPI, addToCartAPI, getProductByRecipeAPI } from '../../../utils/functions'
 
 export default function Menu() {
   const navigate = useNavigate()
@@ -12,18 +13,18 @@ export default function Menu() {
     if (!raw) return ''
     let s = String(raw).trim()
     if (!s) return ''
-    if (/^https?:\/\//i.test(s)) return s
-    // normalize slashes
-    s = s.replace(/\\/g, '/').replace(/\s+$/,'')
-    // If path contains 'uploads' anywhere, point to backend uploads after the last occurrence
+    // if the string already contains an uploads/ path, slice from there and prefix with backend base path
     const idx = s.toLowerCase().lastIndexOf('uploads/')
     if (idx >= 0) {
       const tail = s.slice(idx)
-      return `http://localhost:3000/${tail}`
+      return `/${tail}`
     }
+
+ 
+
     // otherwise treat as a filename living under backend /uploads
     s = s.replace(/^\/+/, '')
-    return `http://localhost:3000/uploads/${s}`
+    return `/uploads/${s}`
   }
 
   // Allow only digit characters in numeric text inputs
@@ -45,6 +46,31 @@ export default function Menu() {
     // normalize leading dot to 0.
     if (s.startsWith('.')) s = '0' + s
     return s
+  }
+
+   // Macro display helper for modal: returns string like "X גרם · Y קק\"ל · Z%"
+   const macroLine = (grams, calsPerGram, totalCalories) => {
+    const g = Number(grams);
+    if (!Number.isFinite(g)) return '—';
+    const kcal = Number.isFinite(calsPerGram) ? Math.round(g * calsPerGram) : null;
+    const pct = (Number.isFinite(totalCalories) && totalCalories > 0 && kcal != null)
+      ? Math.round((kcal / totalCalories) * 100)
+      : null;
+    let txt = `${g} גרם`;
+    if (kcal != null) txt += ` · ${kcal} קק"ל`;
+    if (pct != null) txt += ` · ${pct}%`;
+    return txt;
+  };
+  
+  const mostPopular = () => {
+    const popular = recipes.filter(r => topRatedSet.has(Number(r.id)))
+    return popular;
+    
+  }
+  //add icon to top 5 popular 
+  const topRatedIcon = (recipe) => {
+    if (topRatedSet.has(Number(recipe.id))) return <span className="material-symbols-outlined">star</span>
+    return ''
   }
 
   // Map known English category names to Hebrew for display
@@ -74,6 +100,12 @@ export default function Menu() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
+  // Popular filter state and top-rated sets
+  const [popularOnly, setPopularOnly] = useState(false)
+  // Global top-5 (kept for future use), and per-category top-5 (used for badge)
+  const [topRatedSet, setTopRatedSet] = useState(new Set())
+  // Random order map (stable during a session)
+  const [randomOrder, setRandomOrder] = useState(new Map())
 
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('all')
@@ -82,6 +114,14 @@ export default function Menu() {
   const [priceMax, setPriceMax] = useState('')
   const [calMin, setCalMin] = useState('')
   const [calMax, setCalMax] = useState('')
+  // Macros filters
+  const [protMin, setProtMin] = useState('')
+  const [protMax, setProtMax] = useState('')
+  const [carbMin, setCarbMin] = useState('')
+  const [carbMax, setCarbMax] = useState('')
+  const [fatMin, setFatMin] = useState('')
+  const [fatMax, setFatMax] = useState('')
+  const [showMacros, setShowMacros] = useState(false)
 
   const [selected, setSelected] = useState(null)
   const [showModal, setShowModal] = useState(false)
@@ -110,6 +150,22 @@ export default function Menu() {
         // Use categories from BE so filter shows all categories, not only those currently in view
         const mappedCats = Array.isArray(cats) ? cats.map(c => ({ id: c.id, name: translateCategoryName(c.name) })) : []
         setCategories(mappedCats)
+        // Fetch top-5 rated recipe ids for badge
+        try {
+          const resp = await fetch('/api/recipes/top-rated?limit=5', { credentials: 'include' })
+          const data = await resp.json().catch(()=>({}))
+          const ids = Array.isArray(data?.items) ? data.items.map(it => Number(it.id || it.recipe_id)).filter(n=>Number.isFinite(n)) : []
+          setTopRatedSet(new Set(ids))
+        } catch (_) {}
+        // Fetch full menu items list (includes price/stock) for proper mixing
+        try {
+          const r = await fetch('/api/menu?limit=1000', { credentials: 'include' })
+          const j = await r.json().catch(()=>({}))
+          const items = Array.isArray(j?.items) ? j.items : (Array.isArray(j) ? j : [])
+          if (!cancelled) setRecipes(items)
+        } catch (e) {
+          if (!cancelled) setError(e.message || 'שגיאה בטעינת מתכונים')
+        }
       } catch (e) {
         if (!cancelled) setError(e.message || 'שגיאה בטעינה')
       } finally {
@@ -120,41 +176,91 @@ export default function Menu() {
     return () => { cancelled = true }
   }, [])
 
-  // Load recipes when filters/search/page change
+  // Fallback: if topRatedSet failed to load, derive top-5 from current recipes by rating_avg
   useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        setLoading(true)
-        setError('')
-        const { items, meta } = await fetchRecipesPaged({
-          search,
-          categoryId,
-          dietId,
-          minPrice: priceMin,
-          maxPrice: priceMax,
-          minCalories: calMin,
-          maxCalories: calMax,
-          page,
-          limit,
-        })
-        if (cancelled) return
-        setRecipes(items)
-        setTotal(Number(meta?.total || 0))
-      } catch (e) {
-        if (!cancelled) setError(e.message || 'שגיאה בטעינת מתכונים')
-      } finally {
-        if (!cancelled) setLoading(false)
+    try {
+      if (topRatedSet && topRatedSet.size > 0) return;
+      if (!Array.isArray(recipes) || recipes.length === 0) return;
+      const byRating = [...recipes]
+        .filter(r => r && r.rating_avg != null)
+        .sort((a,b) => Number(b.rating_avg||0) - Number(a.rating_avg||0))
+        .slice(0, 5)
+        .map(r => Number(r.recipe_id || r.id))
+        .filter(n => Number.isFinite(n));
+      if (byRating.length > 0) {
+        setTopRatedSet(new Set(byRating));
       }
+    } catch (_) { /* ignore */ }
+  }, [recipes, topRatedSet])
+
+  // Build a stable random order for all recipe ids (for default mixed ordering)
+  useEffect(() => {
+    if (!Array.isArray(recipes) || recipes.length === 0) return;
+    const STORAGE_KEY = 'menuRandomOrderV1';
+    // Load existing mapping from localStorage
+    let stored = new Map();
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const obj = JSON.parse(raw);
+        if (obj && typeof obj === 'object') {
+          stored = new Map(Object.entries(obj).map(([k,v]) => [Number(k), Number(v)]));
+        }
+      }
+    } catch (_) {}
+
+    // Merge with current state to avoid flicker within same session render
+    const next = new Map(randomOrder.size ? randomOrder : stored);
+    // Ensure every recipe has a random value
+    for (const r of recipes) {
+      const id = Number(r.recipe_id || r.id);
+      if (!Number.isFinite(id)) continue;
+      if (!next.has(id)) next.set(id, Math.random());
     }
-    load()
-    return () => { cancelled = false }
-  }, [search, categoryId, dietId, priceMin, priceMax, calMin, calMax, page, limit])
+    // Prune removed recipe ids
+    for (const key of Array.from(next.keys())) {
+      if (!recipes.some(r => Number(r.recipe_id || r.id) === key)) next.delete(key);
+    }
+    // Save back to localStorage
+    try {
+      const plain = Object.fromEntries(Array.from(next.entries()).map(([k,v]) => [String(k), v]));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(plain));
+    } catch (_) {}
+    // Update state only if changed size (cheap heuristic)
+    if (next.size !== randomOrder.size) {
+      setRandomOrder(next);
+    }
+  }, [recipes])
+
+  // Compute top-5 ids per category for the badge
+  const topPerCategorySet = useMemo(() => {
+    const out = new Set();
+    try {
+      const byCat = new Map(); // category_id -> array of items
+      for (const r of recipes) {
+        const catId = Number(r.category_id);
+        if (!Number.isFinite(catId)) continue;
+        if (!byCat.has(catId)) byCat.set(catId, []);
+        byCat.get(catId).push(r);
+      }
+      for (const [catId, arr] of byCat.entries()) {
+        arr
+          .slice()
+          .sort((a,b) => Number(b.rating_avg||0) - Number(a.rating_avg||0))
+          .slice(0, 5)
+          .forEach(r => {
+            const id = Number(r.recipe_id || r.id);
+            if (Number.isFinite(id)) out.add(id);
+          });
+      }
+    } catch (_) { /* ignore */ }
+    return out;
+  }, [recipes])
 
   const filtered = useMemo(() => {
     // If server filtered, keep client filter as safety
     const q = search.trim().toLowerCase()
-    return recipes.filter(r => {
+    let arr = recipes.filter(r => {
       const matchesSearch = q ? [r.name, r.description].filter(Boolean).some(t => t.toLowerCase().includes(q)) : true
       const matchesCategory = categoryId === 'all' ? true : Number(r.category_id) === Number(categoryId)
       const matchesDiet = dietId === 'all' ? true : Number(r.diet_type_id) === Number(dietId)
@@ -168,7 +274,47 @@ export default function Menu() {
       }
       return matchesSearch && matchesCategory && matchesDiet && matchesStock
     })
-  }, [recipes, search, categoryId, dietId, isAdmin, stockMin, stockMax])
+    if (popularOnly) {
+      // Sort entire list by rating (popularity) descending
+      arr = [...arr].sort((a,b) => (Number(b.rating_avg||0) - Number(a.rating_avg||0)));
+    } else {
+      // Default: Interleave categories round-robin with deterministic ordering
+      const byCat = new Map(); // catId -> array of items
+      for (const item of arr) {
+        const cid = Number(item.category_id);
+        if (!byCat.has(cid)) byCat.set(cid, []);
+        byCat.get(cid).push(item);
+      }
+      // Sort categories deterministically (by numeric id)
+      const catIds = Array.from(byCat.keys()).sort((a,b) => (a||0) - (b||0));
+      // Sort each category by the persisted randomOrder for stability
+      const queues = catIds.map(cid => {
+        const list = byCat.get(cid).slice();
+        list.sort((a,b) => {
+          const aId = Number(a.recipe_id || a.id);
+          const bId = Number(b.recipe_id || b.id);
+          const av = randomOrder.get(aId) ?? 0;
+          const bv = randomOrder.get(bId) ?? 0;
+          return av - bv;
+        });
+        return list;
+      });
+      // Round-robin interleave across categories to ensure representation
+      const mixed = [];
+      let added = true;
+      while (added) {
+        added = false;
+        for (const q of queues) {
+          if (q && q.length) {
+            mixed.push(q.shift());
+            added = true;
+          }
+        }
+      }
+      arr = mixed;
+    }
+    return arr
+  }, [recipes, search, categoryId, dietId, isAdmin, stockMin, stockMax, randomOrder, popularOnly])
 
   // Keep select-all checkbox in sync with selection size
   useEffect(() => {
@@ -255,9 +401,13 @@ export default function Menu() {
       const ids = Array.from(selectedIds)
       await bulkUpdateRecipePrices({ recipeIds: ids, newPrice: bulkPrice })
       // reload recipes
-      const { items, meta } = await fetchRecipesPaged({ search, categoryId, dietId, page, limit })
-      setRecipes(items)
-      setTotal(Number(meta?.total || 0))
+      try {
+        const r = await fetch('http://localhost:3000/api/menu?limit=1000', { credentials: 'include' })
+        const j = await r.json().catch(()=>({}))
+        const items = Array.isArray(j?.items) ? j.items : []
+        setRecipes(items)
+        setTotal(items.length)
+      } catch (_) {}
       setSelectedIds(new Set())
       setSelectAll(false)
       setBulkPrice('')
@@ -325,7 +475,44 @@ export default function Menu() {
               ))}
             </select>
           </span>
-          <button className={styles.btn} style={{marginInlineStart:'auto'}} onClick={() => { setSearch(''); setCategoryId('all'); setDietId('all'); setPriceMin(''); setPriceMax(''); setCalMin(''); setCalMax(''); setPage(1); }}>נקה סינון</button>
+          <button className={styles.btn} style={{marginInlineStart:'auto'}} onClick={() => { setSearch(''); setCategoryId('all'); setDietId('all'); setPriceMin(''); setPriceMax(''); setCalMin(''); setCalMax(''); setProtMin(''); setProtMax(''); setCarbMin(''); setCarbMax(''); setFatMin(''); setFatMax(''); setPage(1); }}>נקה סינון</button>
+        </div>
+        {/* Nutritional values toggle */}
+        <div className={styles.row}>
+          <button className={styles.btn} onClick={() => setShowMacros(v=>!v)}>ערכים תזונתיים</button>
+          {/* Popular sort icon (two bars) */}
+          <button
+            type="button"
+            className={`${styles.filterIconBtn} ${popularOnly ? 'active' : ''}`}
+            onClick={() => setPopularOnly(v=>!v)}
+            title="סינון לפי פופולריות"
+            aria-pressed={popularOnly}
+            aria-label="סדר לפי פופולריות"
+          >
+            <ArrowUpDown size={16} />
+          </button>
+          {showMacros && (
+            <div className={styles.group} style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+              <span className={styles.groupItem}>
+                <label>חלבון (גרם)</label>
+                <input className={`${styles.num} ${styles.compact}`} type="number" value={protMin} onChange={(e)=>setProtMin(onlyDigits(e.target.value))} placeholder="מ-" />
+                <span>-</span>
+                <input className={`${styles.num} ${styles.compact}`} type="number" value={protMax} onChange={(e)=>setProtMax(onlyDigits(e.target.value))} placeholder="עד" />
+              </span>
+              <span className={styles.groupItem}>
+                <label>פחמימות (גרם)</label>
+                <input className={`${styles.num} ${styles.compact}`} type="number" value={carbMin} onChange={(e)=>setCarbMin(onlyDigits(e.target.value))} placeholder="מ-" />
+                <span>-</span>
+                <input className={`${styles.num} ${styles.compact}`} type="number" value={carbMax} onChange={(e)=>setCarbMax(onlyDigits(e.target.value))} placeholder="עד" />
+              </span>
+              <span className={styles.groupItem}>
+                <label>שומנים (גרם)</label>
+                <input className={`${styles.num} ${styles.compact}`} type="number" value={fatMin} onChange={(e)=>setFatMin(onlyDigits(e.target.value))} placeholder="מ-" />
+                <span>-</span>
+                <input className={`${styles.num} ${styles.compact}`} type="number" value={fatMax} onChange={(e)=>setFatMax(onlyDigits(e.target.value))} placeholder="עד" />
+              </span>
+            </div>
+          )}
         </div>
 
         {isAdmin && (
@@ -355,18 +542,28 @@ export default function Menu() {
 
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:16}}>
         {filtered.map(r => {
-          const out = !(Number(r.stock ?? 0) > 0);
+          // If stock is missing (not provided by /api/recipes), assume available; only block when explicitly 0 or negative
+          const out = (r.stock == null) ? false : !(Number(r.stock) > 0);
           const handleCardClick = () => {
-            if (out) { setToast({ type: 'error', text: 'המוצר הזה לא זמיו' }); return; }
+            if (out) { setToast({ type: 'error', text: 'המוצר הזה לא זמין' }); return; }
             openModal(r);
           };
+          const isTop = topPerCategorySet.has(Number(r.recipe_id || r.id))
           return (
           <div key={r.recipe_id} onClick={handleCardClick} style={{
             cursor: out ? 'not-allowed' : 'pointer',
             opacity: out ? 0.5 : 1,
             background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', boxShadow:'0 1px 3px rgba(0,0,0,0.05)'
           }}>
-            <img src={resolveImageUrl(r.picture || r.imageUrl)} alt={r.name} style={{width:'100%', height:150, objectFit:'cover'}} onError={(e)=>{ try{ console.error('Image failed to load:', resolveImageUrl(r.picture || r.imageUrl)); }catch(_){} e.currentTarget.style.display='none' }} />
+            <div className={styles.cardImageWrap}>
+              {isTop && (
+                <span className={styles.popularBadge} title="פופולרי">
+                  <Star size={12} color="#fff" fill="#fff" />
+                  פופולרי
+                </span>
+              )}
+              <img src={resolveImageUrl(r.picture || r.imageUrl)} alt={r.name} style={{width:'100%', height:150, objectFit:'cover'}} onError={(e)=>{ try{ console.error('Image failed to load:', resolveImageUrl(r.picture || r.imageUrl)); }catch(_){} e.currentTarget.style.display='none' }} />
+            </div>
             <div style={{padding:12, position:'relative'}}>
               {isAdmin && (
                 <input
@@ -377,8 +574,20 @@ export default function Menu() {
                   onClick={(e)=>e.stopPropagation()}
                 />
               )}
-              <h3 style={{margin:'0 0 6px 0', fontSize:16}}>{r.name}</h3>
-              <p style={{margin:'0 0 8px 0', color:'#6b7280', fontSize:14}}>{r.description}</p>
+              <h3 style={{margin:0, marginBottom:6, fontSize:16}}>{r.name}</h3>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+                <span style={{ fontWeight:700, color:'#111827' }}>
+                  {Number.isFinite(Number(r.price)) ? `₪ ${Number(r.price).toFixed(2)}` : ''}
+                </span>
+                <span style={{ color:'#6b7280', fontSize:12 }}>
+                  {r.calories != null ? `${r.calories} קלוריות` : ''}
+                </span>
+              </div>
+              {r.description && (
+                <p style={{ margin:0, color:'#4b5563', fontSize:13, lineHeight:1.35 }}>
+                  {String(r.description).length > 100 ? `${String(r.description).slice(0,100)}…` : String(r.description)}
+                </p>
+              )}
               {/* Read-only rating */}
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
                 <div style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
@@ -450,6 +659,21 @@ export default function Menu() {
                   {selected.diet_name && <span>דיאטה: {selected.diet_name}</span>}
                   {selected.category_name && <span>קטגוריה: {selected.category_name}</span>}
                 </div>
+                {/* Macro amounts with colored dots */}
+                <ul className={styles.macroList}>
+                  <li className={styles.macroRow}>
+                    <span className={`${styles.macroDot} ${styles.protein}`} />
+                    <span>חלבון: <strong>{macroLine(selected.protein_g, 4, Number(selected.calories))}</strong></span>
+                  </li>
+                  <li className={styles.macroRow}>
+                    <span className={`${styles.macroDot} ${styles.carb}`} />
+                    <span>פחמימות: <strong>{macroLine(selected.carbs_g, 4, Number(selected.calories))}</strong></span>
+                  </li>
+                  <li className={styles.macroRow}>
+                    <span className={`${styles.macroDot} ${styles.fat}`} />
+                    <span>שומנים: <strong>{macroLine(selected.fats_g, 9, Number(selected.calories))}</strong></span>
+                  </li>
+                </ul>
                 {/* Read-only rating in modal */}
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                   <div style={{ display:'inline-flex', alignItems:'center', gap:4 }}>

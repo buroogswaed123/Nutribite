@@ -31,7 +31,7 @@ router.post('/', async (req, res) => {
 // 2. Get questions (optionally only answered via query param)
 // GET /api/questions?answered=true
 router.get('/', async (req, res) => {
-  const { answered, public: pub } = req.query;
+  const { answered, public: pub, q } = req.query;
   try {
     let sql = 'SELECT * FROM questions';
     const params = [];
@@ -45,6 +45,10 @@ router.get('/', async (req, res) => {
       // escape column name `public` in case of naming conflicts
       where.push('`public` = ?');
       params.push(String(pub) === 'true' ? 1 : 0);
+    }
+    if (q && String(q).trim()) {
+      where.push('question_text LIKE ?');
+      params.push(`%${String(q).trim()}%`);
     }
 
     if (where.length) {

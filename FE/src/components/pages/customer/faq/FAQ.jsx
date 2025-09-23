@@ -47,8 +47,10 @@ function FAQ({ currentUser }) {
   }, [currentUser]);
 
   useEffect(() => {
-    // Fetch questions from backend
-    fetch('/api/questions', { credentials: 'include' })
+    // Fetch questions from backend with optional text search (q)
+    const q = String(searchTerm || '').trim();
+    const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+    fetch(`/api/questions${qs}`, { credentials: 'include' })
       .then(async (res) => {
         try {
           const data = await res.json();
@@ -64,7 +66,7 @@ function FAQ({ currentUser }) {
         console.error(err);
         setItems([]);
       });
-  }, []);
+  }, [searchTerm]);
 
   const handleAddQuestion = async () => {
     const q = newQuestion.trim();

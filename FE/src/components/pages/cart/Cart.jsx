@@ -18,8 +18,8 @@ function resolveImageUrl(raw) {
   if (!s) return '';
   if (/^https?:\/\//i.test(s)) return s;
   s = s.replace(/\\/g, '/').replace(/^\/+/, '');
-  if (/^uploads\//i.test(s)) return `http://localhost:3000/${s}`;
-  return `http://localhost:3000/uploads/${s}`;
+  if (/^uploads\//i.test(s)) return `/${s}`;
+  return `/uploads/${s}`;
 }
 
 export default function Cart() {

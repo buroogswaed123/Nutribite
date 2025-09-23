@@ -1,13 +1,24 @@
  .recipes {
-   max-width: 1100px;
-   margin: 0 auto;
-   padding: 24px;
- }
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.rtlNudgeRight {
+  transform: translateX(8px);
+}
+
 .filters {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 16px;
+  justify-content: center; /* center filter controls to align with cards grid */
+}
+
+.pageTitleRight {
+  text-align: right;
+  margin-right: 0;
 }
 
 .search {
@@ -247,6 +258,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  justify-content: center; /* center recipe cards */
+  width: 100%;
 }
 
 .cardNarrow {
@@ -385,6 +398,26 @@
 .detail {
   max-width: 900px;
   margin: 0 auto;
+}
+
+/* ===== Macros block alignment (Recipes filters) ===== */
+.macrosBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.macroRowAlign {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto; /* push the row to the right in RTL */
+}
+.macroLabel {
+  display: inline-block;
+  min-width: 120px; /* consistent start for inputs */
+}
+.macroInput {
+  width: 120px; /* equal input widths */
 }
 
 .detailImage {

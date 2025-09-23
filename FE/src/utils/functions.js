@@ -304,7 +304,7 @@ export async function fetchPublicRecipeAPI(recipeId) {
 // Fetch top-rated recipes (max N). Tries backend endpoint first; falls back to client-side sort.
 export async function fetchTopRatedRecipesAPI(limit = 3) {
   try {
-    const { data } = await axios.get('/api/recipes/top-reviewed', { params: { limit }, withCredentials: false });
+    const { data } = await axios.get('/api/recipes/top-rated', { params: { limit }, withCredentials: false });
     const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
     return items.slice(0, limit);
   } catch (err) {

@@ -11,6 +11,9 @@ const bcrypt = require('bcrypt');
 const session = require('express-session');
 const cors = require('cors');
 const path = require("path");
+let compression;
+try { compression = require('compression'); }
+catch (e) { console.warn('compression not installed; skipping response compression'); }
 
 
 // ========================
@@ -35,6 +38,40 @@ const db = mysql.createConnection({
   connectionLimit: 10,
   queueLimit: 0
 });
+
+// Optional: dev SQL timing logs. Enable with SQL_LOG=1
+try {
+  if (String(process.env.SQL_LOG || '').trim() === '1') {
+    const origQuery = db.query.bind(db);
+    db.query = function patchedQuery(sql, values, cb) {
+      const start = Date.now();
+      const log = (finalSql) => {
+        const ms = Date.now() - start;
+        const txt = typeof finalSql === 'string' ? finalSql : (finalSql && finalSql.sql) || '';
+        // collapse whitespace and truncate to avoid huge logs
+        const oneLine = String(txt).replace(/\s+/g, ' ').trim().slice(0, 300);
+        console.log(`[SQL ${ms}ms] ${oneLine}`);
+      };
+      // Support signatures: (sql, cb) and (sql, values, cb)
+      if (typeof values === 'function') {
+        const userCb = values;
+        return origQuery(sql, function(err, results, fields) {
+          try { log(sql); } catch(_) {}
+          return userCb(err, results, fields);
+        });
+      }
+      return origQuery(sql, values, function(err, results, fields) {
+        try { log(sql); } catch(_) {}
+        if (typeof cb === 'function') return cb(err, results, fields);
+      });
+    };
+    console.log('SQL_LOG enabled: query timings will be printed');
+  }
+} catch (e) {
+  console.warn('Failed to enable SQL logging:', e?.message || e);
+}
+
+ 
 
 db.connect((err) => {
   if (err) {
@@ -253,6 +290,10 @@ app.use(cors({
 }));
 // Handle preflight for all routes
 app.options('*', cors());
+// Enable gzip/deflate compression for faster responses (especially static assets), if available
+if (compression) {
+  app.use(compression());
+}
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // Optional persistent session store using MySQL; falls back to MemoryStore if not available
@@ -287,6 +328,17 @@ app.use(session({
     secure: false           // set true behind HTTPS/proxy in prod
   }
 }));
+
+// Simple debug endpoint to view session + /api/me resolution (registered after session middleware)
+app.get('/api/debug/session', (req, res) => {
+  const sessionUserId = req?.session?.user_id ?? null;
+  res.json({
+    session_user_id: sessionUserId,
+    has_session: !!sessionUserId,
+    cookies: Object.keys(req.cookies || {}),
+    headers_origin: req.headers.origin || null
+  });
+});
 
 // ========================
 // Routes Registration
@@ -376,8 +428,12 @@ try {
   try { console.error('Full error object:', JSON.stringify(e)); } catch (_) { /* ignore */ }
 }
 
-// Serve uploaded files (profile images, etc.)
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+// Serve uploaded files (profile images, etc.) with caching
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads"), {
+  maxAge: '30d',
+  etag: true,
+  immutable: true,
+}));
 
 // Basic Routes
 app.get('/', (req, res) => {

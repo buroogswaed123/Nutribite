@@ -15,6 +15,28 @@ router.get('/user/:user_id', (req, res) => {
     });
 });
 
+// get notification types summary for a user (e.g., counts per type). Optional query: unread=1 to include only unread
+router.get('/user/:user_id/type', (req, res) => {
+    const user_id = req.params.user_id;
+    const onlyUnread = String(req.query.unread || '').trim() === '1';
+    // We don't know if the schema uses status (unread/read) or is_read (0/1). Build a dynamic filter.
+    // First, try with 'status' column; if it errors with ER_BAD_FIELD_ERROR, retry with 'is_read'.
+    const base = 'SELECT type, COUNT(*) AS count FROM notifications WHERE user_id = ?';
+    const group = ' GROUP BY type ORDER BY count DESC';
+    const sqlStatus = onlyUnread ? `${base} AND status = 'unread'${group}` : `${base}${group}`;
+    conn.query(sqlStatus, [user_id], (err, rows) => {
+        if (!err) return res.json({ items: rows || [] });
+        if (err && err.code === 'ER_BAD_FIELD_ERROR') {
+            const sqlIsRead = onlyUnread ? `${base} AND (is_read = 0 OR is_read IS NULL)${group}` : `${base}${group}`;
+            return conn.query(sqlIsRead, [user_id], (err2, rows2) => {
+                if (err2) return res.status(500).json({ message: 'Failed to load notification types', error: err2.message, sqlTried: [sqlStatus, sqlIsRead] });
+                return res.json({ items: rows2 || [] });
+            });
+        }
+        return res.status(500).json({ message: 'Failed to load notification types', error: err.message, sql: sqlStatus });
+    });
+});
+
 //delete notification
 router.delete('/:id', (req, res) => {
     const id = req.params.id;

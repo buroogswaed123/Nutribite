@@ -48,7 +48,7 @@ function FAQ({ currentUser }) {
 
   useEffect(() => {
     // Fetch questions from backend
-    fetch('http://localhost:3000/api/questions', { credentials: 'include' })
+    fetch('/api/questions', { credentials: 'include' })
       .then(async (res) => {
         try {
           const data = await res.json();
@@ -70,7 +70,7 @@ function FAQ({ currentUser }) {
     const q = newQuestion.trim();
     if (!q) return;
     try {
-      const res = await fetch('http://localhost:3000/api/questions', {
+      const res = await fetch('/api/questions', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -87,7 +87,7 @@ function FAQ({ currentUser }) {
 
   const handleAnswer = async (id, answer) => {
     try {
-      const res = await fetch(`http://localhost:3000/api/questions/${id}/answer`, {
+      const res = await fetch(`/api/questions/${id}/answer`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

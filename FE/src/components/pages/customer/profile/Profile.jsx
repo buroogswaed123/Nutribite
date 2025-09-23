@@ -8,7 +8,7 @@ import Settings from './Settings';
 import { listPlansAPI } from '../../../../utils/functions';
 
 const buildProfileImageUrl = (raw) =>
-  raw?.startsWith('http') ? raw : `http://localhost:3000/${raw || 'uploads/profile/default.png'}`;
+  raw?.startsWith('http') ? raw : `/${(raw || 'uploads/profile/default.png').replace(/^\/+/, '')}`;
 
 export default function Profile() {
   const { currentUser } = useContext(AuthContext) || {};
@@ -24,6 +24,12 @@ export default function Profile() {
   const [custId, setCustId] = useState(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [plans, setPlans] = useState([]);
+  const [toast, setToast] = useState(null); // { type: 'success'|'error', text: string }
+  const showToast = (text, type = 'success') => {
+    setToast({ text, type });
+    window.clearTimeout(showToast._t);
+    showToast._t = window.setTimeout(() => setToast(null), 2500);
+  };
 
   const username = currentUser?.username || 'User';
   const imgSrc = buildProfileImageUrl(profileImage);
@@ -43,7 +49,7 @@ export default function Profile() {
   // fetch customer name
   useEffect(() => {
     if (!currentUser?.user_id) return;
-    fetch(`http://localhost:3000/api/customers/by-user/${currentUser.user_id}`, { credentials: 'include' })
+    fetch(`/api/customers/by-user/${currentUser.user_id}`, { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         setCustomerName(data.name || '');
@@ -68,13 +74,22 @@ export default function Profile() {
     return () => { ignore = true; };
   }, [custId]);
 
-  const handleSaveName = () => {
-    fetch(`http://localhost:3000/api/customers/${currentUser.user_id}`, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: customerName }),
-    }).then(() => setIsEditingName(false));
+  const handleSaveName = async () => {
+    try {
+      const res = await fetch(`/api/customers/${currentUser.user_id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: customerName }),
+      });
+      if (!res.ok) {
+        try { const j = await res.json(); throw new Error(j?.message || 'שמירה נכשלה'); } catch { throw new Error('שמירה נכשלה'); }
+      }
+      setIsEditingName(false);
+      showToast('השם עודכן בהצלחה', 'success');
+    } catch (e) {
+      showToast(e?.message || 'שמירה נכשלה', 'error');
+    }
   };
 
 
@@ -84,19 +99,24 @@ export default function Profile() {
       setUploading(true);
       const fd = new FormData();
       fd.append('image', selectedFile);
-      const res = await fetch(`http://localhost:3000/api/users/${currentUser.user_id}/profile-image`, {
+      const res = await fetch(`/api/users/${currentUser.user_id}/profile-image`, {
         method: 'POST',
         credentials: 'include',
         body: fd,
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || 'העלאת תמונה נכשלה');
+      }
       if (data?.profile_image) setProfileImage(data.profile_image);
+      showToast('התמונה עודכנה בהצלחה', 'success');
       setShowAvatarModal(false);
       setSelectedFile(null);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl('');
     } catch (e) {
       console.error(e);
+      showToast(e?.message || 'העלאת תמונה נכשלה', 'error');
     } finally {
       setUploading(false);
     }
@@ -104,6 +124,26 @@ export default function Profile() {
 
   return (
     <div className={styles.profileWrapper}>
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            top: 16,
+            right: 16,
+            zIndex: 2000,
+            padding: '8px 12px',
+            borderRadius: 8,
+            background: toast.type === 'success' ? '#ecfdf5' : '#fef2f2',
+            color: toast.type === 'success' ? '#065f46' : '#991b1b',
+            border: `1px solid ${toast.type === 'success' ? '#a7f3d0' : '#fecaca'}`,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+          }}
+        >
+          {toast.text}
+        </div>
+      )}
       {/* Top bar with logo and back arrow, matching Header placement */}
       <div className={headerStyles.container} style={{ marginTop: 0 }}>
         <div className={headerStyles.row}>

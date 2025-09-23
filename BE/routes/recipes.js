@@ -15,6 +15,8 @@ function query(sql, params = []) {
       if (err) return reject(err);
       resolve(results);
     });
+  });
+}
 
 // GET /api/recipes/top-rated?limit=5
 // Return top-N recipes by rating (highest first)
@@ -22,7 +24,7 @@ router.get('/top-rated', async (req, res) => {
   try {
     const lim = Math.min(Math.max(Number(req.query.limit) || 5, 1), 50);
     const rows = await query(
-      `SELECT r.recipe_id AS id, r.name, r.rating
+      `SELECT r.recipe_id AS id, r.name, r.rating AS rating_avg, r.picture
        FROM recipes r
        WHERE r.deleted_at IS NULL
        ORDER BY r.rating IS NULL, r.rating DESC
@@ -34,8 +36,6 @@ router.get('/top-rated', async (req, res) => {
     return res.status(500).json({ message: 'Error fetching top-rated' });
   }
 });
-  });
-}
 
 // GET /api/recipes/macro_search
 // Query: macro=protein|carbs|fats, min (number), max (number), maxCalories (optional), minCalories (optional)

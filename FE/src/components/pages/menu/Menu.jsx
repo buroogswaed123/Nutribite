@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowUpDown, Star } from 'lucide-react'
 import styles from './menu.module.css'
-import { fetchDietTypes, /*fetchRecipesPaged,*/ getSessionUser, bulkUpdateRecipePrices, fetchMenuCategoriesAPI, addToCartAPI, getProductByRecipeAPI } from '../../../utils/functions'
+import { fetchDietTypes, /*fetchRecipesPaged,*/ getSessionUser, bulkUpdateRecipePrices, fetchMenuCategoriesAPI, addToCartAPI, getProductByRecipeAPI, fetchTopRatedRecipesAPI } from '../../../utils/functions'
 
 export default function Menu() {
   const navigate = useNavigate()
@@ -150,11 +150,10 @@ export default function Menu() {
         // Use categories from BE so filter shows all categories, not only those currently in view
         const mappedCats = Array.isArray(cats) ? cats.map(c => ({ id: c.id, name: translateCategoryName(c.name) })) : []
         setCategories(mappedCats)
-        // Fetch top-5 rated recipe ids for badge
+        // Fetch top-5 rated recipe ids for badge (fallback handled inside helper)
         try {
-          const resp = await fetch('/api/recipes/top-rated?limit=5', { credentials: 'include' })
-          const data = await resp.json().catch(()=>({}))
-          const ids = Array.isArray(data?.items) ? data.items.map(it => Number(it.id || it.recipe_id)).filter(n=>Number.isFinite(n)) : []
+          const top = await fetchTopRatedRecipesAPI(5)
+          const ids = Array.isArray(top) ? top.map(it => Number(it.id || it.recipe_id)).filter(Number.isFinite) : []
           setTopRatedSet(new Set(ids))
         } catch (_) {}
         // Fetch full menu items list (includes price/stock) for proper mixing
@@ -541,7 +540,7 @@ export default function Menu() {
       )}
 
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:16}}>
-        {filtered.map(r => {
+        {filtered.map((r, idx) => {
           // If stock is missing (not provided by /api/recipes), assume available; only block when explicitly 0 or negative
           const out = (r.stock == null) ? false : !(Number(r.stock) > 0);
           const handleCardClick = () => {
@@ -562,7 +561,27 @@ export default function Menu() {
                   פופולרי
                 </span>
               )}
-              <img src={resolveImageUrl(r.picture || r.imageUrl)} alt={r.name} style={{width:'100%', height:150, objectFit:'cover'}} onError={(e)=>{ try{ console.error('Image failed to load:', resolveImageUrl(r.picture || r.imageUrl)); }catch(_){} e.currentTarget.style.display='none' }} />
+              {(() => {
+                const imgUrl = resolveImageUrl(r.picture || r.imageUrl);
+                if (!imgUrl) {
+                  return (
+                    <div style={{width:'100%', height:150, background:'#f1f5f9'}} />
+                  );
+                }
+                return (
+                  <img
+                    src={imgUrl}
+                    alt={r.name}
+                    loading={idx < 6 ? 'eager' : 'lazy'}
+                    fetchpriority={idx < 6 ? 'high' : 'auto'}
+                    decoding="async"
+                    width="220"
+                    height="150"
+                    style={{width:'100%', height:150, objectFit:'cover'}}
+                    onError={(e)=>{ try{ console.error('Image failed to load:', imgUrl); }catch(_){} e.currentTarget.style.display='none' }}
+                  />
+                );
+              })()}
             </div>
             <div style={{padding:12, position:'relative'}}>
               {isAdmin && (
@@ -649,6 +668,9 @@ export default function Menu() {
               <img
                 src={resolveImageUrl(selected.picture || selected.imageUrl)}
                 alt={selected.name}
+                decoding="async"
+                width="720"
+                height="360"
                 className={styles.detailImg}
                 onError={(e)=>{ try{ console.error('Image failed to load (detail):', resolveImageUrl(selected.picture || selected.imageUrl)); }catch(_){} e.currentTarget.style.display='none' }}
               />

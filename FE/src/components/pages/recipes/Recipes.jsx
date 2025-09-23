@@ -1,10 +1,10 @@
 import styles from './recipes.module.css'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUpDown, Star } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../../../hooks/useAuth'
-import { getRecipeRatingsAPI, rateRecipeAPI, getSessionUser, fetchDietTypes, fetchMenuCategoriesAPI, getProductByRecipeAPI, updateProductByRecipeAPI, ensureImageUrl } from '../../../utils/functions'
+import { getRecipeRatingsAPI, rateRecipeAPI, getSessionUser, fetchDietTypes, fetchMenuCategoriesAPI, getProductByRecipeAPI, updateProductByRecipeAPI, ensureImageUrl, fetchTopRatedRecipesAPI } from '../../../utils/functions'
 
 // Use shared ensureImageUrl from utils
 
@@ -75,35 +75,47 @@ export default function Recipes() {
       try {
         setLoading(true);
         setError('');
-        // Use public endpoints (not admin) to avoid 403
-        const data = await fetchPublicRecipes();
-        if (!cancelled) setRecipes(Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
-        // admin context and lists
+        // Kick off all network requests in parallel
+        const recipesP = fetchPublicRecipes();
+        const userP = getSessionUser().catch(() => null);
+        const listsP = Promise.all([
+          fetchDietTypes().catch(()=>[]),
+          fetchMenuCategoriesAPI().catch(()=>[]),
+        ]);
+        const topP = fetchTopRatedRecipesAPI(5).catch(() => []);
+
+        // 1) Await recipes first to render the page ASAP
+        const data = await recipesP;
+        if (!cancelled) {
+          setRecipes(Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
+          setLoading(false); // allow UI to show while other data loads in background
+        }
+
+        // 2) Apply admin/user + lists when available (does not block initial render)
         try {
-          const user = await getSessionUser();
-          if (!cancelled) setIsAdmin(!!user && String(user.user_type).toLowerCase() === 'admin');
+          const user = await userP;
+          if (!cancelled && user) setIsAdmin(String(user.user_type).toLowerCase() === 'admin');
         } catch {}
         try {
-          const [diets, cats] = await Promise.all([
-            fetchDietTypes().catch(()=>[]),
-            fetchMenuCategoriesAPI().catch(()=>[]),
-          ]);
+          const [diets, cats] = await listsP;
           if (!cancelled) {
             setDietTypeList(Array.isArray(diets) ? diets : []);
             setCategoryList(Array.isArray(cats) ? cats.map(c => ({ id: c.id, name: c.name })) : []);
           }
         } catch {}
-        // Fetch top 5 ids for popularity badge
+        // 3) Top-rated ids for badges
         try {
-          const resp = await fetch('/api/recipes/top-rated?limit=5', { credentials: 'include' });
-          const data = await resp.json().catch(()=>({}));
-          const ids = Array.isArray(data?.items) ? data.items.map(it => Number(it.id || it.recipe_id)).filter(Number.isFinite) : [];
+          const top = await topP;
+          const ids = Array.isArray(top) ? top.map(it => Number(it.id || it.recipe_id)).filter(Number.isFinite) : [];
           if (!cancelled) setTopRatedSet(new Set(ids));
-        } catch (_) {}
+        } catch {}
       } catch (e) {
-        if (!cancelled) setError(e.message || 'שגיאה');
+        if (!cancelled) {
+          setError(e.message || 'שגיאה');
+          setLoading(false);
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        // loading already cleared after recipesP resolves
       }
     })();
     return () => { cancelled = true };
@@ -198,9 +210,14 @@ export default function Recipes() {
       return nameOk && calOk && dietOk && catOk && pMinOk && pMaxOk && cMinOk && cMaxOk && fMinOk && fMaxOk;
     });
     if (popularOnly) {
-      arr = arr
-        .filter(r => topRatedSet.has(Number(r.id || r.recipe_id)))
-        .sort((a,b) => (Number(b.rating_avg||0) - Number(a.rating_avg||0)));
+      const isTop = (r) => topRatedSet && topRatedSet.has(Number(r.id || r.recipe_id));
+      // Do NOT filter; only sort with top-rated first, then by rating desc
+      arr = arr.slice().sort((a,b) => {
+        const ta = isTop(a) ? 1 : 0;
+        const tb = isTop(b) ? 1 : 0;
+        if (tb !== ta) return tb - ta; // top-rated first
+        return (Number(b.rating_avg||0) - Number(a.rating_avg||0));
+      });
     }
     return arr;
   }, [recipes, search, calories, diet, category, protMin, protMax, carbMin, carbMax, fatMin, fatMax, popularOnly, topRatedSet]);
@@ -271,8 +288,8 @@ export default function Recipes() {
 
   return (
     <>
-    <div>
-      <h1>מתכונים</h1>
+    <div className={`${styles.recipes} ${styles.rtlNudgeRight}`}>
+      <h1 className={styles.pageTitleRight}>מתכונים</h1>
       {isAdmin && (
         <div style={{ marginBottom: 10 }}>
           <button className={styles.btn} onClick={() => setAdminModalOpen(true)}>הוסף מתכון</button>
@@ -320,26 +337,31 @@ export default function Recipes() {
 
       {showMacros && (
         <div className={styles.filters} style={{ marginTop: 8 }}>
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }} className={styles.rtl}>
-            <label>חלבון (גרם)
-              <input className={styles.search} inputMode="numeric" value={protMin} onChange={(e)=>setProtMin(e.target.value.replace(/[^0-9]/g,''))} placeholder="מ-" style={{ width:100 }} />
-              <input className={styles.search} inputMode="numeric" value={protMax} onChange={(e)=>setProtMax(e.target.value.replace(/[^0-9]/g,''))} placeholder="עד" style={{ width:100, marginInlineStart:6 }} />
-            </label>
-            <label>פחמימות (גרם)
-              <input className={styles.search} inputMode="numeric" value={carbMin} onChange={(e)=>setCarbMin(e.target.value.replace(/[^0-9]/g,''))} placeholder="מ-" style={{ width:100 }} />
-              <input className={styles.search} inputMode="numeric" value={carbMax} onChange={(e)=>setCarbMax(e.target.value.replace(/[^0-9]/g,''))} placeholder="עד" style={{ width:100, marginInlineStart:6 }} />
-            </label>
-            <label>שומנים (גרם)
-              <input className={styles.search} inputMode="numeric" value={fatMin} onChange={(e)=>setFatMin(e.target.value.replace(/[^0-9]/g,''))} placeholder="מ-" style={{ width:100 }} />
-              <input className={styles.search} inputMode="numeric" value={fatMax} onChange={(e)=>setFatMax(e.target.value.replace(/[^0-9]/g,''))} placeholder="עד" style={{ width:100, marginInlineStart:6 }} />
-            </label>
-            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=>{ setProtMin(''); setProtMax(''); setCarbMin(''); setCarbMax(''); setFatMin(''); setFatMax(''); }}>נקה ערכים</button>
+          <div className={`${styles.macrosBlock} ${styles.rtl}`}>
+            <div className={styles.macroRowAlign}>
+              <span className={styles.macroLabel}>חלבון (גרם)</span>
+              <input className={`${styles.search} ${styles.macroInput}`} inputMode="numeric" value={protMin} onChange={(e)=>setProtMin(e.target.value.replace(/[^0-9]/g,''))} placeholder="מ-" />
+              <input className={`${styles.search} ${styles.macroInput}`} inputMode="numeric" value={protMax} onChange={(e)=>setProtMax(e.target.value.replace(/[^0-9]/g,''))} placeholder="עד" />
+            </div>
+            <div className={styles.macroRowAlign}>
+              <span className={styles.macroLabel}>פחמימות (גרם)</span>
+              <input className={`${styles.search} ${styles.macroInput}`} inputMode="numeric" value={carbMin} onChange={(e)=>setCarbMin(e.target.value.replace(/[^0-9]/g,''))} placeholder="מ-" />
+              <input className={`${styles.search} ${styles.macroInput}`} inputMode="numeric" value={carbMax} onChange={(e)=>setCarbMax(e.target.value.replace(/[^0-9]/g,''))} placeholder="עד" />
+            </div>
+            <div className={styles.macroRowAlign}>
+              <span className={styles.macroLabel}>שומנים (גרם)</span>
+              <input className={`${styles.search} ${styles.macroInput}`} inputMode="numeric" value={fatMin} onChange={(e)=>setFatMin(e.target.value.replace(/[^0-9]/g,''))} placeholder="מ-" />
+              <input className={`${styles.search} ${styles.macroInput}`} inputMode="numeric" value={fatMax} onChange={(e)=>setFatMax(e.target.value.replace(/[^0-9]/g,''))} placeholder="עד" />
+            </div>
+            <div>
+              <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=>{ setProtMin(''); setProtMax(''); setCarbMin(''); setCarbMax(''); setFatMin(''); setFatMax(''); }}>נקה ערכים</button>
+            </div>
           </div>
         </div>
       )}
 
       <div className={styles.cardsGrid}>
-        {currentItems.map((recipe) => (
+        {currentItems.map((recipe, idx) => (
           <div key={recipe.id || recipe.recipe_id} className={styles.cardNarrow}>
             <div className={styles.cardImageWrap}>
               {topRatedSet.has(Number(recipe.id || recipe.recipe_id)) && (
@@ -351,8 +373,11 @@ export default function Recipes() {
               <img
                 src={ensureImageUrl(recipe.picture || recipe.imageUrl || recipe.image)}
                 alt={recipe.name}
-                loading="lazy"
+                loading={idx < 6 ? 'eager' : 'lazy'}
+                fetchpriority={idx < 6 ? 'high' : 'auto'}
                 decoding="async"
+                width="220"
+                height="140"
                 className={styles.cardImageNarrow}
                 onClick={async () => {
                   const id = recipe.id || recipe.recipe_id;

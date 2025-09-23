@@ -87,38 +87,45 @@ function App() {
     handleLogout,
   };
 
-  // Hydrate session from backend (/api/me), with a single retry to smooth races
+  // Optimistic auth hydration: seed from localStorage synchronously, then verify with backend in background
   useEffect(() => {
     let cancelled = false;
-    const run = async () => {
-      const tryFetch = async () => {
-        try {
-          const user = await getSessionUser();
-          if (cancelled) return null;
-          if (user && user.user_id) return user;
-          return null;
-        } catch (_) {
-          return null;
+    // 1) Seed from localStorage (instant render, avoids blank page)
+    try {
+      const keys = ['currentUser', 'user', 'authUser'];
+      for (const k of keys) {
+        const raw = window.localStorage.getItem(k);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.user_id) {
+            setIsLoggedIn(true);
+            setCurrentUser(parsed);
+            break;
+          }
         }
-      };
-      let user = await tryFetch();
-      if (!user) {
-        // Retry once after short delay (handles immediate nav after login)
-        await new Promise(r => setTimeout(r, 250));
-        user = await tryFetch();
       }
-      if (!cancelled) {
-        if (user) {
+    } catch {}
+    // Allow UI to render immediately
+    setAuthReady(true);
+
+    // 2) Verify with backend and reconcile state (does not block initial render)
+    (async () => {
+      try {
+        const user = await getSessionUser();
+        if (cancelled) return;
+        if (user && user.user_id) {
           setIsLoggedIn(true);
           setCurrentUser(user);
         } else {
           setIsLoggedIn(false);
           setCurrentUser(null);
         }
-        setAuthReady(true);
+      } catch {
+        if (cancelled) return;
+        // keep optimistic state if any; no hard failure needed here
       }
-    };
-    run();
+    })();
+
     return () => { cancelled = true; };
   }, []);
 

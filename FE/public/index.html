@@ -4,11 +4,15 @@
     <meta charset="UTF-8" />
     <!-- vite.svg is located in the public folder -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Performance hints: preconnect to backend for faster API/image fetches -->
+    <link rel="preconnect" href="http://localhost:3000" crossorigin>
+    <link rel="dns-prefetch" href="//localhost:3000">
+    <link rel="preconnect" href="http://192.168.1.16:3000" crossorigin>
+    <link rel="dns-prefetch" href="//192.168.1.16:3000">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nutribite</title>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/FE/src/Main.jsx"></script>
   </body>
 </html>

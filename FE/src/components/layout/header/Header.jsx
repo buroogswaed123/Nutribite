@@ -70,10 +70,10 @@ export default function Header() {
     if (/^https?:\/\//i.test(raw)) return raw;
     // If already includes uploads path from BE
     if (/^uploads\//i.test(raw) || /\/uploads\//i.test(raw)) {
-      return `http://localhost:3000/${raw.replace(/^\/+/, '')}`;
+      return `/${raw.replace(/^\/+/, '')}`;
     }
     // Assume it's a filename stored under uploads/profile
-    return `http://localhost:3000/uploads/profile/${raw}`;
+    return `/uploads/profile/${raw}`;
   };
 
   // Close avatar dropdown on outside click
@@ -108,7 +108,7 @@ export default function Header() {
         }
         const customerId = await getCurrentCustomerId();
         const qs = customerId ? `?customer_id=${encodeURIComponent(customerId)}` : '';
-        const res = await fetch(`http://localhost:3000/api/plan${qs}`, { credentials: 'include' });
+        const res = await fetch(`/api/plan${qs}`, { credentials: 'include' });
         if (!res.ok) throw new Error('plan check failed');
         const rows = await res.json();
         if (!cancelled) setPlanLink(Array.isArray(rows) && rows.length > 0 ? '/plan' : '/plan-maker');

@@ -67,6 +67,22 @@ export async function register(username, email, password, user_type) {
   return extractOrThrow(data, 'Registration failed');
 }
 
+// Check if user's password is expired (e.g., older than policy window). Backend should return { expired: true|false }.
+// If endpoint is missing (404) or any error occurs, fall back to not expired.
+export async function checkPasswordExpiryAPI(userId) {
+  if (!userId) return false;
+  try {
+    const res = await axios.get(`/api/users/${userId}/password/expired`, { validateStatus: () => true });
+    if (res.status === 200 && typeof res.data?.expired !== 'undefined') {
+      return !!res.data.expired;
+    }
+    // 404 or other custom responses: treat as not expired
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
 //check user type
 export async function checkUserType(userId) {
   const { data } = await axios.get(`/api/users/${userId}/type`);

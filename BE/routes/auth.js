@@ -120,6 +120,31 @@ router.post('/login', async (req, res) => {
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ message: 'Invalid credentials' });
 
+    // Enforce password expiry (6 months). Use latest password_resets.created_at for email; fallback to account_creation_time
+    try {
+      let refDate = null;
+      // latest reset
+      const [resets] = await runQuery(
+        'SELECT created_at FROM password_resets WHERE email = ? ORDER BY created_at DESC LIMIT 1',
+        [user.email]
+      );
+      if (resets && resets[0] && resets[0].created_at) {
+        refDate = new Date(resets[0].created_at);
+      } else if (user.account_creation_time) {
+        refDate = new Date(user.account_creation_time);
+      }
+      if (refDate && !isNaN(refDate.getTime())) {
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        if (refDate.getTime() <= sixMonthsAgo.getTime()) {
+          return res.status(403).json({ message: 'Password expired. Please reset your password.', code: 'PASSWORD_EXPIRED' });
+        }
+      }
+    } catch (e) {
+      // If expiry check fails, do not block login, but log for diagnostics
+      console.warn('Password expiry check failed:', e?.message || e);
+    }
+
     // Block banned accounts from logging in (including scheduled bans)
     const isBanned = user.status && String(user.status).toLowerCase() === 'banned';
     const effective = user.ban_effective_at && new Date(user.ban_effective_at) <= new Date();
@@ -182,6 +207,27 @@ router.post('/password_reset_simple', async (req, res) => {
     const isEmail = /.+@.+\..+/.test(String(identifier));
     const user = isEmail ? await findUserByEmail(identifier) : await findUserByName(identifier);
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Prevent reusing the same password
+    try {
+      if (user.password_hash) {
+        const same = await bcrypt.compare(String(newPassword), user.password_hash);
+        if (same) {
+          return res.status(400).json({ message: 'הסיסמה החדשה חייבת להיות שונה מהסיסמה הנוכחית' });
+        }
+      }
+    } catch (_) { /* ignore compare errors */ }
+
+    // Record this reset so expiry logic will use this timestamp going forward
+    try {
+      await runQuery(
+        'INSERT INTO password_resets (email, new_password, created_at) VALUES (?, ?, NOW())',
+        [user.email, String(newPassword)]
+      );
+    } catch (e) {
+      // If the table doesn't match expected schema, do not block the reset; just log.
+      console.warn('Failed to insert into password_resets:', e?.message || e);
+    }
 
     const hashed = await hashPassword(newPassword);
     const [result] = await runQuery(

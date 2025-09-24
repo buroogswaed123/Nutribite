@@ -65,17 +65,27 @@ const TAX_RATE_PERCENT = Number(process.env.TAX_RATE_PERCENT ?? 18.0);
   } catch (e) { /* ignore */ }
 })();
 
-// GET /api/orders - list current user's orders
+// GET /api/orders - list current user's orders (schema uses cust_id on orders)
 router.get('/', async (req, res) => {
   try {
     const uid = getUserId(req);
     if (!uid) return res.status(401).json({ message: 'Not logged in' });
+    // resolve cust_id from customers by user_id
+    const custRows = await query('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [uid]);
+    const cust = custRows && custRows[0] ? custRows[0].cust_id : null;
+    if (!cust) return res.json({ items: [] });
+
     const rows = await query(`
-      SELECT o.order_id, o.status, o.total_price, o.total_calories, o.created_at
+      SELECT 
+        o.order_id,
+        o.order_status AS status,
+        o.total_price,
+        NULL AS total_calories,
+        o.order_date AS created_at
       FROM orders o
-      WHERE o.user_id = ?
+      WHERE o.cust_id = ?
       ORDER BY o.order_id DESC
-    `, [uid]);
+    `, [cust]);
     return res.json({ items: rows });
   } catch (err) {
     console.error('ORDERS LIST ERROR:', err);
@@ -83,22 +93,111 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/orders/:id - order details with items
+// GET /api/orders/draft/latest - latest draft order for current user
+router.get('/draft/latest', async (req, res) => {
+  try {
+    const uid = getUserId(req);
+    if (!uid) return res.status(401).json({ message: 'Not logged in' });
+    const custRows = await query('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [uid]);
+    const cust = custRows && custRows[0] ? custRows[0].cust_id : null;
+    if (!cust) return res.status(404).json({ message: 'Customer not found' });
+    const rows = await query("SELECT order_id FROM orders WHERE cust_id = ? AND order_status = 'draft' ORDER BY order_id DESC LIMIT 1", [cust]);
+    if (!rows || !rows[0]) return res.status(404).json({ message: 'No draft order' });
+    return res.json({ order_id: rows[0].order_id });
+  } catch (err) {
+    console.error('LATEST DRAFT ERROR:', err);
+    return res.status(500).json({ message: 'Failed to get draft order', error: err.message });
+  }
+});
+
+// POST /api/orders/:id/confirm - mark order as confirmed (ownership enforced)
+router.post('/:id/confirm', async (req, res) => {
+  try {
+    const uid = getUserId(req);
+    if (!uid) return res.status(401).json({ message: 'Not logged in' });
+    const id = Number(req.params.id);
+    const custRows = await query('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [uid]);
+    const cust = custRows && custRows[0] ? custRows[0].cust_id : null;
+    if (!cust) return res.status(404).json({ message: 'Customer not found' });
+
+    const own = await query('SELECT order_id FROM orders WHERE order_id = ? AND cust_id = ? LIMIT 1', [id, cust]);
+    if (!own || !own[0]) return res.status(404).json({ message: 'Order not found' });
+
+    await query("UPDATE orders SET order_status = 'confirmed' WHERE order_id = ? AND cust_id = ?", [id, cust]);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('CONFIRM ORDER ERROR:', err);
+    return res.status(500).json({ message: 'Failed to confirm order', error: err.message });
+  }
+});
+
+// POST /api/orders/:id/rebuild_cart - rebuild current user's cart from a past order
+router.post('/:id/rebuild_cart', async (req, res) => {
+  try {
+    const uid = getUserId(req);
+    if (!uid) return res.status(401).json({ message: 'Not logged in' });
+    const id = Number(req.params.id);
+    // Resolve cust_id
+    const custRows = await query('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [uid]);
+    const cust = custRows && custRows[0] ? custRows[0].cust_id : null;
+    if (!cust) return res.status(404).json({ message: 'Customer not found' });
+
+    // Check ownership
+    const ordRows = await query('SELECT order_id FROM orders WHERE order_id = ? AND cust_id = ? LIMIT 1', [id, cust]);
+    if (!ordRows || !ordRows[0]) return res.status(404).json({ message: 'Order not found' });
+
+    // Load items from order
+    const items = await query('SELECT product_id, quantity FROM order_items WHERE order_id = ? ORDER BY order_item_id ASC', [id]);
+    if (!items || items.length === 0) return res.json({ rebuilt: 0 });
+
+    // Clear current cart then insert
+    await query('DELETE FROM cart_items WHERE user_id = ?', [uid]);
+    for (const it of items) {
+      // Use current product price as unit price in cart
+      const prod = await query('SELECT price FROM products WHERE product_id = ? LIMIT 1', [it.product_id]);
+      const price = prod && prod[0] ? Number(prod[0].price || 0) : 0;
+      await query(
+        'INSERT INTO cart_items (user_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
+        [uid, it.product_id, it.quantity, price]
+      );
+    }
+    return res.json({ rebuilt: items.length });
+  } catch (err) {
+    console.error('REBUILD CART ERROR:', err);
+    return res.status(500).json({ message: 'Failed to rebuild cart', error: err.message });
+  }
+});
+
+// GET /api/orders/:id - order details with items (validate by cust_id)
 router.get('/:id', async (req, res) => {
   try {
     const uid = getUserId(req);
     if (!uid) return res.status(401).json({ message: 'Not logged in' });
     const id = Number(req.params.id);
-    const orders = await query('SELECT * FROM orders WHERE order_id = ? AND user_id = ? LIMIT 1', [id, uid]);
+    const custRows = await query('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [uid]);
+    const cust = custRows && custRows[0] ? custRows[0].cust_id : null;
+    if (!cust) return res.status(404).json({ message: 'Customer not found' });
+
+    const orders = await query('SELECT * FROM orders WHERE order_id = ? AND cust_id = ? LIMIT 1', [id, cust]);
     const order = orders && orders[0];
     if (!order) return res.status(404).json({ message: 'Order not found' });
     const items = await query(`
-      SELECT oi.*, r.name AS recipe_name, r.picture, r.calories, r.category_id
+      SELECT 
+        oi.order_item_id AS id,
+        oi.order_id,
+        oi.product_id,
+        oi.quantity,
+        p.price AS unit_price,
+        (p.price * oi.quantity) AS line_total,
+        r.name AS recipe_name,
+        r.picture,
+        r.calories,
+        r.category_id
       FROM order_items oi
       INNER JOIN products p ON p.product_id = oi.product_id
       INNER JOIN recipes r ON r.recipe_id = p.recipe_id
       WHERE oi.order_id = ?
-      ORDER BY oi.id ASC
+      ORDER BY oi.order_item_id ASC
     `, [id]);
     return res.json({ order, items });
   } catch (err) {
@@ -118,6 +217,11 @@ router.post('/checkout', async (req, res) => {
     const schedule = req.body?.schedule || {}; // map category_id or names to datetime
     const allAt = req.body?.applyToAll || null;
 
+    // Resolve customer's cust_id
+    const custRows = await tx.query('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [uid]).then(([r]) => r);
+    const cust = custRows && custRows[0] ? custRows[0].cust_id : null;
+    if (!cust) return res.status(400).json({ message: 'Customer not found for user' });
+
     // Fetch cart items for the user joined to recipe for category & calories
     const cart = await tx.query(`
       SELECT ci.id, ci.product_id, ci.quantity, ci.price, ci.unit_price_net, ci.tax_rate, ci.tax_amount, ci.unit_price_gross, r.recipe_id, r.calories, r.category_id
@@ -132,41 +236,72 @@ router.post('/checkout', async (req, res) => {
     const totalPrice = cart.reduce((s,it)=> s + Number((it.unit_price_gross ?? it.price) || 0) * Number(it.quantity||0), 0);
     const totalCalories = cart.reduce((s,it)=> s + Number(it.calories||0)*Number(it.quantity||0), 0);
 
-    // Create order
-    const [insOrder] = await tx.query(
-      `INSERT INTO orders (user_id, status, total_price, total_calories, created_at) VALUES (?, 'pending', ?, ?, NOW())`,
-      [uid, totalPrice, totalCalories]
-    );
-    const orderId = insOrder.insertId;
-
-    // Insert items
-    for (const it of cart) {
-      let catKey = it.category_id != null ? String(it.category_id) : '';
-      // allow mapping by name keys as well
-      let deliveryAt = allAt || schedule[catKey] || schedule[String(catKey)] || null;
-      if (deliveryAt) {
-        // normalize to MySQL DATETIME
-        const d = new Date(deliveryAt);
+    // Derive the selected delivery datetime for the order
+    const normalizeToMySQL = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:00`;
+    let selectedDate = null;
+    if (allAt) {
+      const d = new Date(allAt);
+      if (!isNaN(d.getTime())) selectedDate = d;
+    } else {
+      // compute earliest valid datetime from schedule values
+      const vals = Object.values(schedule || {});
+      let min = null;
+      for (const v of vals) {
+        const d = new Date(v);
         if (!isNaN(d.getTime())) {
-          deliveryAt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:00`;
-        } else {
-          deliveryAt = null;
+          if (!min || d.getTime() < min.getTime()) min = d;
         }
       }
-      // Snapshot tax fields into order_items; fallback compute if cart row doesn't have them
-      const unitNet = (typeof it.unit_price_net !== 'undefined' && it.unit_price_net !== null) ? Number(it.unit_price_net) : Number(it.price);
-      const taxRate = (typeof it.tax_rate !== 'undefined' && it.tax_rate !== null) ? Number(it.tax_rate) : TAX_RATE_PERCENT;
-      const taxAmount = (typeof it.tax_amount !== 'undefined' && it.tax_amount !== null) ? Number(it.tax_amount) : Number(((unitNet * taxRate) / 100).toFixed(2));
-      const unitGross = (typeof it.unit_price_gross !== 'undefined' && it.unit_price_gross !== null) ? Number(it.unit_price_gross) : Number((unitNet + taxAmount).toFixed(2));
+      if (min) selectedDate = min;
+    }
+    // Server-side validation: if client supplied a datetime, enforce [today, today+7], and 06:00–23:59
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekAhead = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    if (selectedDate) {
+      const hh = selectedDate.getHours();
+      if (hh < 6 || hh > 23) {
+        return res.status(400).json({ message: 'Invalid delivery time (06:00–23:59 only)' });
+      }
+      const sdDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      if (sdDay.getTime() < today.getTime()) {
+        return res.status(400).json({ message: 'Delivery date cannot be in the past' });
+      }
+      if (sdDay.getTime() > weekAhead.getTime()) {
+        return res.status(400).json({ message: 'Delivery date cannot be more than 7 days ahead' });
+      }
+      if (sdDay.getTime() === today.getTime() && selectedDate.getTime() < now.getTime()) {
+        return res.status(400).json({ message: 'Delivery time cannot be in the past' });
+      }
+    }
+    const orderDateValue = selectedDate ? normalizeToMySQL(selectedDate) : null;
+    const orderSetTime = selectedDate ? normalizeToMySQL(selectedDate) : null;
 
+    // Create order in existing schema
+    let insOrder;
+    if (orderDateValue) {
+      [insOrder] = await tx.query(
+        `INSERT INTO orders (order_date, order_status, total_price, cust_id, set_delivery_time) VALUES (?, 'draft', ?, ?, ?)`,
+        [orderDateValue, totalPrice, cust, orderSetTime]
+      );
+    } else {
+      [insOrder] = await tx.query(
+        `INSERT INTO orders (order_date, order_status, total_price, cust_id, set_delivery_time) VALUES (NOW(), 'draft', ?, ?, NULL)`,
+        [totalPrice, cust]
+      );
+    }
+    const orderId = insOrder.insertId;
+
+    // Insert items into order_items (minimal schema)
+    for (const it of cart) {
+      // Given minimal schema, we only store order_id, product_id, quantity
       await tx.query(
-        `INSERT INTO order_items (order_id, product_id, quantity, price, unit_price_net, tax_rate, tax_amount, unit_price_gross, category_id, delivery_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, it.product_id, it.quantity, unitGross, unitNet, taxRate, taxAmount, unitGross, it.category_id ?? null, deliveryAt]
+        `INSERT INTO order_items (order_id, product_id, quantity) VALUES (?, ?, ?)`,
+        [orderId, it.product_id, it.quantity]
       );
     }
 
-    // Clear cart
+    // Clear cart (we keep a rebuild endpoint to recover if needed)
     await tx.query(`DELETE FROM cart_items WHERE user_id = ?`, [uid]);
 
     return res.status(201).json({ order_id: orderId });
@@ -177,3 +312,40 @@ router.post('/checkout', async (req, res) => {
 });
 
 module.exports = router;
+ 
+// POST /api/orders/:id/rebuild_cart - rebuild current user's cart from a past order
+router.post('/:id/rebuild_cart', async (req, res) => {
+  try {
+    const uid = getUserId(req);
+    if (!uid) return res.status(401).json({ message: 'Not logged in' });
+    const id = Number(req.params.id);
+    // Resolve cust_id
+    const custRows = await query('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [uid]);
+    const cust = custRows && custRows[0] ? custRows[0].cust_id : null;
+    if (!cust) return res.status(404).json({ message: 'Customer not found' });
+
+    // Check ownership
+    const ordRows = await query('SELECT order_id FROM orders WHERE order_id = ? AND cust_id = ? LIMIT 1', [id, cust]);
+    if (!ordRows || !ordRows[0]) return res.status(404).json({ message: 'Order not found' });
+
+    // Load items from order
+    const items = await query('SELECT product_id, quantity FROM order_items WHERE order_id = ? ORDER BY order_item_id ASC', [id]);
+    if (!items || items.length === 0) return res.json({ rebuilt: 0 });
+
+    // Clear current cart then insert
+    await query('DELETE FROM cart_items WHERE user_id = ?', [uid]);
+    for (const it of items) {
+      // Use current product price as unit price in cart
+      const prod = await query('SELECT price FROM products WHERE product_id = ? LIMIT 1', [it.product_id]);
+      const price = prod && prod[0] ? Number(prod[0].price || 0) : 0;
+      await query(
+        'INSERT INTO cart_items (user_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
+        [uid, it.product_id, it.quantity, price]
+      );
+    }
+    return res.json({ rebuilt: items.length });
+  } catch (err) {
+    console.error('REBUILD CART ERROR:', err);
+    return res.status(500).json({ message: 'Failed to rebuild cart', error: err.message });
+  }
+});

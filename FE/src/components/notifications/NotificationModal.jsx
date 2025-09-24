@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Trash2 } from 'lucide-react';
 import styles from './Notifications.module.css';
 import { useState, useEffect } from 'react';
@@ -12,6 +13,7 @@ export default function NotificationModal({
   onMarkRead,
   onDelete,
 }) {
+  const navigate = useNavigate();
   // Unban request state
   const [showUnbanForm, setShowUnbanForm] = useState(false);
   const [unbanReason, setUnbanReason] = useState('');
@@ -200,6 +202,25 @@ export default function NotificationModal({
           )}
         </div>
         <div className={styles.modalFooter}>
+          {typeLower === 'order' && (
+            <button
+              className={styles.primaryBtn}
+              onClick={async () => {
+                try {
+                  // mark read if handler provided
+                  onMarkRead?.(id);
+                } catch(_) {}
+                if (related_id) {
+                  navigate(`/orders/${related_id}`);
+                } else {
+                  navigate('/orders');
+                }
+                onClose?.();
+              }}
+            >
+              המשך עכשיו
+            </button>
+          )}
           {!is_read && (
             <button
               className={styles.primaryBtn}

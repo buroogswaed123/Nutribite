@@ -676,6 +676,17 @@ export async function getOrderAPI(orderId) {
   return data; // { order, items }
 }
 
+// Get latest draft order for current user; returns order_id or null
+export async function getLatestDraftOrderAPI() {
+  try {
+    const res = await axios.get('/api/orders/draft/latest', { validateStatus: () => true });
+    if (res.status === 200 && res.data && res.data.order_id) return res.data.order_id;
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // Add exact plan items to cart (server-side), no client suggestion logic
 export async function addPlanToCartAPI(planId, { clear = true, quantityMode = 'one' } = {}) {
   const { data } = await axios.post(`/api/plan/${planId}/add_to_cart`, { clear, quantityMode });

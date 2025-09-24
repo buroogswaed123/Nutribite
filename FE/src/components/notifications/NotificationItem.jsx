@@ -44,6 +44,31 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
             </button>
           </div>
         )}
+        {type === 'order' && (
+          <div className={styles.inlineActions} onClick={(e)=> e.stopPropagation()}>
+            <button
+              className={styles.inlinePrimary}
+              onClick={async () => {
+                try {
+                  if (id) await markNotificationReadAPI(id);
+                } catch(_) {}
+                if (related_id) {
+                  navigate(`/orders/${related_id}`);
+                } else {
+                  navigate('/orders');
+                }
+              }}
+            >
+              המשך עכשיו
+            </button>
+            <button
+              className={styles.inlineSecondary}
+              onClick={() => navigate('/orders')}
+            >
+              לכל ההזמנות
+            </button>
+          </div>
+        )}
       </div>
       <div className={styles.itemActions} onClick={(e) => e.stopPropagation()}>
         <button className={styles.trashBtn} aria-label="Delete notification" title="Delete"

@@ -4,6 +4,7 @@ import classes from "../../assets/styles/login.module.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import SocialAuthButtons from "./SocialAuthButtons";
 import { useAuth } from "../../hooks/useAuth"; 
+import { getLatestDraftOrderAPI, createNotificationAPI } from "../../utils/functions";
 
 /**
  * Login JSX component
@@ -25,6 +26,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   const [showLoginPw, setShowLoginPw] = useState(false);
   const [showRegPw, setShowRegPw] = useState(false);
   const [showRegPw2, setShowRegPw2] = useState(false);
+  const [draftOrderId, setDraftOrderId] = useState(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -127,8 +129,28 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         }
       }
 
+      // Set auth state immediately so protected routes are accessible
       setUserType(user.user_type);
       if (typeof onLoginSuccess === "function") onLoginSuccess(user);
+
+      // Check if user has a draft order and create a notification prompting to continue setup
+      try {
+        const draftId = await getLatestDraftOrderAPI();
+        if (draftId) {
+          setDraftOrderId(draftId);
+          try {
+            await createNotificationAPI({
+              user_id: user.user_id || user.id,
+              type: 'order',
+              related_id: draftId,
+              title: `המשך הגדרת ההזמנה #${draftId}`,
+              description: 'יש לך הזמנה לא גמורה. לחצו כדי להמשיך בהגדרה',
+            });
+          } catch (_) {}
+          // proceed to home; user can open the bell and continue from the notification
+        }
+      } catch {}
+
       navigate(resolveHomePath(user.user_type));
     } catch (err) {
       // If server enforces password expiry, show prompt before redirecting
@@ -326,6 +348,8 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
           </div>
         </div>
       )}
+
+      {/* Draft Order Modal removed: we now create a notification instead */}
     </div>
   );
 }

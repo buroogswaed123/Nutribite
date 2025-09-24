@@ -40,6 +40,7 @@ import PlanMaker from "../components/pages/customer/plan/CalorieCalc";
 import Cart from "../components/pages/cart/Cart";
 import Order from "../components/pages/cart/Order";
 import OrderDetails from "../components/pages/orders/OrderDetails";
+import Orders from "../components/pages/orders/Orders";
 
 function QAWrapper() {
   const { articleId } = useParams();
@@ -338,6 +339,18 @@ function App() {
                   <div className={classes.withNav}>
                     <Header />
                     <Order />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/orders"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <Orders />
                     <Footer />
                   </div>
                 </RequireAuth>

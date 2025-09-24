@@ -354,6 +354,20 @@ export default function Menu() {
   }
   const onAddToCart = async (recipe) => {
     try {
+      // Prefer using product_id directly from /api/menu payload
+      const pidDirect = Number(recipe?.product_id);
+      const stockDirect = Number(recipe?.stock ?? 0);
+      if (Number.isFinite(pidDirect) && pidDirect > 0) {
+        if (!(stockDirect > 0)) {
+          setToast({ type: 'error', text: 'המוצר הזה לא זמין' });
+          return;
+        }
+        await addToCartAPI(pidDirect, 1);
+        setToast({ type: 'success', text: 'נוסף לעגלה' });
+        return;
+      }
+
+      // Fallback: resolve product by recipe id via API if product_id not present
       const rid = recipe?.recipe_id || recipe?.id;
       if (!rid) throw new Error('מזהה מתכון חסר');
       const product = await getProductByRecipeAPI(rid);
@@ -361,7 +375,7 @@ export default function Menu() {
       const pStock = Number(product?.stock ?? 0);
       if (!pid) throw new Error('לא ניתן לאתר מוצר עבור מתכון זה');
       if (!(pStock > 0)) {
-        setToast({ type: 'error', text: 'המוצר הזה לא זמיו' });
+        setToast({ type: 'error', text: 'המוצר הזה לא זמין' });
         return;
       }
       await addToCartAPI(pid, 1);
@@ -370,7 +384,7 @@ export default function Menu() {
       const msg = e?.response?.data?.message || e.message || 'שגיאה בהוספה לעגלה';
       // Normalize common out-of-stock wording
       if (/out of stock|stock/i.test(String(msg))) {
-        setToast({ type: 'error', text: 'המוצר הזה לא זמיו' });
+        setToast({ type: 'error', text: 'המוצר הזה לא זמין' });
       } else {
         setToast({ type: 'error', text: msg });
       }

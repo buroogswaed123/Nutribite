@@ -143,9 +143,35 @@ export default function OrderDetails() {
       }
 
       // Show read-only summary on this page
+      // Mark order as confirmed in backend
+      try {
+        const res = await fetch(`/api/orders/${orderId}/confirm`, { method: 'POST', credentials: 'include' });
+        if (!res.ok) {
+          try { const j = await res.json(); throw new Error(j?.message || 'אישור הזמנה נכשל'); } catch { throw new Error('אישור הזמנה נכשל'); }
+        }
+      } catch (e) {
+        throw e;
+      }
       setConfirmed(true);
     } catch (e) {
       setError(e?.message || 'שמירה נכשלה');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onRebuildCart = async () => {
+    try {
+      setSaving(true);
+      setError('');
+      const res = await fetch(`/api/orders/${orderId}/rebuild_cart`, { method: 'POST', credentials: 'include' });
+      if (!res.ok) {
+        try { const j = await res.json(); throw new Error(j?.message || 'שחזור לעגלה נכשל'); } catch { throw new Error('שחזור לעגלה נכשל'); }
+      }
+      // Go to cart to review items
+      navigate('/cart');
+    } catch (e) {
+      setError(e?.message || 'שחזור לעגלה נכשל');
     } finally {
       setSaving(false);
     }
@@ -221,7 +247,8 @@ export default function OrderDetails() {
             <button className={styles.btnPrimary} disabled={saving} onClick={onConfirm}>
               {saving ? 'שומר…' : 'אישור הזמנה'}
             </button>
-            <button className={`${styles.btn} ${styles.btnSecondary}`} disabled={saving} onClick={()=>navigate(-1)}>חזרה</button>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} disabled={saving} onClick={()=>navigate('/order')}>חזרה</button>
+            <button className={`${styles.btn}`} disabled={saving} onClick={onRebuildCart}>שחזר לעגלה</button>
           </div>
         </div>
       )}
@@ -256,6 +283,16 @@ export default function OrderDetails() {
           <div className={styles.footerActions} style={{ marginTop: 16 }}>
             <button className={styles.btnPrimary} onClick={()=>navigate('/customerhome')}>סיום</button>
             <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=>setConfirmed(false)}>עריכה</button>
+            <button
+              className={styles.btn}
+              onClick={() => {
+                try { console.log('Download receipt clicked for order', orderId); } catch (_) {}
+                // eslint-disable-next-line no-alert
+                alert('הורדת קבלה תהיה זמינה בקרוב');
+              }}
+            >
+              הורד קבלה
+            </button>
           </div>
         </div>
       )}

@@ -20,6 +20,7 @@ import {
   createNotificationAPI,
   adminBanUserAPI,
   adminUnbanUserAPI,
+  checkPasswordExpiryAPI,
 } from "../utils/functions";
 
 // exports useAuth hook
@@ -34,6 +35,14 @@ import {
         const banned = new Error("החשבון שלך נחסם. אנא פנה לתמיכה אם אתה סבור שזה טעות.");
         banned.code = "BANNED";
         throw banned;
+      }
+      // Normalize server-enforced password expiry
+      const code = err?.response?.data?.code || err?.code;
+      const msg = err?.response?.data?.message || err?.message;
+      if (code === 'PASSWORD_EXPIRED') {
+        const e = new Error(msg || 'הסיסמה פגה תוקף. נא לשנות סיסמה.');
+        e.code = 'PASSWORD_EXPIRED';
+        throw e;
       }
       throw err;
     }
@@ -97,6 +106,11 @@ import {
     return await createNotificationAPI(payload);
   };
 
+  // Password policy helpers
+  const checkPasswordExpired = async (userId) => {
+    return await checkPasswordExpiryAPI(userId);
+  };
+
   // New canonical ban/unban helpers aligned with backend routes
   const adminBanUser = async (userId, { reason } = {}) => {
     return await adminBanUserAPI(userId, { reason });
@@ -124,6 +138,7 @@ import {
     createNotification,
     adminBanUser,
     adminUnbanUser,
+    checkPasswordExpired,
     login: doLogin,
     register: doRegister,
     checkUserType: getUserType,

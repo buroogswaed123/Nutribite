@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Eye, EyeOff } from 'lucide-react';
 import classes from "../../assets/styles/login.module.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import SocialAuthButtons from "./SocialAuthButtons";
@@ -20,12 +21,16 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
   const [error, setError] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [showExpiryModal, setShowExpiryModal] = useState(false);
+  const [showLoginPw, setShowLoginPw] = useState(false);
+  const [showRegPw, setShowRegPw] = useState(false);
+  const [showRegPw2, setShowRegPw2] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
 
   
-  const { login, register} = useAuth();
+  const { login, register, checkPasswordExpired } = useAuth();
 
   
   useEffect(() => {
@@ -112,11 +117,25 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         return;
       }
 
+      // Enforce password expiry policy: if expired, show prompt before redirecting
+      const uid = user?.user_id || user?.id;
+      if (uid) {
+        const expired = await checkPasswordExpired(uid);
+        if (expired) {
+          setShowExpiryModal(true);
+          return; // block normal login flow
+        }
+      }
+
       setUserType(user.user_type);
       if (typeof onLoginSuccess === "function") onLoginSuccess(user);
-
       navigate(resolveHomePath(user.user_type));
     } catch (err) {
+      // If server enforces password expiry, show prompt before redirecting
+      if (err && err.code === 'PASSWORD_EXPIRED') {
+        setShowExpiryModal(true);
+        return;
+      }
       // If the hook normalized a banned account error, show the Hebrew message
       setError(err?.message || "התחברות נכשלה");
     }
@@ -170,20 +189,42 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
               }}
               className={emailError ? classes.errorInput : ""}
             />
-            <input
-              type="password"
-              placeholder="סיסמה"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <input
-              type="password"
-              placeholder="אימות סיסמה"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-            />
+            <div style={{ position:'relative', width:'100%' }}>
+              <input
+                type={showRegPw ? 'text' : 'password'}
+                placeholder="סיסמה"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{ paddingRight:36 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowRegPw(v=>!v)}
+                aria-label={showRegPw ? 'הסתר סיסמה' : 'הצג סיסמה'}
+                style={{ position:'absolute', top:6, insetInlineEnd:8, background:'transparent', border:'none', padding:4, cursor:'pointer' }}
+              >
+                {showRegPw ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            <div style={{ position:'relative', width:'100%' }}>
+              <input
+                type={showRegPw2 ? 'text' : 'password'}
+                placeholder="אימות סיסמה"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                style={{ paddingRight:36 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowRegPw2(v=>!v)}
+                aria-label={showRegPw2 ? 'הסתר סיסמה' : 'הצג סיסמה'}
+                style={{ position:'absolute', top:6, insetInlineEnd:8, background:'transparent', border:'none', padding:4, cursor:'pointer' }}
+              >
+                {showRegPw2 ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
             <div className={classes.error}>{error}</div>
             <button type="submit">להירשם</button>
           </form>
@@ -202,13 +243,24 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
               onChange={(e) => setIdentifier(e.target.value)}
               className={error ? classes.errorInput : ""}
             />
-            <input
-              type="password"
-              placeholder="סיסמה"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={error ? classes.errorInput : ""}
-            />
+            <div style={{ position:'relative', width:'100%' }}>
+              <input
+                type={showLoginPw ? 'text' : 'password'}
+                placeholder="סיסמה"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={error ? classes.errorInput : ""}
+                style={{ paddingRight:36 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowLoginPw(v=>!v)}
+                aria-label={showLoginPw ? 'הסתר סיסמה' : 'הצג סיסמה'}
+                style={{ position:'absolute', top:6, insetInlineEnd:8, background:'transparent', border:'none', padding:4, cursor:'pointer' }}
+              >
+                {showLoginPw ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
             <div className={classes.error}>{error}</div>
             <button type="submit" className={classes.loginButton}>
               להיכנס
@@ -256,6 +308,24 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
           </div>
         </div>
       </div>
+
+      {/* Password Expiry Modal (Hebrew, RTL) */}
+      {showExpiryModal && (
+        <div role="dialog" aria-modal="true" className={classes.expiryModalOverlay}>
+          <div className={classes.expiryModal}>
+            <h3 className={classes.expiryModalTitle}>תוקפה של הסיסמה פג</h3>
+            <p className={classes.expiryModalText}>עליך לשנות את הסיסמה לפני שתוכל/י להתחבר.</p>
+            <div className={classes.expiryModalActions}>
+              <button
+                className={`${classes.loginButton} ${classes.btnPrimary}`}
+                onClick={() => { setShowExpiryModal(false); navigate('/password-reset', { replace: true, state: { force: true } }); }}
+              >
+                אישור
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

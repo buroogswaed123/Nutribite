@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import classes from "../../assets/styles/login.module.css"
 import prStyles from "../../assets/styles/passwordResetPage.module.css"
 
@@ -9,6 +10,7 @@ export default function PasswordReset() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => { setError(''); }, [identifier, newPassword]);
@@ -35,8 +37,7 @@ export default function PasswordReset() {
       }
       setSuccess('הסיסמה עודכנה בהצלחה! ניתן להתחבר עם הסיסמה החדשה.');
       setNewPassword('');
-      // Optionally route to login after a short delay
-      setTimeout(() => navigate('/'), 800);
+      // Stay on this page so the user can read the message
     } catch (err) {
       console.error('Password reset request failed:', err);
       setError('שגיאת רשת');
@@ -51,7 +52,28 @@ export default function PasswordReset() {
         <div className={prStyles.inner}>
           <div className={classes.container}>
             <div className={`${classes['form-container']} ${classes['sign-in']}`}>
-            <form onSubmit={handleSimpleReset}>
+            <form onSubmit={handleSimpleReset} style={{ position:'relative' }}>
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                aria-label="חזרה למסך התחברות"
+                title="חזרה"
+                style={{
+                  position:'absolute',
+                  top:12,
+                  left:12,
+                  background:'#ffffff',
+                  border:'none',
+                  padding:8,
+                  borderRadius:'9999px',
+                  cursor:'pointer',
+                  zIndex:50,
+                  color:'#111827',
+                  boxShadow:'0 2px 8px rgba(0,0,0,0.15)'
+                }}
+              >
+                <ArrowLeft size={22} />
+              </button>
               <h1>איפוס סיסמה</h1>
               <div className={classes.error}>{error}</div>
               <div className={classes.success}>{success}</div>
@@ -62,12 +84,23 @@ export default function PasswordReset() {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
               />
-              <input
-                type="password"
-                placeholder="סיסמה חדשה"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
+              <div style={{ position:'relative', width:'100%' }}>
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  placeholder="סיסמה חדשה"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  style={{ paddingRight:36 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(p => !p)}
+                  aria-label={showPw ? 'הסתר סיסמה' : 'הצג סיסמה'}
+                  style={{ position:'absolute', top:6, insetInlineEnd:8, background:'transparent', border:'none', padding:4, cursor:'pointer' }}
+                >
+                  {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <button type="submit" disabled={loading}>{loading ? 'מעדכן...' : 'אשר'}</button>
             </form>
             </div>

@@ -117,6 +117,96 @@ router.post("/login", (req, res) => {
   });
 });
 
+// -----------------------------
+// Password policy: expiry check and apply latest reset
+// -----------------------------
+
+// GET /api/users/:user_id/password/expired
+// Returns { expired: boolean, refDate: ISOString|null, source: 'reset'|'created'|null }
+router.get('/:user_id/password/expired', async (req, res) => {
+  const { user_id } = req.params;
+  try {
+    // 1) Get user's email and account_creation_time
+    const userRows = await new Promise((resolve, reject) => {
+      db.query('SELECT email, account_creation_time FROM users WHERE user_id = ? LIMIT 1', [user_id], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      });
+    });
+    if (!userRows.length) return res.status(404).json({ message: 'User not found' });
+    const email = userRows[0].email;
+    const createdAt = userRows[0].account_creation_time ? new Date(userRows[0].account_creation_time) : null;
+
+    // 2) Find latest password reset entry for this email (using new_password column)
+    let latestReset = null;
+    try {
+      const resetRows = await new Promise((resolve, reject) => {
+        db.query('SELECT new_password, created_at FROM password_resets WHERE email = ? ORDER BY created_at DESC LIMIT 1', [email], (err, rows) => {
+          if (err) return reject(err);
+          resolve(rows || []);
+        });
+      });
+      if (resetRows.length) latestReset = resetRows[0];
+    } catch (e) {
+      latestReset = null;
+    }
+
+    const refDate = latestReset?.created_at ? new Date(latestReset.created_at) : (createdAt || null);
+    if (!refDate || isNaN(refDate.getTime())) {
+      return res.json({ expired: false, refDate: null, source: null });
+    }
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const expired = refDate.getTime() <= sixMonthsAgo.getTime();
+    return res.json({ expired, refDate: refDate.toISOString(), source: latestReset?.created_at ? 'reset' : 'created' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to evaluate password expiry', error: err.message });
+  }
+});
+
+// POST /api/users/:user_id/password/apply-latest
+// Hash the latest plaintext new_password from password_resets for user's email and store in users.password_hash
+// Returns { updated: true } on success. No-op if no reset record.
+router.post('/:user_id/password/apply-latest', async (req, res) => {
+  const { user_id } = req.params;
+  try {
+    // 1) Get user's email
+    const userRows = await new Promise((resolve, reject) => {
+      db.query('SELECT email FROM users WHERE user_id = ? LIMIT 1', [user_id], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      });
+    });
+    if (!userRows.length) return res.status(404).json({ message: 'User not found' });
+    const email = userRows[0].email;
+
+    // 2) Pull latest new_password for that email
+    const resetRows = await new Promise((resolve, reject) => {
+      db.query('SELECT new_password FROM password_resets WHERE email = ? ORDER BY created_at DESC LIMIT 1', [email], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      });
+    });
+    if (!resetRows.length || !resetRows[0].new_password) {
+      return res.json({ updated: false, message: 'No pending reset found' });
+    }
+    const plainNew = String(resetRows[0].new_password);
+    const hashed = await hashPassword(plainNew);
+
+    // 3) Update users.password_hash
+    await new Promise((resolve, reject) => {
+      db.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashed, user_id], (err, result) => {
+        if (err) return reject(err);
+        resolve(result);
+      });
+    });
+
+    return res.json({ updated: true });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to apply latest reset', error: err.message });
+  }
+});
+
 module.exports = router;
 
 // -----------------------------

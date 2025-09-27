@@ -96,6 +96,16 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Auto-close notifications UI when navigation is triggered from a notification item
+  useEffect(() => {
+    const onNotifClose = () => {
+      setIsNotifOpen(false);
+      setSelectedNotification(null);
+    };
+    window.addEventListener('notif-close', onNotifClose);
+    return () => window.removeEventListener('notif-close', onNotifClose);
+  }, []);
+
   // Dynamic plan link: if user (customer) has any plan -> /plan, else /plan-maker
   const [planLink, setPlanLink] = useState('/plan-maker');
   useEffect(() => {

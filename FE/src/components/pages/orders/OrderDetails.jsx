@@ -13,6 +13,9 @@ export default function OrderDetails() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({}); // per-field validation errors
   const [confirmed, setConfirmed] = useState(false);
+  const [paypalConfirming, setPaypalConfirming] = useState(false);
+  const [paypalConfirmed, setPaypalConfirmed] = useState(false);
+  const [showPayNotice, setShowPayNotice] = useState(false);
 
   // User + customer
   const [user, setUser] = useState(null);
@@ -133,8 +136,8 @@ export default function OrderDetails() {
             user_id: user.user_id,
             type: 'order',
             related_id: orderId,
-            title: `Order #${orderId} confirmed`,
-            description: `סכום כולל (כולל משלוח): ${grandTotal.toFixed(2)}₪`,
+            title: `הזמנה #${orderId} אושרה`,
+            description: `לתשלום (כולל משלוח): ${grandTotal.toFixed(2)}₪`,
           });
         }
       } catch (e) {
@@ -168,8 +171,8 @@ export default function OrderDetails() {
       if (!res.ok) {
         try { const j = await res.json(); throw new Error(j?.message || 'שחזור לעגלה נכשל'); } catch { throw new Error('שחזור לעגלה נכשל'); }
       }
-      // Go to cart to review items
-      navigate('/cart');
+      // Go back to scheduling page with items restored
+      navigate('/order');
     } catch (e) {
       setError(e?.message || 'שחזור לעגלה נכשל');
     } finally {
@@ -189,40 +192,47 @@ export default function OrderDetails() {
       {loading && <div>טוען...</div>}
 
       {!loading && !confirmed && (
-        <div className={styles.mealSection} style={{ maxWidth: 560 }}>
-          <div className={styles.mealHeader} style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            <label>שם מלא
-              <input className={styles.search} value={name} onChange={(e)=>setName(e.target.value)} />
-              {fieldErrors.name && <div style={{ color:'#b91c1c', fontSize:12 }}>{fieldErrors.name}</div>}
-            </label>
-            <label>טלפון
-              <input className={styles.search} value={phone} onChange={(e)=>setPhone(e.target.value)} />
-              {fieldErrors.phone && <div style={{ color:'#b91c1c', fontSize:12 }}>{fieldErrors.phone}</div>}
-            </label>
-            <div style={{ display:'grid', gap:8, gridTemplateColumns:'1fr 1fr' }}>
-              <label>עיר
-                <input className={styles.search} value={city} onChange={(e)=>setCity(e.target.value)} />
-                {fieldErrors.city && <div style={{ color:'#b91c1c', fontSize:12 }}>{fieldErrors.city}</div>}
-              </label>
-              <label>מיקוד
-                <input className={styles.search} value={cityCode} onChange={(e)=>setCityCode(e.target.value)} />
-              </label>
-              <label>רחוב
-                <input className={styles.search} value={street} onChange={(e)=>setStreet(e.target.value)} />
-                {fieldErrors.street && <div style={{ color:'#b91c1c', fontSize:12 }}>{fieldErrors.street}</div>}
-              </label>
-              <label>מס׳ בית
-                <input className={styles.search} value={houseNum} onChange={(e)=>setHouseNum(e.target.value)} />
-                {fieldErrors.houseNum && <div style={{ color:'#b91c1c', fontSize:12 }}>{fieldErrors.houseNum}</div>}
-              </label>
-              <label>קומה
-                <input className={styles.search} value={floor} onChange={(e)=>setFloor(e.target.value)} />
-              </label>
+        <div className={styles.mealSection} style={{ maxWidth: 640, marginInline: 'auto' }}>
+          {/* Card: Customer + Address */}
+          <div className={styles.card}>
+            <h3 className={styles.cardTitle}>פרטי לקוח ומשלוח</h3>
+            <div style={{ display:'grid', gap:12 }}>
+              <div>
+                <label className={styles.fieldLabel}>שם מלא</label>
+                <input className={styles.input} value={name} onChange={(e)=>setName(e.target.value)} />
+                {fieldErrors.name && <div className={styles.fieldError}>{fieldErrors.name}</div>}
+              </div>
+              <div>
+                <label className={styles.fieldLabel}>טלפון</label>
+                <input className={styles.input} value={phone} onChange={(e)=>setPhone(e.target.value)} />
+                {fieldErrors.phone && <div className={styles.fieldError}>{fieldErrors.phone}</div>}
+              </div>
+              <div className={styles.formGrid}>
+                <div>
+                  <label className={styles.fieldLabel}>עיר</label>
+                  <input className={styles.input} value={city} onChange={(e)=>setCity(e.target.value)} />
+                  {fieldErrors.city && <div className={styles.fieldError}>{fieldErrors.city}</div>}
+                </div>
+                <div>
+                  <label className={styles.fieldLabel}>מיקוד</label>
+                  <input className={styles.input} value={cityCode} onChange={(e)=>setCityCode(e.target.value)} />
+                </div>
+                <div>
+                  <label className={styles.fieldLabel}>רחוב</label>
+                  <input className={styles.input} value={street} onChange={(e)=>setStreet(e.target.value)} />
+                  {fieldErrors.street && <div className={styles.fieldError}>{fieldErrors.street}</div>}
+                </div>
+                <div>
+                  <label className={styles.fieldLabel}>מס׳ בית</label>
+                  <input className={styles.input} value={houseNum} onChange={(e)=>setHouseNum(e.target.value)} />
+                  {fieldErrors.houseNum && <div className={styles.fieldError}>{fieldErrors.houseNum}</div>}
+                </div>
+                <div>
+                  <label className={styles.fieldLabel}>קומה</label>
+                  <input className={styles.input} value={floor} onChange={(e)=>setFloor(e.target.value)} />
+                </div>
+              </div>
             </div>
-            <label>PayPal אימייל
-              <input className={styles.search} type="email" value={paypal} onChange={(e)=>setPaypal(e.target.value)} />
-              {fieldErrors.paypal && <div style={{ color:'#b91c1c', fontSize:12 }}>{fieldErrors.paypal}</div>}
-            </label>
           </div>
 
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
@@ -243,11 +253,50 @@ export default function OrderDetails() {
             </div>
           </div>
 
+          {/* Card: PayPal (moved under totals) */}
+          <div className={styles.card}>
+            <h3 className={styles.cardTitle}>תשלום PayPal</h3>
+            <div className={styles.formGrid}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className={styles.fieldLabel}>PayPal אימייל</label>
+                <input className={styles.input} type="email" value={paypal} onChange={(e)=>setPaypal(e.target.value)} />
+                {fieldErrors.paypal && <div className={styles.fieldError}>{fieldErrors.paypal}</div>}
+              </div>
+              <div style={{ display:'flex', alignItems:'flex-end', gap: 8 }}>
+                {!paypalConfirmed ? (
+                  <button
+                    type="button"
+                    className={styles.btnPrimary}
+                    disabled={paypalConfirming || !paypal || saving}
+                    onClick={async () => {
+                      setPaypalConfirming(true);
+                      // simulate short confirm animation
+                      await new Promise(r => setTimeout(r, 600));
+                      setPaypalConfirming(false);
+                      setPaypalConfirmed(true);
+                      setShowPayNotice(true);
+                      setTimeout(() => setShowPayNotice(false), 2000);
+                      // finalize order on confirm
+                      await onConfirm();
+                      setTimeout(() => setPaypalConfirmed(false), 2000);
+                    }}
+                  >
+                    {paypalConfirming || saving ? 'מאשר…' : 'אשר תשלום'}
+                  </button>
+                ) : (
+                  <button type="button" className={styles.successPill}>אושר ✓</button>
+                )}
+              </div>
+              {showPayNotice && (
+                <div style={{ gridColumn: '1 / -1', color:'#374151', marginTop: 6 }}>
+                  התשלום יחויב לכתובת: <strong>{paypal || '—'}</strong>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className={styles.footerActions} style={{ marginTop: 16 }}>
-            <button className={styles.btnPrimary} disabled={saving} onClick={onConfirm}>
-              {saving ? 'שומר…' : 'אישור הזמנה'}
-            </button>
-            <button className={`${styles.btn} ${styles.btnSecondary}`} disabled={saving} onClick={()=>navigate('/order')}>חזרה</button>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} disabled={saving} onClick={onRebuildCart}>חזרה</button>
             <button className={`${styles.btn}`} disabled={saving} onClick={onRebuildCart}>שחזר לעגלה</button>
           </div>
         </div>
@@ -282,7 +331,6 @@ export default function OrderDetails() {
           </div>
           <div className={styles.footerActions} style={{ marginTop: 16 }}>
             <button className={styles.btnPrimary} onClick={()=>navigate('/customerhome')}>סיום</button>
-            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=>setConfirmed(false)}>עריכה</button>
             <button
               className={styles.btn}
               onClick={() => {

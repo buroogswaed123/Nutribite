@@ -26,7 +26,12 @@
   .btnDanger {
     color: #b91c1c;
   }
-  
+  .btnSecondary {
+    background: #fff;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+  }
+
   /* Header like the Plan page */
   .planHeader {
     display: flex;
@@ -126,6 +131,70 @@
   .mealNameLink {
     color: #2563eb;
     font-weight: 600;
+  }
+
+  /* Cards for detail sections */
+  .card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+    padding: 16px;
+    margin-top: 12px;
+  }
+  .cardTitle {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #111827;
+  }
+  .formGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 640px) {
+    .formGrid { grid-template-columns: 1fr; }
+  }
+  .fieldLabel {
+    font-size: 13px;
+    color: #374151;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .input {
+    width: 100%;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+  }
+  .fieldError {
+    color: #b91c1c;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  /* Success pill animation for PayPal confirm */
+  .successPill {
+    background: #10b981;
+    color: #fff;
+    border: none;
+    padding: 10px 12px;
+    border-radius: 9999px;
+    font-weight: 600;
+    animation: pop 300ms ease;
+  }
+  @keyframes pop {
+    0% { transform: scale(0.95); opacity: 0.6; }
+    60% { transform: scale(1.05); opacity: 1; }
+    100% { transform: scale(1.0); }
   }
 
   /* Footer actions area */

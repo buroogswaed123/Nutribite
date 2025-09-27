@@ -52,6 +52,7 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
                 try {
                   if (id) await markNotificationReadAPI(id);
                 } catch(_) {}
+                try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
                 if (related_id) {
                   navigate(`/orders/${related_id}`);
                 } else {
@@ -59,13 +60,22 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
                 }
               }}
             >
-              המשך עכשיו
+              הצג סטטוס
             </button>
             <button
               className={styles.inlineSecondary}
-              onClick={() => navigate('/orders')}
+              onClick={async () => {
+                try { if (id) await markNotificationReadAPI(id); } catch(_) {}
+                try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
+                // Placeholder for receipt download; navigate to details for now
+                if (related_id) {
+                  navigate(`/orders/${related_id}`);
+                } else {
+                  navigate('/orders');
+                }
+              }}
             >
-              לכל ההזמנות
+              הורד קבלה
             </button>
           </div>
         )}

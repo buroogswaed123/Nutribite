@@ -22,6 +22,16 @@ function computeTitle(n) {
       return "החסימה התחילה";
     }
   }
+  if (n.type === 'order') {
+    // Localize common english patterns like "Order #123 confirmed"
+    const t = String(n.title || '').trim();
+    const m = t.match(/Order\s*#(\d+)\s*confirmed/i);
+    if (m) {
+      return `הזמנה #${m[1]} אושרה`;
+    }
+    // Fallback to provided title or default
+    return n.title || 'הזמנה';
+  }
   return n.title || "התראה";
 }
 

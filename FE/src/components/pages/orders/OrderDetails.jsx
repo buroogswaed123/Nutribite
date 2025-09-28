@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import styles from '../cart/cart.module.css';
 import { getSessionUser, getCurrentCustomerId, getOrderAPI, createNotificationAPI } from '../../../utils/functions';
+import { generateOrderReceiptPDF } from '../../../utils/receipt';
 
 export default function OrderDetails() {
   const { id } = useParams(); // order id
   const orderId = Number(id);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,6 +35,8 @@ export default function OrderDetails() {
 
   // Order totals
   const [orderTotal, setOrderTotal] = useState(0);
+  const [orderData, setOrderData] = useState(null); // { order, items }
+  const [autoDownloaded, setAutoDownloaded] = useState(false);
 
   const deliveryFee = 12;
   const grandTotal = useMemo(() => Number(orderTotal || 0) + deliveryFee, [orderTotal]);
@@ -90,6 +94,7 @@ export default function OrderDetails() {
             const ord = await getOrderAPI(orderId);
             const total = Number(ord?.order?.total_price || 0);
             setOrderTotal(total);
+            setOrderData(ord || null);
           }
         } catch {}
       } catch (e) {
@@ -100,6 +105,20 @@ export default function OrderDetails() {
     })();
     return () => { cancelled = true; };
   }, [orderId]);
+
+  // Auto-download receipt when navigated with ?action=download-receipt
+  useEffect(() => {
+    try {
+      const qs = new URLSearchParams(location.search || '');
+      const action = qs.get('action');
+      if (action === 'download-receipt' && orderData && !autoDownloaded) {
+        const ord = orderData?.order || { order_id: orderId };
+        const items = Array.isArray(orderData?.items) ? orderData.items : [];
+        generateOrderReceiptPDF({ siteName: 'Nutribite', orderId, order: ord, items });
+        setAutoDownloaded(true);
+      }
+    } catch (_) {}
+  }, [location.search, orderData, orderId, autoDownloaded]);
 
   const onConfirm = async () => {
     try {
@@ -334,9 +353,14 @@ export default function OrderDetails() {
             <button
               className={styles.btn}
               onClick={() => {
-                try { console.log('Download receipt clicked for order', orderId); } catch (_) {}
-                // eslint-disable-next-line no-alert
-                alert('הורדת קבלה תהיה זמינה בקרוב');
+                try {
+                  const ord = orderData?.order || { order_id: orderId };
+                  const items = Array.isArray(orderData?.items) ? orderData.items : [];
+                  generateOrderReceiptPDF({ siteName: 'Nutribite', orderId, order: ord, items });
+                } catch (e) {
+                  // eslint-disable-next-line no-alert
+                  alert('נכשלה יצירת קובץ הקבלה');
+                }
               }}
             >
               הורד קבלה

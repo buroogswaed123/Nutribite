@@ -170,7 +170,7 @@ export default function Order() {
   const toMinutes = (t) => { const [h,m] = String(t).split(':').map(Number); return h*60 + (m||0); };
   const clampTime = (t) => {
     const minT = '06:00';
-    const maxT = '23:00';
+    const maxT = '23:59';
     const tm = toMinutes(t);
     return tm < toMinutes(minT) ? minT : (tm > toMinutes(maxT) ? maxT : t);
   };
@@ -199,7 +199,6 @@ export default function Order() {
 
   const onPlace = async () => {
     try {
-      try { console.log('onPlace clicked'); } catch (_) {}
       setPlacing(true);
       // Check for missing date/time
       const missingDates = [];
@@ -236,7 +235,7 @@ export default function Order() {
         payloadSchedule[String(g.id)] = `${sc.date}T${sc.time}`;
       }
       // We do not send applyToAll; schedule remains per-category
-      try { console.log('Submitting checkout payload', { schedule: payloadSchedule }); } catch (_) {}
+      try { /* optionally log */ } catch (_) {}
       const data = await checkoutOrderAPI({ schedule: payloadSchedule });
       const orderId = data?.order_id;
       if (!orderId) throw new Error('Order creation failed');
@@ -274,9 +273,19 @@ export default function Order() {
     if ((missingInfo.missingDates || []).length > 0) {
       const now = new Date();
       const plus40 = addMinutes(now, 40);
-      const dateStrNow = fmtDate(now);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const plus40Day = new Date(plus40.getFullYear(), plus40.getMonth(), plus40.getDate());
+      let dateStrNow = fmtDate(now);
       let timeStrNow = fmtTime(plus40);
-      timeStrNow = clampTime(timeStrNow);
+      // If plus40 crosses into next day or exceeds window, roll to tomorrow 06:40
+      const crossedDay = plus40Day.getTime() !== today.getTime();
+      if (crossedDay || toMinutes(timeStrNow) > toMinutes('23:59')) {
+        const tomorrow = new Date(today.getTime() + 24*60*60*1000);
+        dateStrNow = fmtDate(tomorrow);
+        timeStrNow = clampTime('06:40');
+      } else {
+        timeStrNow = clampTime(timeStrNow);
+      }
       setSchedule(prev => {
         const next = { ...prev };
         for (const g of groups) {
@@ -349,7 +358,7 @@ export default function Order() {
       </div>
       {/* Single top validation label under header */}
       {!loading && anyInvalid && (
-        <div style={{ color: '#b91c1c', marginTop: 8 }}>בחר/י תאריך ושעה (06:00–23:00)</div>
+        <div style={{ color: '#b91c1c', marginTop: 8 }}>בחר/י תאריך ושעה (06:00–23:59)</div>
       )}
       {err && <div style={{ color: '#b91c1c', marginBottom: 8 }}>{err}</div>}
       {loading && <div>טוען...</div>}
@@ -424,7 +433,7 @@ export default function Order() {
                   <input
                     type="time"
                     min={(sc.date === todayStr) ? currentTimeRounded() : '06:00'}
-                    max="23:00"
+                    max="23:59"
                     value={sc.time || ''}
                     onChange={(e) => setSchedule(prev => ({ ...prev, [g.id]: { ...prev[g.id], time: e.target.value } }))}
                   />
@@ -472,9 +481,6 @@ export default function Order() {
         >
           {placing ? 'מגיש…' : 'בצע הזמנה'}
         </button>
-      </div>
-      <div style={{ marginTop: 6, color:'#6b7280', fontSize: 12 }}>
-        מצב כפתור — items: {items.length}, allValid: {String(allValid)}, placing: {String(placing)}
       </div>
     </div>
   );

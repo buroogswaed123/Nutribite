@@ -69,7 +69,7 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
                 try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
                 // Placeholder for receipt download; navigate to details for now
                 if (related_id) {
-                  navigate(`/orders/${related_id}`);
+                  navigate(`/orders/${related_id}?action=download-receipt`);
                 } else {
                   navigate('/orders');
                 }

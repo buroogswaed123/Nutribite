@@ -7,7 +7,6 @@ const conn = db.getConnection && db.getConnection();
 
 // DB helper: runs a parameterized SQL query using the shared connection
 const runQuery = async (sql, params = []) => {
-
   if (!conn) throw new Error('DB connection not initialized');
   if (typeof conn.promise === 'function') return conn.promise().query(sql, params);
   if (typeof conn.query === 'function') {
@@ -83,6 +82,35 @@ router.get('/:id', async (req, res) => {
   } catch (err) {
     console.error('ADMIN USERS GET ERROR:', err);
     res.status(500).json({ message: 'Error fetching user', error: err.message });
+  }
+});
+
+// GET /api/admin/users/:id/orders - list orders for a given user_id (resolve cust_id)
+router.get('/:id/orders', async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    if (!Number.isFinite(userId)) return res.status(400).json({ message: 'Invalid user id' });
+    // Resolve customer id
+    const [custRows] = await runQuery('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [userId]);
+    const cust = Array.isArray(custRows) && custRows[0] ? custRows[0].cust_id : null;
+    if (!cust) return res.json({ items: [] });
+    // Fetch orders
+    const [orders] = await runQuery(
+      `SELECT 
+         o.order_id,
+         o.order_status AS status,
+         o.total_price,
+         o.order_date,
+         o.set_delivery_time
+       FROM orders o
+       WHERE o.cust_id = ?
+       ORDER BY o.order_id DESC`,
+      [cust]
+    );
+    return res.json({ items: orders });
+  } catch (err) {
+    console.error('ADMIN USER ORDERS ERROR:', err);
+    return res.status(500).json({ message: 'Error fetching user orders', error: err.message });
   }
 });
 

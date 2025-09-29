@@ -277,6 +277,36 @@ router.get('/orders/:id', async (req, res) => {
   }
 });
 
+// GET /api/admin/orders/:id/items - include product/recipe details for admin view
+router.get('/orders/:id/items', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: 'Invalid order id' });
+    const [items] = await runQuery(`
+      SELECT 
+        oi.order_item_id AS id,
+        oi.order_id,
+        oi.product_id,
+        oi.quantity,
+        p.price AS unit_price,
+        (p.price * oi.quantity) AS line_total,
+        r.name AS recipe_name,
+        r.picture,
+        r.calories,
+        r.category_id
+      FROM order_items oi
+      INNER JOIN products p ON p.product_id = oi.product_id
+      INNER JOIN recipes r ON r.recipe_id = p.recipe_id
+      WHERE oi.order_id = ?
+      ORDER BY oi.order_item_id ASC
+    `, [id]);
+    return res.json({ items });
+  } catch (err) {
+    console.error('ADMIN ORDER ITEMS ERROR:', err);
+    return res.status(500).json({ message: 'Error getting order items', error: err.message });
+  }
+});
+
 //update order info
 router.patch('/orders/:id', async (req, res) => {
   try {

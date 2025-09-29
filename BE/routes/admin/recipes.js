@@ -122,6 +122,9 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: 'Invalid recipe id' });
+    }
     const sql = `
     SELECT 
       r.recipe_id AS id,
@@ -203,7 +206,8 @@ router.get('/search', async (req, res) => {
         r.instructions,
         r.picture,
         (SELECT dt.name FROM diet_type dt WHERE dt.diet_id = r.diet_type_id LIMIT 1) AS diet_type,
-        (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category
+        (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category,
+        r.deleted_at
       FROM recipes r
       ${whereSql}
       ORDER BY r.recipe_id DESC

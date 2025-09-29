@@ -68,6 +68,13 @@ export default function Recipes() {
   const [editUploading, setEditUploading] = useState(false);
   const [priceInfo, setPriceInfo] = useState({ current: null, newPrice: '', discountPct: '' });
   const [savingPrice, setSavingPrice] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  // Admin management helpers
+  const [adminMode, setAdminMode] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedMap, setSelectedMap] = useState({}); // { [id]: true }
+  const [confirmDlg, setConfirmDlg] = useState({ open: false, text: '', onConfirm: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -75,7 +82,7 @@ export default function Recipes() {
       try {
         setLoading(true);
         setError('');
-        // Kick off all network requests in parallel
+        // Kick off all network requests in parallel (default public; admin mode refresh handled below)
         const recipesP = fetchPublicRecipes();
         const userP = getSessionUser().catch(() => null);
         const listsP = Promise.all([
@@ -94,7 +101,11 @@ export default function Recipes() {
         // 2) Apply admin/user + lists when available (does not block initial render)
         try {
           const user = await userP;
-          if (!cancelled && user) setIsAdmin(String(user.user_type).toLowerCase() === 'admin');
+          if (!cancelled && user) {
+            const isAdm = String(user.user_type).toLowerCase() === 'admin';
+            setIsAdmin(isAdm);
+            if (isAdm) setAdminMode(true);
+          }
         } catch {}
         try {
           const [diets, cats] = await listsP;
@@ -120,6 +131,28 @@ export default function Recipes() {
     })();
     return () => { cancelled = true };
   }, []);
+
+  // Admin-mode loader: fetch via admin search, honoring showDeleted
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      if (!adminMode || !isAdmin) return;
+      try {
+        setLoading(true);
+        const params = new URLSearchParams();
+        if (showDeleted) params.set('includeDeleted', 'true');
+        const url = `/api/admin/recipes/search${params.toString() ? `?${params.toString()}` : ''}`;
+        const res = await axios.get(url, { withCredentials: true });
+        const items = Array.isArray(res.data?.items) ? res.data.items : (Array.isArray(res.data) ? res.data : []);
+        if (!cancel) setRecipes(items);
+      } catch (e) {
+        if (!cancel) setError(e?.message || 'שגיאה בטעינת ניהול מתכונים');
+      } finally {
+        if (!cancel) setLoading(false);
+      }
+    })();
+    return () => { cancel = true; };
+  }, [adminMode, showDeleted]);
 
   // Build filter options
   const { dietOptions, categoryOptions } = useMemo(() => {
@@ -261,7 +294,9 @@ export default function Recipes() {
       setSelected(null);
       setLoadingItem(true);
       try {
-        const full = await fetchPublicRecipe(rid);
+        const ridNum = Number(rid);
+        if (!Number.isFinite(ridNum)) throw new Error('invalid id');
+        const full = await fetchPublicRecipe(ridNum);
         if (!cancelled) setSelected(full?.item || full);
         // fetch ratings meta
         try {
@@ -291,8 +326,63 @@ export default function Recipes() {
     <div className={`${styles.recipes} ${styles.rtlNudgeRight}`}>
       <h1 className={styles.pageTitleRight}>מתכונים</h1>
       {isAdmin && (
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 10, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
           <button className={styles.btn} onClick={() => setAdminModalOpen(true)}>הוסף מתכון</button>
+          <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+            <input type="checkbox" checked={adminMode} onChange={(e)=>{ setAdminMode(e.target.checked); }} /> מצב ניהול
+          </label>
+          {adminMode && (
+            <>
+              <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                <input type="checkbox" checked={showDeleted} onChange={(e)=> setShowDeleted(e.target.checked)} /> הצג מחוקים
+              </label>
+              <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                <input type="checkbox" checked={bulkMode} onChange={(e)=>{ setBulkMode(e.target.checked); setSelectedMap({}); }} /> בחירה מרובה
+              </label>
+              <button
+                className={styles.btn}
+                disabled={!bulkMode || Object.keys(selectedMap).length === 0}
+                onClick={() => setConfirmDlg({
+                  open: true,
+                  text: `למחוק ${Object.keys(selectedMap).length} מתכונים שנבחרו? (מחיקה רכה)`,
+                  onConfirm: async () => {
+                    setConfirmDlg({ open:false, text:'', onConfirm:null });
+                    const ids = Object.keys(selectedMap);
+                    await Promise.all(ids.map(async (rid) => {
+                      try { await fetch(`/api/admin/recipes/${rid}`, { method:'DELETE', credentials:'include' }); } catch {}
+                    }));
+                    setRecipes(prev => prev.filter(r => !selectedMap[String(r.id||r.recipe_id)]));
+                    setSelectedMap({});
+                  }
+                })}
+              >מחק נבחרים</button>
+              <button
+                className={styles.btn}
+                disabled={!bulkMode || Object.keys(selectedMap).length === 0}
+                onClick={() => setConfirmDlg({
+                  open: true,
+                  text: `לשחזר ${Object.keys(selectedMap).length} מתכונים שנבחרו?`,
+                  onConfirm: async () => {
+                    setConfirmDlg({ open:false, text:'', onConfirm:null });
+                    const ids = Object.keys(selectedMap);
+                    await Promise.all(ids.map(async (rid) => {
+                      try { await fetch(`/api/admin/recipes/${rid}/restore`, { method:'POST', credentials:'include' }); } catch {}
+                    }));
+                    // Re-load admin list to reflect restores
+                    try {
+                      const params = new URLSearchParams();
+                      if (showDeleted) params.set('includeDeleted', 'true');
+                      const url = `/api/admin/recipes/search${params.toString()?`?${params.toString()}`:''}`;
+                      const res = await axios.get(url, { withCredentials:true });
+                      const items = Array.isArray(res.data?.items) ? res.data.items : [];
+                      setRecipes(items);
+                    } catch {}
+                    setSelectedMap({});
+                  }
+                })}
+              >שחזר נבחרים</button>
+            </>
+          )}
         </div>
       )}
       {/* Filters */}
@@ -364,6 +454,17 @@ export default function Recipes() {
         {currentItems.map((recipe, idx) => (
           <div key={recipe.id || recipe.recipe_id} className={styles.cardNarrow}>
             <div className={styles.cardImageWrap}>
+              {adminMode && bulkMode && (
+                <input
+                  type="checkbox"
+                  checked={!!selectedMap[String(recipe.id || recipe.recipe_id)]}
+                  onChange={(e)=>{
+                    const id = String(recipe.id || recipe.recipe_id);
+                    setSelectedMap(prev => ({ ...prev, [id]: e.target.checked ? true : undefined }));
+                  }}
+                  style={{ position:'absolute', insetInlineStart: 8, insetBlockStart: 8, zIndex:2 }}
+                />
+              )}
               {topRatedSet.has(Number(recipe.id || recipe.recipe_id)) && (
                 <span className={styles.popularBadge} title="פופולרי">
                   <Star size={12} color="#fff" fill="#fff" />
@@ -385,7 +486,9 @@ export default function Recipes() {
                   setSelected(null);
                   setLoadingItem(true);
                   try {
-                    const full = await fetchPublicRecipe(id);
+                    const idNum = Number(id);
+                    if (!Number.isFinite(idNum)) throw new Error('invalid id');
+                    const full = await fetchPublicRecipe(idNum);
                     setSelected(full?.item || full);
                   } catch (e) {
                     setSelected(null);
@@ -398,6 +501,9 @@ export default function Recipes() {
               />
             </div>
             <h3 className={styles.cardTitle}>{recipe.name}</h3>
+            {adminMode && recipe.deleted_at && (
+              <div style={{ color:'#b91c1c', fontSize:12 }}>מחוק</div>
+            )}
             <p className={styles.cardDesc}>{recipe.description || recipe.shortDescription || recipe.summary || recipe.summary}</p>
             {/* Card stars (quick rate) */}
             <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:6 }}>
@@ -444,7 +550,9 @@ export default function Recipes() {
               setSelected(null);
               setLoadingItem(true);
               try {
-                const full = await fetchPublicRecipe(id);
+                const idNum = Number(id);
+                if (!Number.isFinite(idNum)) throw new Error('invalid id');
+                const full = await fetchPublicRecipe(idNum);
                 setSelected(full?.item || full);
               } catch (e) {
                 setSelected(null);
@@ -668,48 +776,77 @@ export default function Recipes() {
             </div>
             <div className={styles.modalFooter}>
               {isAdmin && !editMode && (
-                <button className={styles.btn} onClick={()=>{
-                  setEditMode(true);
-                  // derive IDs from names if missing
-                  const dietName = selected.diet_type || selected.diet_name || '';
-                  const catName = selected.category || selected.category_name || '';
-                  const dietMatch = dietTypeList.find(dt => String(dt.name).toLowerCase() === String(dietName).toLowerCase());
-                  const catMatch = categoryList.find(c => String(c.name).toLowerCase() === String(catName).toLowerCase());
-                  setEditForm({
-                    id: selected.id || selected.recipe_id,
-                    name: selected.name || '',
-                    description: selected.description || '',
-                    instructions: selected.instructions || '',
-                    calories: selected.calories ?? '',
-                    servings: selected.servings ?? '',
-                    diet_type_id: selected.diet_type_id || dietMatch?.diet_id || dietMatch?.id || '',
-                    category_id: selected.category_id || catMatch?.id || '',
-                    picture: selected.picture || selected.imageUrl || selected.image || '',
-                  });
-                  // fetch product price for this recipe
-                  (async ()=>{
-                    try {
-                      const rid = selected.id || selected.recipe_id;
-                      const p = await getProductByRecipeAPI(rid);
-                      setPriceInfo({ current: Number(p?.price ?? 0), newPrice: '', discountPct: '' });
-                    } catch (_) {
-                      // Fallback: fetch menu list and find by recipe_id
-                      try {
-                        const { data } = await axios.get('/api/menu');
-                        const items = Array.isArray(data?.items) ? data.items : [];
-                        const rid = selected.id || selected.recipe_id;
-                        const found = items.find(it => Number(it.recipe_id) === Number(rid));
-                        if (found && found.price != null) {
-                          setPriceInfo({ current: Number(found.price), newPrice: '', discountPct: '' });
-                        } else {
-                          setPriceInfo({ current: null, newPrice: '', discountPct: '' });
-                        }
-                      } catch {
-                        setPriceInfo({ current: null, newPrice: '', discountPct: '' });
-                      }
-                    }
-                  })();
-                }}>עדכן</button>
+                <div style={{ display:'flex', gap:8, width:'100%', justifyContent:'space-between' }}>
+                  <button className={styles.btn}
+                          onClick={()=>{
+                            setEditMode(true);
+                            // derive IDs from names if missing
+                            const dietName = selected.diet_type || selected.diet_name || '';
+                            const catName = selected.category || selected.category_name || '';
+                            const dietMatch = dietTypeList.find(dt => String(dt.name).toLowerCase() === String(dietName).toLowerCase());
+                            const catMatch = categoryList.find(c => String(c.name).toLowerCase() === String(catName).toLowerCase());
+                            setEditForm({
+                              id: selected.id || selected.recipe_id,
+                              name: selected.name || '',
+                              description: selected.description || '',
+                              instructions: selected.instructions || '',
+                              calories: selected.calories ?? '',
+                              servings: selected.servings ?? '',
+                              diet_type_id: selected.diet_type_id || dietMatch?.diet_id || dietMatch?.id || '',
+                              category_id: selected.category_id || catMatch?.id || '',
+                              picture: selected.picture || selected.imageUrl || selected.image || '',
+                            });
+                          }}>ערוך</button>
+                  <button className={styles.btn}
+                          style={{ background:'#dc2626' }}
+                          disabled={deleting}
+                          onClick={()=> setConfirmDlg({
+                            open:true,
+                            text:'למחוק את המתכון הזה? ניתן יהיה לשחזר מאוחר יותר.',
+                            onConfirm: async ()=>{
+                              try {
+                                if (!selected) return;
+                                setDeleting(true);
+                                const rid = selected.id || selected.recipe_id;
+                                const resp = await fetch(`/api/admin/recipes/${rid}`, { method:'DELETE', credentials:'include' });
+                                if (!resp.ok) {
+                                  try { const j = await resp.json(); throw new Error(j?.message || 'מחיקה נכשלה'); } catch { throw new Error('מחיקה נכשלה'); }
+                                }
+                                setRecipes(prev => prev.filter(r => (r.id||r.recipe_id) !== rid));
+                                setOpenId(null);
+                                setSelected(null);
+                                setSearchParams({});
+                                showToast('המתכון נמחק (רך)');
+                              } catch (e) {
+                                showToast(e?.message || 'מחיקה נכשלה');
+                              } finally {
+                                setDeleting(false);
+                                setConfirmDlg({ open:false, text:'', onConfirm:null });
+                              }
+                            }
+                          })}>{deleting ? 'מוחק…' : 'מחק'}</button>
+                  {/* Restore button when soft-deleted (from list metadata) */}
+                  {(() => {
+                    const rid = selected?.id || selected?.recipe_id;
+                    const meta = (recipes || []).find(r => (r.id||r.recipe_id) === rid);
+                    const isDeleted = !!meta?.deleted_at;
+                    if (!isDeleted) return null;
+                    return (
+                      <button className={styles.btn}
+                              onClick={async ()=>{
+                                try{
+                                  await fetch(`/api/admin/recipes/${rid}/restore`, { method:'POST', credentials:'include' });
+                                  // Refresh current meta in list
+                                  setRecipes(prev => prev.map(r => ((r.id||r.recipe_id) === rid ? { ...r, deleted_at: null } : r)));
+                                  showToast('המתכון שוחזר');
+                                  setOpenId(null);
+                                  setSelected(null);
+                                  setSearchParams({});
+                                }catch(e){ showToast(e?.message || 'שחזור נכשל'); }
+                              }}>שחזר</button>
+                    );
+                  })()}
+                </div>
               )}
               {isAdmin && editMode && (
                 <>

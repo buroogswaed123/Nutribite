@@ -220,13 +220,6 @@ export default function HomeEnhanced() {
 
   const quickActions = [
     {
-      title: "ניהול תפריט",
-      description: "הוסף, ערוך ומחק מתכונים",
-      icon: ChefHat,
-      path: "/menu",
-      color: "#059669",
-    },
-    {
       title: "ניהול משתמשים",
       description: "נהל משתמשים ותפקידים",
       icon: Users,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import styles from './users.module.css'
 import { useAuth } from '../../../../../hooks/useAuth';
 import { ArrowUpDown, X } from 'lucide-react';
@@ -23,6 +23,15 @@ export default function UsersList() {
   const [savingBan, setSavingBan] = useState(false);
   const [banDescription, setBanDescription] = useState('');
   const [adminId, setAdminId] = useState(null);
+  // Table/pagination
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
+  // Orders modal
+  const [ordersOpen, setOrdersOpen] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersErr, setOrdersErr] = useState('');
+  const [ordersUser, setOrdersUser] = useState(null);
+  const [userOrders, setUserOrders] = useState([]);
 
   // Derive status flags for the currently selected user (for modal button logic)
   const selectedStatus = selectedUser
@@ -83,7 +92,7 @@ export default function UsersList() {
         return () => { mounted = false; clearInterval(interval); };
       }, [fetchAllUsers]);
 
-  const filteredAndSorted = () => {
+  const filteredAndSorted = useMemo(() => {
     const q = query.trim().toLowerCase();
     // Exclude the currently logged-in admin (me)
     let list = recentUsers.filter(u => {
@@ -111,7 +120,16 @@ export default function UsersList() {
       });
     }
     return list;
-  };
+  }, [recentUsers, query, adminId, sortMode]);
+
+  const total = filteredAndSorted.length;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const currentRows = useMemo(() => {
+    const start = (page - 1) * perPage;
+    return filteredAndSorted.slice(start, start + perPage);
+  }, [filteredAndSorted, page, perPage]);
+
+  useEffect(() => { setPage(1); }, [query, sortMode, perPage]);
 
     return (
       <div className={styles.usersSection}>
@@ -143,61 +161,70 @@ export default function UsersList() {
           </span>
         </div>
 
-        <div className={styles.usersGrid}>
-          {filteredAndSorted().length === 0 ? (
-            <p className={styles.noData}>אין משתמשים להצגה</p>
-          ) : (
-            filteredAndSorted().map((user) => (
-              <div
-                key={user.user_id}
-                className={styles.userCard}
-                onClick={() => {
-                  setSelectedUser(user);
-                  setIsModalOpen(true);
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    setSelectedUser(user);
-                    setIsModalOpen(true);
-                  }
-                }}
-              >
-                <div className={styles.cardHeader}>
-                  <h4 className={styles.username}>{user.username}</h4>
-                  <div className={styles.labels}>
-                    <span className={`${styles.roleLabel} ${styles['role-' + (user.user_type || 'customer')]}`}>
-                      {user.user_type === 'customer' && 'לקוח'}
-                      {user.user_type === 'admin' && 'מנהל'}
-                      {user.user_type === 'courier' && 'שליח'}
-                    </span>
-                    <span className={`${styles.statusLabel} ${user.is_online ? styles.active : styles.inactive}`}>
-                      {user.is_online ? 'מחובר' : 'לא מחובר'}
-                    </span>
-                  </div>
-                </div>
-                <div className={styles.cardBody}>
-                  <p className={styles.email}>{user.email}</p>
-                  <p className={styles.userDate}>{new Date(user.created_at).toLocaleDateString('he-IL')}</p>
-                </div>
-                <div className={styles.cardFooter}>
-                  <button
-                    type="button"
-                    className={styles.manageBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedUser(user);
-                      setIsModalOpen(true);
-                    }}
-                  >
-                    ניהול
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        {/* Table view */}
+        {filteredAndSorted.length === 0 ? (
+          <p className={styles.noData}>אין משתמשים להצגה</p>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>שם משתמש</th>
+                  <th>אימייל</th>
+                  <th>תפקיד</th>
+                  <th>סטטוס</th>
+                  <th>נוצר</th>
+                  <th>פעולות</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentRows.map((u) => (
+                  <tr key={u.user_id}>
+                    <td>{u.user_id}</td>
+                    <td>{u.username}</td>
+                    <td>{u.email}</td>
+                    <td>{u.user_type}</td>
+                    <td>{u.is_online ? 'מחובר' : (u.status || '—')}</td>
+                    <td>{u.created_at ? new Date(u.created_at).toLocaleDateString('he-IL') : '—'}</td>
+                    <td style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                      <button className={styles.manageBtn}
+                        onClick={() => { setSelectedUser(u); setIsModalOpen(true); }}
+                      >ניהול</button>
+                      <button className={styles.manageBtn}
+                        onClick={async () => {
+                          try {
+                            setOrdersUser(u); setOrdersOpen(true); setOrdersLoading(true); setOrdersErr(''); setUserOrders([]);
+                            const res = await fetch(`/api/admin/users/${u.user_id}/orders`, { credentials: 'include' });
+                            if (!res.ok) throw new Error('שגיאה בטעינת הזמנות');
+                            const data = await res.json();
+                            setUserOrders(Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
+                          } catch (e) {
+                            setOrdersErr(e?.message || 'שגיאה בטעינת הזמנות');
+                          } finally {
+                            setOrdersLoading(false);
+                          }
+                        }}
+                      >הצג הזמנות</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {/* Pagination */}
+            <div className={styles.pagination}>
+              <button className={styles.manageBtn} disabled={page <= 1} onClick={()=> setPage(p=>Math.max(1, p-1))}>{'<'}</button>
+              <span style={{ color:'#6b7280' }}>עמוד {page} מתוך {totalPages}</span>
+              <button className={styles.manageBtn} disabled={page >= totalPages} onClick={()=> setPage(p=>Math.min(totalPages, p+1))}>{'>'}</button>
+              <select className={styles.select} value={perPage} onChange={(e)=> setPerPage(Number(e.target.value) || 20)}>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+        )}
 
         {/* Manage Modal */}
         {isModalOpen && selectedUser && (
@@ -419,6 +446,57 @@ export default function UsersList() {
             </div>
           ))}
         </div>
+
+        {/* Orders Modal */}
+        {ordersOpen && (
+          <div className={styles.modalOverlay} onClick={()=> setOrdersOpen(false)}>
+            <div className={styles.modal} onClick={(e)=> e.stopPropagation()}>
+              <div className={styles.modalHeader}>
+                <h3 className={styles.modalTitle}>הזמנות המשתמש {ordersUser?.username} (ID: {ordersUser?.user_id})</h3>
+                <button className={styles.closeBtn} onClick={()=> setOrdersOpen(false)} aria-label="סגור"><X size={18} /></button>
+              </div>
+              <div className={styles.modalBody}>
+                {ordersLoading && <div>טוען…</div>}
+                {ordersErr && <div className={styles.errorBanner}>{ordersErr}</div>}
+                {!ordersLoading && !ordersErr && (
+                  userOrders.length === 0 ? (
+                    <div className={styles.noData}>אין הזמנות</div>
+                  ) : (
+                    <div className={styles.tableWrap}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>סטטוס</th>
+                            <th>סה"כ</th>
+                            <th>תאריך הזמנה</th>
+                            <th>זמן משלוח</th>
+                            <th>קבוצת תשלום</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {userOrders.map(o => (
+                            <tr key={o.order_id}>
+                              <td>{o.order_id}</td>
+                              <td>{o.status}</td>
+                              <td>{Number(o.total_price || 0).toFixed(2)} ₪</td>
+                              <td>{o.order_date ? new Date(o.order_date).toLocaleString('he-IL') : '—'}</td>
+                              <td>{o.set_delivery_time ? new Date(o.set_delivery_time).toLocaleString('he-IL') : '—'}</td>
+                              <td>{o.payment_group_id || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                )}
+              </div>
+              <div className={styles.modalFooter}>
+                <button className={styles.closeFooterBtn} onClick={()=> setOrdersOpen(false)}>סגור</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Ban scheduling modal */}
         {isBanFormOpen && selectedUser && (

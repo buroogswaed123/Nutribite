@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import styles from '../cart/cart.module.css';
 import { getSessionUser, getCurrentCustomerId, getOrderAPI, createNotificationAPI } from '../../../utils/functions';
-import { generateOrderReceiptPDF } from '../../../utils/receipt';
+import { generateOrderReceiptPDF } from '../../../utils/receiptPdfmake';
 
 export default function OrderDetails() {
   const { id } = useParams(); // order id
@@ -114,7 +114,15 @@ export default function OrderDetails() {
       if (action === 'download-receipt' && orderData && !autoDownloaded) {
         const ord = orderData?.order || { order_id: orderId };
         const items = Array.isArray(orderData?.items) ? orderData.items : [];
-        generateOrderReceiptPDF({ siteName: 'Nutribite', orderId, order: ord, items });
+        generateOrderReceiptPDF({
+          siteName: 'Nutribite',
+          orderId,
+          order: ord,
+          items,
+          deliveryFee,
+          customerName: name,
+          paymentMethod: paypal ? `PayPal (${paypal})` : '—',
+        });
         setAutoDownloaded(true);
       }
     } catch (_) {}
@@ -356,7 +364,15 @@ export default function OrderDetails() {
                 try {
                   const ord = orderData?.order || { order_id: orderId };
                   const items = Array.isArray(orderData?.items) ? orderData.items : [];
-                  generateOrderReceiptPDF({ siteName: 'Nutribite', orderId, order: ord, items });
+                  generateOrderReceiptPDF({
+                    siteName: 'Nutribite',
+                    orderId,
+                    order: ord,
+                    items,
+                    deliveryFee,
+                    customerName: name,
+                    paymentMethod: paypal ? `PayPal (${paypal})` : '—',
+                  });
                 } catch (e) {
                   // eslint-disable-next-line no-alert
                   alert('נכשלה יצירת קובץ הקבלה');

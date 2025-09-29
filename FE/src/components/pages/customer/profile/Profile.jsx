@@ -5,7 +5,7 @@ import { AuthContext } from '../../../../app/App';
 import styles from './profile.module.css';
 import headerStyles from '../../../layout/header/header.module.css';
 import Settings from './Settings';
-import { listPlansAPI } from '../../../../utils/functions';
+import { listPlansAPI, listOrdersAPI, getOrderAPI, ensureImageUrl } from '../../../../utils/functions';
 
 const buildProfileImageUrl = (raw) =>
   raw?.startsWith('http') ? raw : `/${(raw || 'uploads/profile/default.png').replace(/^\/+/, '')}`;
@@ -25,14 +25,103 @@ export default function Profile() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [plans, setPlans] = useState([]);
   const [toast, setToast] = useState(null); // { type: 'success'|'error', text: string }
+  // Orders state
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersErr, setOrdersErr] = useState('');
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [orderDetails, setOrderDetails] = useState(null); // { order, items }
+  const [deliveryCtx, setDeliveryCtx] = useState(null); // { order_id, category }
   const showToast = (text, type = 'success') => {
     setToast({ text, type });
     window.clearTimeout(showToast._t);
     showToast._t = window.setTimeout(() => setToast(null), 2500);
   };
 
+  // Helpers for items
+  const itemCategory = (it) => (
+    it.category_name || it.category || it.recipe_category || it.category_he || it.meal_type || it.type || it.group || 'קטגוריה'
+  );
+  const itemUnitPrice = (it) => {
+    const candidates = [
+      it.unit_price_gross, it.unit_price, it.unitPrice, it.price_gross, it.gross_price,
+      it.price_with_tax, it.price, it.unit, it.unit_cost
+    ];
+    for (const v of candidates) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    // if an explicit line total exists and qty exists, derive unit
+    const lt = Number(it.line_total ?? it.total_price ?? it.total);
+    const q = Number(it.quantity ?? it.qty ?? 0);
+    if (Number.isFinite(lt) && lt > 0 && Number.isFinite(q) && q > 0) return lt / q;
+    return 0;
+  };
+  const itemQty = (it) => {
+    const candidates = [it.quantity, it.qty, it.count, it.amount];
+    for (const v of candidates) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return 1;
+  };
+  const itemTotal = (it) => {
+    const candidates = [it.line_total, it.total_price, it.total, it.gross_total, it.price_total];
+    for (const v of candidates) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    return itemUnitPrice(it) * itemQty(it);
+  };
+  const itemDeliveryTime = (it) => it.delivery_time || it.scheduled_time || it.expected_at || null;
+
+  const fmtDT = (s) => {
+    if (!s) return null;
+    try { const d = new Date(s); return d.toLocaleString('he-IL'); } catch { return String(s); }
+  };
+
   const username = currentUser?.username || 'User';
   const imgSrc = buildProfileImageUrl(profileImage);
+
+  // Helpers: normalize backend order fields and map status to Hebrew
+  const statusHe = (raw) => {
+    const s = String(raw || '').toLowerCase();
+    const map = {
+      pending: 'ממתינה',
+      draft: 'טיוטה',
+      processing: 'בעיבוד',
+      confirmed: 'אושרה',
+      preparing: 'בהכנה',
+      ready: 'מוכנה',
+      assigned: 'שויך שליח',
+      picked_up: 'נאספה',
+      shipped: 'נשלחה',
+      out_for_delivery: 'בדרכה אליך',
+      delivered: 'נמסרה',
+      cancelled: 'בוטלה',
+      canceled: 'בוטלה',
+      failed: 'נכשלה',
+      refunded: 'הוחזר תשלום',
+    };
+    return map[s] || (raw ? String(raw) : '—');
+  };
+
+  const normalizeOrder = (o) => {
+    if (!o) return {};
+    const eta = o.expected_delivery_at || o.delivery_eta || o.eta || o.expected_at || null;
+    const delivered = o.delivered_at || o.completed_at || o.delivered || null;
+    const courier = o.courier_name || o.courier || o.courier_id || null;
+    const total = (o.total_price != null ? o.total_price : (o.total != null ? o.total : null));
+    return {
+      id: o.order_id || o.id,
+      status: statusHe(o.status),
+      rawStatus: o.status,
+      eta,
+      delivered,
+      courier,
+      total,
+    };
+  };
 
   const getUserType = () => {
     const type = currentUser?.user_type || (typeof window !== 'undefined' ? localStorage.getItem('user_type') : null);
@@ -73,6 +162,82 @@ export default function Profile() {
     })();
     return () => { ignore = true; };
   }, [custId]);
+
+  // Load orders when switching to "ההזמנות שלי"
+  useEffect(() => {
+    let ignore = false;
+    if (activeTab !== 'ההזמנות שלי') return () => {};
+    (async () => {
+      try {
+        setOrdersLoading(true); setOrdersErr('');
+        const rows = await listOrdersAPI();
+        if (!ignore) setOrders(Array.isArray(rows) ? rows : []);
+      } catch (e) {
+        if (!ignore) setOrdersErr(e?.message || 'שגיאה בטעינת הזמנות');
+      } finally {
+        if (!ignore) setOrdersLoading(false);
+      }
+    })();
+    return () => { ignore = true; };
+  }, [activeTab]);
+
+  const openOrderDetails = async (order_id, categoryFilter = null) => {
+    try {
+      setOrdersErr('');
+      const data = await getOrderAPI(order_id);
+      // If categoryFilter is provided, narrow items to that category
+      if (data && Array.isArray(data.items) && categoryFilter) {
+        data.items = data.items.filter(it => itemCategory(it) === categoryFilter);
+      }
+      setOrderDetails(data || null);
+      setDeliveryCtx(categoryFilter ? { order_id, category: categoryFilter } : null);
+      setOrderModalOpen(true);
+    } catch (e) {
+      setOrdersErr(e?.message || 'שגיאה בטעינת פרטי הזמנה');
+    }
+  };
+
+  // Build deliveries array from orders by fetching items and grouping by category
+  const [deliveries, setDeliveries] = useState([]); // [{ order_id, category, statusHe, eta, courier, count, subtotal }]
+  useEffect(() => {
+    let cancelled = false;
+    if (activeTab !== 'ההזמנות שלי' || orders.length === 0) { setDeliveries([]); return; }
+    (async () => {
+      try {
+        const results = await Promise.all(
+          orders.map(async (o) => {
+            try {
+              const det = await getOrderAPI(o.order_id || o.id);
+              const items = Array.isArray(det?.items) ? det.items : [];
+              const groups = {};
+              for (const it of items) {
+                const key = itemCategory(it);
+                if (!groups[key]) groups[key] = { count: 0, subtotal: 0, time: null };
+                groups[key].count += itemQty(it);
+                groups[key].subtotal += itemTotal(it);
+                const t = itemDeliveryTime(it);
+                if (!groups[key].time && t) groups[key].time = t;
+              }
+              return Object.entries(groups).map(([cat, g]) => ({
+                order_id: det?.order?.order_id || det?.order?.id || o.order_id || o.id,
+                category: cat,
+                status: statusHe(det?.order?.status || o.status),
+                eta: fmtDT(g.time),
+                courier: det?.order?.courier_name || det?.order?.courier || o.courier_name || o.courier || null,
+                count: g.count,
+                subtotal: g.subtotal,
+                delivered: det?.order?.delivered_at || det?.order?.completed_at || null,
+              }));
+            } catch { return []; }
+          })
+        );
+        if (!cancelled) setDeliveries(results.flat());
+      } catch (_) {
+        if (!cancelled) setDeliveries([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orders, activeTab]);
 
   const handleSaveName = async () => {
     try {
@@ -341,8 +506,119 @@ export default function Profile() {
           </div>
         )}
 
-        {activeTab === 'ההזמנות שלי' && <p className={styles.rtlText}>ההזמנות שלי</p>}
+        {activeTab === 'ההזמנות שלי' && (
+          <div className={styles.rtlText}>
+            <h3 style={{ marginTop: 0 }}>ההזמנות שלי</h3>
+            {ordersLoading && <div>טוען הזמנות…</div>}
+            {ordersErr && <div style={{ color:'#b91c1c' }}>{ordersErr}</div>}
+            {!ordersLoading && !ordersErr && (
+              <>
+                {/* Deliveries list (current and past mixed) */}
+                <div style={{ marginTop: 8, marginBottom: 6, fontWeight: 600 }}>המשלוחים שלי</div>
+                {deliveries.length > 0 ? (
+                  <div style={{ display:'grid', gap:8 }}>
+                    {deliveries.map(d => (
+                      <div key={`${d.order_id}_${d.category}`}
+                           style={{ border:'1px solid #e5e7eb', borderRadius:10, padding:12, background:'#fff', cursor:'pointer' }}
+                           onClick={()=> openOrderDetails(d.order_id, d.category)}
+                      >
+                        <div style={{ display:'flex', justifyContent:'space-between', gap:8, flexWrap:'wrap' }}>
+                          <div><strong>#{d.order_id}</strong> • {d.category}</div>
+                          <div style={{ color:'#6b7280', fontSize:13 }}>מצב: {d.status}</div>
+                          {d.eta && <div style={{ color:'#6b7280', fontSize:13 }}>זמן: {d.eta}</div>}
+                          {d.courier && <div style={{ color:'#6b7280', fontSize:13 }}>שליח: {d.courier}</div>}
+                          <div style={{ color:'#111827', fontWeight:600 }}>{(Number(d.subtotal)||0).toFixed(2)} ₪</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color:'#6b7280' }}>אין משלוחים להצגה.</div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </section>
+
+      {/* Order details modal */}
+      {orderModalOpen && orderDetails && (
+        <div className={styles.modalBackdrop} onClick={()=> setOrderModalOpen(false)}>
+          <div className={styles.modal} onClick={(e)=> e.stopPropagation()}>
+            <div className={styles.rtlText}>
+              <h3 style={{ marginTop: 0 }}>הזמנה #{orderDetails?.order?.order_id || '—'}</h3>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom: 10 }}>
+                <div>מצב: {statusHe(orderDetails?.order?.status)}</div>
+                { (orderDetails?.order?.delivered_at || orderDetails?.order?.completed_at) && (
+                  <div>נמסרה: {orderDetails?.order?.delivered_at || orderDetails?.order?.completed_at}</div>
+                )}
+                { (orderDetails?.order?.expected_delivery_at || orderDetails?.order?.delivery_eta) && (
+                  <div>משוער: {orderDetails?.order?.expected_delivery_at || orderDetails?.order?.delivery_eta}</div>
+                )}
+                { (orderDetails?.order?.courier_name || orderDetails?.order?.courier) && (
+                  <div>שליח: {orderDetails?.order?.courier_name || orderDetails?.order?.courier}</div>
+                )}
+              </div>
+              {/* Deliveries grouped by category */}
+              {Array.isArray(orderDetails?.items) && orderDetails.items.length > 0 && (()=>{
+                const groups = {};
+                for (const it of orderDetails.items) {
+                  const key = itemCategory(it);
+                  if (!groups[key]) groups[key] = { count: 0, total: 0, time: null };
+                  groups[key].count += itemQty(it);
+                  groups[key].total += itemTotal(it);
+                  const t = itemDeliveryTime(it);
+                  if (!groups[key].time && t) groups[key].time = t;
+                }
+                const rows = Object.entries(groups).map(([cat, g]) => ({ cat, count: g.count, total: g.total, time: fmtDT(g.time) }));
+                if (rows.length === 0) return null;
+                return (
+                  <div style={{ marginTop: 6, marginBottom: 6 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>משלוחים</div>
+                    <div style={{ border:'1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', background:'#f3f4f6', padding:'8px 10px', fontWeight:600 }}>
+                        <div>קטגוריה</div>
+                        <div>זמן משלוח</div>
+                        <div>מס׳ פריטים</div>
+                        <div>סה"כ</div>
+                      </div>
+                      {rows.map((r, i) => (
+                        <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'8px 10px', borderTop:'1px solid #e5e7eb', background: (i%2? '#f8fafc':'#fff') }}>
+                          <div>{r.cat}</div>
+                          <div>{r.time || '—'}</div>
+                          <div>{r.count}</div>
+                          <div>{(Number(r.total)||0).toFixed(2)} ₪</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+              <div style={{ fontWeight:600, marginTop:6, marginBottom:6 }}>מוצרים</div>
+              <ul style={{ listStyle:'none', padding:0, margin:0, display:'grid', gap:10 }}>
+                {(orderDetails?.items || []).map((it) => (
+                  <li key={it.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', border:'1px solid #e5e7eb', borderRadius:10, padding:8 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                      <img src={ensureImageUrl(it.picture)} alt={it.recipe_name}
+                           style={{ width:48, height:48, borderRadius:8, objectFit:'cover' }}
+                           onError={(e)=>{ e.currentTarget.style.display='none'; }}
+                      />
+                      <div>
+                        <div style={{ fontWeight:600 }}>{it.recipe_name}</div>
+                        <div style={{ color:'#6b7280', fontSize:13 }}>כמות: {itemQty(it)} • מחיר יחידה: {(itemUnitPrice(it)).toFixed(2)} ₪</div>
+                      </div>
+                    </div>
+                    <div style={{ fontWeight:600 }}>{(itemTotal(it)).toFixed(2)} ₪</div>
+                  </li>
+                ))}
+              </ul>
+              <div style={{ marginTop: 10, textAlign:'left' }}>
+                <button className={styles.iconCircleBtn} onClick={()=> setOrderModalOpen(false)}>סגור</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -136,8 +136,7 @@ export default function Header() {
     { name: 'תפריט', path: '/menu' },
     { name: 'מתכונים', path: '/recipes' },
     { name: 'צור קשר', path: '/contact' },
-    { name: 'מאמרים', path: '/articles' },
-    { name: 'ההזמנות שלי', path: '/orders' }
+    { name: 'מאמרים', path: '/articles' }
   ];
 
   const isCustomer = (getUserType() || '').toLowerCase() === 'customer';

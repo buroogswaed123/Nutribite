@@ -36,6 +36,8 @@ export default function OrderDetails() {
   // Order totals
   const [orderTotal, setOrderTotal] = useState(0);
   const [orderData, setOrderData] = useState(null); // { order, items }
+  const [paymentGroupId, setPaymentGroupId] = useState(null);
+  const [childOrders, setChildOrders] = useState([]); // [{ order_id, category_id, delivery_time, total_price }]
   const [autoDownloaded, setAutoDownloaded] = useState(false);
 
   const deliveryFee = 12;
@@ -88,9 +90,22 @@ export default function OrderDetails() {
             setCityCode(a.city_code || '');
           }
         } catch {}
-        // Load order total
+        // Load order total or grouped totals
         try {
-          if (Number.isFinite(orderId)) {
+          const st = location?.state || {};
+          const pgid = st?.payment_group_id || null;
+          const children = Array.isArray(st?.orders) ? st.orders : [];
+          setPaymentGroupId(pgid);
+          setChildOrders(children);
+          if (children.length > 0) {
+            const sum = children.reduce((s, o) => s + Number(o.total_price || 0), 0);
+            setOrderTotal(sum);
+            // Also load primary order details for receipt and items preview
+            if (Number.isFinite(orderId)) {
+              const ord = await getOrderAPI(orderId);
+              setOrderData(ord || null);
+            }
+          } else if (Number.isFinite(orderId)) {
             const ord = await getOrderAPI(orderId);
             const total = Number(ord?.order?.total_price || 0);
             setOrderTotal(total);
@@ -173,14 +188,15 @@ export default function OrderDetails() {
       }
 
       // Show read-only summary on this page
-      // Mark order as confirmed in backend
-      try {
-        const res = await fetch(`/api/orders/${orderId}/confirm`, { method: 'POST', credentials: 'include' });
+      // Mark order(s) as confirmed in backend
+      const idsToConfirm = (childOrders && childOrders.length > 0)
+        ? childOrders.map(o => o.order_id)
+        : [orderId];
+      for (const oid of idsToConfirm) {
+        const res = await fetch(`/api/orders/${oid}/confirm`, { method: 'POST', credentials: 'include' });
         if (!res.ok) {
           try { const j = await res.json(); throw new Error(j?.message || 'אישור הזמנה נכשל'); } catch { throw new Error('אישור הזמנה נכשל'); }
         }
-      } catch (e) {
-        throw e;
       }
       setConfirmed(true);
     } catch (e) {
@@ -261,6 +277,21 @@ export default function OrderDetails() {
               </div>
             </div>
           </div>
+
+          {/* Grouped orders summary if applicable */}
+          {childOrders.length > 0 && (
+            <div className={styles.card} style={{ marginTop: 12 }}>
+              <h3 className={styles.cardTitle}>פירוט הזמנות לפי קטגוריה</h3>
+              <div style={{ display:'grid', gap:8 }}>
+                {childOrders.map((o) => (
+                  <div key={o.order_id} style={{ display:'flex', justifyContent:'space-between', color:'#374151' }}>
+                    <span>#{o.order_id} • זמן: {o.delivery_time || '—'}</span>
+                    <span>{Number(o.total_price || 0).toFixed(2)} ₪</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
             <div style={{ display:'flex', justifyContent:'space-between' }}>

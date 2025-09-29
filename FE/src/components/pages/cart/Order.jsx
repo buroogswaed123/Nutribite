@@ -237,7 +237,9 @@ export default function Order() {
       // We do not send applyToAll; schedule remains per-category
       try { /* optionally log */ } catch (_) {}
       const data = await checkoutOrderAPI({ schedule: payloadSchedule });
-      const orderId = data?.order_id;
+      const pgid = data?.payment_group_id;
+      const childOrders = Array.isArray(data?.orders) ? data.orders : [];
+      const orderId = data?.order_id || (childOrders[0]?.order_id);
       if (!orderId) throw new Error('Order creation failed');
       // Create a notification so the user can continue setup later
       try {
@@ -253,8 +255,8 @@ export default function Order() {
         }
       } catch (_) { /* non-fatal */ }
       // Do NOT clear draft; keep schedule in sessionStorage so going back retains values
-      try { console.log('Checkout success, navigating to order', orderId); } catch (_) {}
-      navigate(`/orders/${orderId}`);
+      try { console.log('Checkout success, navigating to order', { orderId, payment_group_id: pgid, orders: childOrders }); } catch (_) {}
+      navigate(`/orders/${orderId}`, { state: { payment_group_id: pgid || null, orders: childOrders } });
     } catch (e) {
       const serverMsg = e?.response?.data?.message;
       const serverErr = e?.response?.data?.error;

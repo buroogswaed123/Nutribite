@@ -55,13 +55,23 @@ const TAX_RATE_PERCENT = Number(process.env.TAX_RATE_PERCENT ?? 18.0);
         CONSTRAINT fk_oi_product FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE RESTRICT
       )
     `);
-    // Add missing tax columns if table already existed
+    // Add missing columns if table already existed
     const cols = await query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'order_items'");
     const have = new Set(cols.map(c => c.COLUMN_NAME));
     if (!have.has('unit_price_net')) await query("ALTER TABLE order_items ADD COLUMN unit_price_net DECIMAL(10,2) NULL AFTER price");
     if (!have.has('tax_rate')) await query("ALTER TABLE order_items ADD COLUMN tax_rate DECIMAL(5,2) NULL AFTER unit_price_net");
     if (!have.has('tax_amount')) await query("ALTER TABLE order_items ADD COLUMN tax_amount DECIMAL(10,2) NULL AFTER tax_rate");
     if (!have.has('unit_price_gross')) await query("ALTER TABLE order_items ADD COLUMN unit_price_gross DECIMAL(10,2) NULL AFTER tax_amount");
+    if (!have.has('delivery_at')) await query("ALTER TABLE order_items ADD COLUMN delivery_at DATETIME NULL AFTER category_id");
+
+    // Ensure orders has needed columns
+    const ocols = await query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders'");
+    const ohave = new Set(ocols.map(c => c.COLUMN_NAME));
+    if (!ohave.has('set_delivery_time')) await query("ALTER TABLE orders ADD COLUMN set_delivery_time DATETIME NULL AFTER created_at");
+    if (!ohave.has('order_status')) await query("ALTER TABLE orders ADD COLUMN order_status VARCHAR(32) NOT NULL DEFAULT 'pending' AFTER created_at");
+    if (!ohave.has('cust_id')) await query("ALTER TABLE orders ADD COLUMN cust_id INT NULL AFTER order_status");
+    if (!ohave.has('order_date')) await query("ALTER TABLE orders ADD COLUMN order_date DATETIME NULL AFTER created_at");
+    if (!ohave.has('payment_group_id')) await query("ALTER TABLE orders ADD COLUMN payment_group_id VARCHAR(64) NULL AFTER order_status");
   } catch (e) { /* ignore */ }
 })();
 
@@ -214,7 +224,7 @@ router.post('/checkout', async (req, res) => {
     const uid = getUserId(req);
     if (!uid) return res.status(401).json({ message: 'Not logged in' });
 
-    const schedule = req.body?.schedule || {}; // map category_id or names to datetime
+    const schedule = req.body?.schedule || {}; // map category_id (as string) or name -> ISO datetime string
     const allAt = req.body?.applyToAll || null;
 
     // Resolve customer's cust_id
@@ -233,78 +243,73 @@ router.post('/checkout', async (req, res) => {
 
     if (!cart || cart.length === 0) return res.status(400).json({ message: 'Cart is empty' });
 
-    const totalPrice = cart.reduce((s,it)=> s + Number((it.unit_price_gross ?? it.price) || 0) * Number(it.quantity||0), 0);
-    const totalCalories = cart.reduce((s,it)=> s + Number(it.calories||0)*Number(it.quantity||0), 0);
-
-    // Derive the selected delivery datetime for the order
+    // Helper: normalize
     const normalizeToMySQL = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:00`;
-    let selectedDate = null;
-    if (allAt) {
-      const d = new Date(allAt);
-      if (!isNaN(d.getTime())) selectedDate = d;
-    } else {
-      // compute earliest valid datetime from schedule values
-      const vals = Object.values(schedule || {});
-      let min = null;
-      for (const v of vals) {
-        const d = new Date(v);
-        if (!isNaN(d.getTime())) {
-          if (!min || d.getTime() < min.getTime()) min = d;
-        }
-      }
-      if (min) selectedDate = min;
-    }
-    // Server-side validation: if client supplied a datetime, enforce [today, today+7], and 06:00–23:59
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekAhead = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-    if (selectedDate) {
-      const hh = selectedDate.getHours();
-      if (hh < 6 || hh > 23) {
-        return res.status(400).json({ message: 'Invalid delivery time (06:00–23:59 only)' });
-      }
-      const sdDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-      if (sdDay.getTime() < today.getTime()) {
-        return res.status(400).json({ message: 'Delivery date cannot be in the past' });
-      }
-      if (sdDay.getTime() > weekAhead.getTime()) {
-        return res.status(400).json({ message: 'Delivery date cannot be more than 7 days ahead' });
-      }
-      if (sdDay.getTime() === today.getTime() && selectedDate.getTime() < now.getTime()) {
-        return res.status(400).json({ message: 'Delivery time cannot be in the past' });
-      }
-    }
-    const orderDateValue = selectedDate ? normalizeToMySQL(selectedDate) : null;
-    const orderSetTime = selectedDate ? normalizeToMySQL(selectedDate) : null;
+    const validateDT = (dateObj) => {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekAhead = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const hh = dateObj.getHours();
+      if (hh < 6 || hh > 23) return false;
+      const sdDay = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+      if (sdDay.getTime() < today.getTime()) return false;
+      if (sdDay.getTime() > weekAhead.getTime()) return false;
+      if (sdDay.getTime() === today.getTime() && dateObj.getTime() < now.getTime()) return false;
+      return true;
+    };
 
-    // Create order in existing schema
-    let insOrder;
-    if (orderDateValue) {
-      [insOrder] = await tx.query(
-        `INSERT INTO orders (order_date, order_status, total_price, cust_id, set_delivery_time) VALUES (?, 'draft', ?, ?, ?)`,
-        [orderDateValue, totalPrice, cust, orderSetTime]
-      );
-    } else {
-      [insOrder] = await tx.query(
-        `INSERT INTO orders (order_date, order_status, total_price, cust_id, set_delivery_time) VALUES (NOW(), 'draft', ?, ?, NULL)`,
-        [totalPrice, cust]
-      );
-    }
-    const orderId = insOrder.insertId;
-
-    // Insert items into order_items (minimal schema)
+    // Group cart items by category_id
+    const byCat = new Map();
     for (const it of cart) {
-      // Given minimal schema, we only store order_id, product_id, quantity
-      await tx.query(
-        `INSERT INTO order_items (order_id, product_id, quantity) VALUES (?, ?, ?)`,
-        [orderId, it.product_id, it.quantity]
-      );
+      const key = String(it.category_id || '0');
+      if (!byCat.has(key)) byCat.set(key, []);
+      byCat.get(key).push(it);
     }
 
-    // Clear cart (we keep a rebuild endpoint to recover if needed)
+    // Determine per-category delivery datetime
+    const parseIso = (s) => { const d = new Date(s); return isNaN(d.getTime()) ? null : d; };
+    const perCatDT = new Map();
+    if (allAt) {
+      const d = parseIso(allAt);
+      if (!d || !validateDT(d)) return res.status(400).json({ message: 'Invalid delivery time (06:00–23:59, within 7 days, not in past)' });
+      for (const key of byCat.keys()) perCatDT.set(key, d);
+    } else {
+      for (const key of byCat.keys()) {
+        const sel = schedule[key] || schedule[Number(key)] || null;
+        const d = sel ? parseIso(sel) : null;
+        if (!d || !validateDT(d)) {
+          return res.status(400).json({ message: `Invalid delivery time for category ${key}` });
+        }
+        perCatDT.set(key, d);
+      }
+    }
+
+    // Generate a payment_group_id and insert one order per category (transaction)
+    const paymentGroupId = `pg_${uid}_${Date.now()}_${Math.floor(Math.random()*1e6)}`;
+    const createdOrders = [];
+
+    for (const [key, arr] of byCat.entries()) {
+      const dt = perCatDT.get(key);
+      const orderTotal = arr.reduce((s, it) => s + Number((it.unit_price_gross ?? it.price) || 0) * Number(it.quantity||0), 0);
+      const orderDateValue = normalizeToMySQL(dt);
+      const [ins] = await tx.query(
+        `INSERT INTO orders (order_date, order_status, total_price, cust_id, set_delivery_time, payment_group_id) VALUES (?, 'draft', ?, ?, ?, ?)`,
+        [orderDateValue, orderTotal, cust, orderDateValue, paymentGroupId]
+      );
+      const orderId = ins.insertId;
+      for (const it of arr) {
+        await tx.query(
+          `INSERT INTO order_items (order_id, product_id, quantity, price, unit_price_net, tax_rate, tax_amount, unit_price_gross, category_id, delivery_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [orderId, it.product_id, it.quantity, it.price ?? 0, it.unit_price_net ?? null, it.tax_rate ?? null, it.tax_amount ?? null, it.unit_price_gross ?? null, it.category_id ?? null, orderDateValue]
+        );
+      }
+      createdOrders.push({ order_id: orderId, category_id: Number(key) || 0, delivery_time: orderDateValue, total_price: Number(orderTotal.toFixed(2)) });
+    }
+
+    // Clear cart after creating all orders
     await tx.query(`DELETE FROM cart_items WHERE user_id = ?`, [uid]);
 
-    return res.status(201).json({ order_id: orderId });
+    return res.status(201).json({ payment_group_id: paymentGroupId, orders: createdOrders });
   } catch (err) {
     console.error('CHECKOUT ERROR:', err);
     return res.status(500).json({ message: 'Failed to checkout', error: err.message });

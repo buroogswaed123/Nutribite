@@ -7,6 +7,14 @@
   --primary: #10b981;
   --border: #e5e7eb;
   --shadow: 0 10px 20px rgba(2, 6, 23, 0.06);
+  /* Sidebar glass variables */
+  --sb-bg-1: rgba(243,244,246,0.96);
+  --sb-bg-2: rgba(229,231,235,0.9);
+  --sb-overlay-1: rgba(255,255,255,0.28);
+  --sb-overlay-2: rgba(255,255,255,0.12);
+  --sb-overlay-3: rgba(255,255,255,0.02);
+  --sb-blur: 8px;
+  --sb-shadow: 0 10px 30px rgba(0,0,0,0.08);
 }
 
 .faq {
@@ -195,4 +203,159 @@
   border-radius: 10px;
   padding: 10px 16px;
   cursor: pointer;
+}
+
+/* ===== Sidebar (My Questions) ===== */
+.sidebar {
+  position: fixed;
+  top: 72px;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  transition: width 240ms ease;
+  overflow: hidden;
+  z-index: 40;
+  background: linear-gradient(180deg, var(--sb-bg-1), var(--sb-bg-2));
+  backdrop-filter: saturate(180%) blur(var(--sb-blur));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--sb-blur));
+  border-right: 1px solid var(--border);
+  box-shadow: var(--sb-shadow);
+}
+
+.sidebar.open {
+  width: 300px;
+}
+
+@media (max-width: 768px) {
+  .sidebar.open {
+    width: 85vw;
+  }
+}
+
+.sidebar::before {
+  /* Diagonal sheen overlay */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--sb-overlay-1) 0%, var(--sb-overlay-2) 35%, var(--sb-overlay-3) 60%);
+  pointer-events: none;
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
+}
+
+.sidebarTitle {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sidebarBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 8px;
+  background: #e5e7eb;
+  color: #374151;
+  border-radius: 9999px;
+  font-size: 12px;
+}
+
+.sidebarCloseBtn {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #ffffff, #f3f4f6);
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebarSearchInput {
+  width: calc(100% - 24px);
+  margin: 8px 12px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.95);
+  color: var(--text);
+}
+
+.sidebarList {
+  max-height: calc(100vh - 160px);
+  overflow: auto;
+  padding: 0 12px 12px 8px;
+}
+
+.sidebarEmpty,
+.sidebarNoResults {
+  color: #6b7280;
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+.sidebarItem {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+  background: rgba(255,255,255,0.7);
+  cursor: pointer;
+}
+
+.sidebarItemTitle {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+.sidebarItemPending {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.mobileOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0,0,0,0.35);
+}
+
+.publicNoResults {
+  color: #6b7280;
+  font-size: 14px;
+  padding: 12px;
+}
+
+.highlight {
+  outline: 2px solid #f59e0b;
+  border-radius: 8px;
+  box-shadow: 0 0 0 4px rgba(245,158,11,0.2);
+}
+
+.sidebarHandleClosed {
+  position: fixed;
+  top: 72px;
+  left: 0;
+  z-index: 50;
+  background: linear-gradient(180deg, rgba(243,244,246,0.95), rgba(229,231,235,0.9));
+  backdrop-filter: saturate(180%) blur(8px);
+  -webkit-backdrop-filter: saturate(180%) blur(8px);
+  border: 1px solid var(--border);
+  border-left: none;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  width: 28px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
 }

@@ -1,5 +1,6 @@
 import styles from './recipes.module.css'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react';
+import Loading from '../../common/Loading';
 import { ArrowUpDown, Star } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import axios from 'axios'
@@ -75,6 +76,14 @@ export default function Recipes() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedMap, setSelectedMap] = useState({}); // { [id]: true }
   const [confirmDlg, setConfirmDlg] = useState({ open: false, text: '', onConfirm: null });
+  // Caches to avoid flicker when toggling admin mode
+  const [publicRecipesCache, setPublicRecipesCache] = useState(null);
+  const [adminRecipesCache, setAdminRecipesCache] = useState(null);
+  const [adminLoading, setAdminLoading] = useState(false);
+  // Price/discount cache by recipe_id: { [id]: { price, original, discountPct } }
+  const [priceMap, setPriceMap] = useState({});
+  // Sort helpers
+  const [discountFirst, setDiscountFirst] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +104,7 @@ export default function Recipes() {
         const data = await recipesP;
         if (!cancelled) {
           setRecipes(Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
+          setPublicRecipesCache(Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
           setLoading(false); // allow UI to show while other data loads in background
         }
 
@@ -132,43 +142,32 @@ export default function Recipes() {
     return () => { cancelled = true };
   }, []);
 
-  // Admin-mode loader: fetch via admin search, honoring showDeleted
+  // Admin-mode loader: fetch via admin search, honoring showDeleted (cache only; do not swap visible list)
   useEffect(() => {
     let cancel = false;
     (async () => {
       if (!adminMode || !isAdmin) return;
       try {
-        setLoading(true);
+        // Avoid global loading flicker; fetch in background
+        setAdminLoading(true);
         const params = new URLSearchParams();
         if (showDeleted) params.set('includeDeleted', 'true');
+        // fetch a large page so admin sees all results without pagination
+        params.set('limit', '1000');
         const url = `/api/admin/recipes/search${params.toString() ? `?${params.toString()}` : ''}`;
         const res = await axios.get(url, { withCredentials: true });
         const items = Array.isArray(res.data?.items) ? res.data.items : (Array.isArray(res.data) ? res.data : []);
-        if (!cancel) setRecipes(items);
+        if (!cancel) setAdminRecipesCache(items);
       } catch (e) {
         if (!cancel) setError(e?.message || 'שגיאה בטעינת ניהול מתכונים');
       } finally {
-        if (!cancel) setLoading(false);
+        if (!cancel) setAdminLoading(false);
       }
     })();
     return () => { cancel = true; };
   }, [adminMode, showDeleted]);
 
-  // Build filter options
-  const { dietOptions, categoryOptions } = useMemo(() => {
-    const diets = new Set();
-    const cats = new Set();
-    for (const r of recipes) {
-      const d = r.diet_type || r.diet_name;
-      const c = r.category || r.category_name;
-      if (d) diets.add(String(d));
-      if (c) cats.add(String(c));
-    }
-    return {
-      dietOptions: Array.from(diets).sort(),
-      categoryOptions: Array.from(cats).sort(),
-    };
-  }, [recipes]);
+  // Keep the visible list stable when toggling admin mode (no swap). We still cache admin data for actions.
 
   // Hebrew display labels for category/diet while preserving values
   const displayCategory = (v) => {
@@ -197,6 +196,31 @@ export default function Recipes() {
     return map[key] || v;
   };
 
+  // Build filter options
+  const { dietOptions, categoryOptions } = useMemo(() => {
+    // Base source: if admin wants to see deleted, pull from admin cache; else use public list
+    const source = (adminMode && showDeleted && Array.isArray(adminRecipesCache)) ? adminRecipesCache : recipes;
+    const diets = new Set();
+    const cats = new Map(); // key -> display label
+    for (const r of source) {
+      const d = r.diet_type || r.diet_name;
+      if (d) diets.add(String(d));
+      const cName = r.category || r.category_name;
+      const cId = r.category_id;
+      if (cName || cId != null) {
+        const key = cId != null ? String(cId) : String(cName);
+        const label = displayCategory(cName || cId || '');
+        if (!cats.has(key)) cats.set(key, label);
+      }
+    }
+    return {
+      dietOptions: Array.from(diets).sort(),
+      categoryOptions: Array.from(cats.entries()).map(([key, label]) => ({ key, label })),
+    };
+  }, [recipes, adminMode, showDeleted, adminRecipesCache]);
+
+  
+
   const displayDiet = (v) => {
     if (!v) return '';
     const key = String(v).toLowerCase().replace(/\s+/g, '_');
@@ -218,18 +242,19 @@ export default function Recipes() {
     return map[key] || v;
   };
 
-  // Filtered list
+  // Filtered list: base source switches to admin deleted view when requested
   const filtered = useMemo(() => {
+    const base = (adminMode && showDeleted && Array.isArray(adminRecipesCache)) ? adminRecipesCache.filter(x => !!x.deleted_at) : recipes;
     const s = search.trim().toLowerCase();
     const maxCal = calories ? parseInt(calories, 10) : null;
-    let arr = recipes.filter(r => {
+    let arr = base.filter(r => {
       const nameOk = !s || String(r.name || '').toLowerCase().includes(s);
       const cal = r.calories != null ? Number(r.calories) : null;
       const calOk = !maxCal || (cal != null && cal <= maxCal) || (String(r.calories || '').includes(s) && !calories);
       const dietVal = r.diet_type || r.diet_name || '';
-      const catVal = r.category || r.category_name || '';
       const dietOk = !diet || String(dietVal) === diet;
-      const catOk = !category || String(catVal) === category;
+      const catKey = r.category_id != null ? String(r.category_id) : String(r.category || r.category_name || '');
+      const catOk = !category || catKey === category;
       // Macro ranges
       const p = r.protein_g != null ? Number(r.protein_g) : null;
       const c = r.carbs_g != null ? Number(r.carbs_g) : null;
@@ -253,17 +278,55 @@ export default function Recipes() {
       });
     }
     return arr;
-  }, [recipes, search, calories, diet, category, protMin, protMax, carbMin, carbMax, fatMin, fatMax, popularOnly, topRatedSet]);
+  }, [recipes, adminMode, showDeleted, adminRecipesCache, search, calories, diet, category, protMin, protMax, carbMin, carbMax, fatMin, fatMax, popularOnly, topRatedSet]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setPage(1);
   }, [search, calories, diet, category, protMin, protMax, carbMin, carbMax, fatMin, fatMax]);
 
-  const total = filtered.length;
+  // Discount filter: when enabled, show only discounted items and sort by highest discount percent, before pagination
+  const displayList = useMemo(() => {
+    if (!discountFirst) return filtered;
+    const withKeys = filtered.map(r => {
+      const id = String(r.id || r.recipe_id);
+      const p = Number(priceMap[id]?.price);
+      const d = Number(priceMap[id]?.discounted_price);
+      const pct = (Number.isFinite(p) && Number.isFinite(d) && d < p) ? ((p - d) / p) : 0;
+      return { r, pct };
+    }).filter(x => x.pct > 0);
+    withKeys.sort((a, b) => (b.pct - a.pct) || ((b.r?.rating_avg||0) - (a.r?.rating_avg||0)) || ((b.r?.id||0) - (a.r?.id||0)));
+    return withKeys.map(x => x.r);
+  }, [filtered, discountFirst, priceMap]);
+  const total = displayList.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const offset = (page - 1) * limit;
-  const currentItems = filtered.slice(offset, offset + limit);
+  const currentItems = displayList.slice(offset, offset + limit);
+
+  // Fetch product prices for visible cards and cache them
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const wantIds = currentItems.map(r => String(r.id || r.recipe_id));
+      const missing = wantIds.filter(id => !priceMap[id] || (priceMap[id].price == null && priceMap[id].discounted_price == null));
+      if (missing.length === 0) return;
+      for (const id of missing) {
+        try {
+          const prod = await getProductByRecipeAPI(id);
+          if (cancelled) return;
+          setPriceMap(prev => ({ 
+            ...prev, 
+            [id]: { 
+              ...(prev[id]||{}), 
+              price: (prod?.price != null ? Number(prod.price) : prev[id]?.price),
+              discounted_price: (prod?.discounted_price != null ? Number(prod.discounted_price) : prev[id]?.discounted_price)
+            } 
+          }));
+        } catch (_) { /* ignore */ }
+      }
+    })();
+    return () => { cancelled = true };
+  }, [currentItems]);
 
   // Helper to slugify names for URLs
   const slugify = (str) => String(str || '')
@@ -318,73 +381,95 @@ export default function Recipes() {
     return () => { cancelled = true };
   }, [searchParams]);
 
-  if (loading) return <div className={styles.pad16}>טוען...</div>;
+  if (loading) return <Loading text="טוען מתכונים..." />;
   if (error) return <div className={`${styles.pad16} ${styles.errorText}`}>{error}</div>;
 
   return (
     <>
-    <div className={`${styles.recipes} ${styles.rtlNudgeRight}`}>
-      <h1 className={styles.pageTitleRight}>מתכונים</h1>
-      {isAdmin && (
-        <div style={{ marginBottom: 10, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-          <button className={styles.btn} onClick={() => setAdminModalOpen(true)}>הוסף מתכון</button>
-          <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
-            <input type="checkbox" checked={adminMode} onChange={(e)=>{ setAdminMode(e.target.checked); }} /> מצב ניהול
-          </label>
-          {adminMode && (
-            <>
-              <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
-                <input type="checkbox" checked={showDeleted} onChange={(e)=> setShowDeleted(e.target.checked)} /> הצג מחוקים
-              </label>
-              <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
-                <input type="checkbox" checked={bulkMode} onChange={(e)=>{ setBulkMode(e.target.checked); setSelectedMap({}); }} /> בחירה מרובה
-              </label>
-              <button
-                className={styles.btn}
-                disabled={!bulkMode || Object.keys(selectedMap).length === 0}
-                onClick={() => setConfirmDlg({
-                  open: true,
-                  text: `למחוק ${Object.keys(selectedMap).length} מתכונים שנבחרו? (מחיקה רכה)`,
-                  onConfirm: async () => {
-                    setConfirmDlg({ open:false, text:'', onConfirm:null });
-                    const ids = Object.keys(selectedMap);
-                    await Promise.all(ids.map(async (rid) => {
-                      try { await fetch(`/api/admin/recipes/${rid}`, { method:'DELETE', credentials:'include' }); } catch {}
-                    }));
-                    setRecipes(prev => prev.filter(r => !selectedMap[String(r.id||r.recipe_id)]));
-                    setSelectedMap({});
-                  }
-                })}
-              >מחק נבחרים</button>
-              <button
-                className={styles.btn}
-                disabled={!bulkMode || Object.keys(selectedMap).length === 0}
-                onClick={() => setConfirmDlg({
-                  open: true,
-                  text: `לשחזר ${Object.keys(selectedMap).length} מתכונים שנבחרו?`,
-                  onConfirm: async () => {
-                    setConfirmDlg({ open:false, text:'', onConfirm:null });
-                    const ids = Object.keys(selectedMap);
-                    await Promise.all(ids.map(async (rid) => {
-                      try { await fetch(`/api/admin/recipes/${rid}/restore`, { method:'POST', credentials:'include' }); } catch {}
-                    }));
-                    // Re-load admin list to reflect restores
-                    try {
-                      const params = new URLSearchParams();
-                      if (showDeleted) params.set('includeDeleted', 'true');
-                      const url = `/api/admin/recipes/search${params.toString()?`?${params.toString()}`:''}`;
-                      const res = await axios.get(url, { withCredentials:true });
-                      const items = Array.isArray(res.data?.items) ? res.data.items : [];
-                      setRecipes(items);
-                    } catch {}
-                    setSelectedMap({});
-                  }
-                })}
-              >שחזר נבחרים</button>
-            </>
-          )}
-        </div>
-      )}
+      <div className={`${styles.recipes} ${styles.rtlNudgeRight}`}>
+        <h1 className={styles.pageTitleRight}>מתכונים</h1>
+        {isAdmin && (
+          <div style={{ marginBottom: 10, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+            <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+              <input type="checkbox" checked={adminMode} onChange={(e)=>{ setAdminMode(e.target.checked); }} /> מצב ניהול
+            </label>
+            {adminMode && (
+              <>
+                <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                  <input type="checkbox" checked={showDeleted} onChange={(e)=> setShowDeleted(e.target.checked)} /> הצג מחוקים
+                </label>
+                <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                  <input type="checkbox" checked={bulkMode} onChange={(e)=>{ setBulkMode(e.target.checked); setSelectedMap({}); }} /> בחירה מרובה
+                </label>
+                {/* Add recipe aligns with other controls when in admin mode */}
+                <button className={styles.btn} onClick={() => setAdminModalOpen(true)}>הוסף מתכון</button>
+                {/* Bulk actions visible only when bulkMode is on */}
+                {bulkMode && (
+                  <div style={{ display:'inline-flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                    <button className={styles.btn} onClick={() => {
+                      // Select All toggles: compute eligible set (respect filters, discount filter, and admin deleted view)
+                      const base = (adminMode && showDeleted && Array.isArray(adminRecipesCache)) ? adminRecipesCache.filter(x => !!x.deleted_at) : recipes;
+                      const eligibleByFilters = (category || diet) ? filtered : base;
+                      const eligible = discountFirst ? displayList : eligibleByFilters;
+                      const allIds = eligible.map(r => String(r.id || r.recipe_id));
+                      const allSelected = allIds.length > 0 && allIds.every(id => !!selectedMap[id]);
+                      if (allSelected) {
+                        setSelectedMap({});
+                      } else {
+                        const map = {};
+                        for (const id of allIds) map[id] = true;
+                        setSelectedMap(map);
+                      }
+                    }}>בחר הכל</button>
+                    <button className={styles.btn} onClick={async () => {
+                      const priceStr = window.prompt('מחיר חדש (ש"ח):');
+                      if (priceStr == null) return;
+                      const newPrice = Number(priceStr);
+                      if (!Number.isFinite(newPrice) || newPrice < 0) { showToast('מחיר לא תקין'); return; }
+                      const ids = Object.keys(selectedMap);
+                      if (ids.length === 0) { showToast('לא נבחרו פריטים'); return; }
+                      try {
+                        setSavingPrice(true);
+                        await Promise.all(ids.map(async (rid) => {
+                          try { await updateProductByRecipeAPI(rid, { price: newPrice }); } catch(_) {}
+                        }));
+                        showToast('המחירים עודכנו');
+                      } finally {
+                        setSavingPrice(false);
+                      }
+                    }}>שנה מחיר</button>
+                    <button className={styles.btn} onClick={async () => {
+                      const pctStr = window.prompt('הזן אחוז הנחה (לדוגמה 10 עבור 10%):');
+                      if (pctStr == null) return;
+                      const pct = Number(pctStr);
+                      if (!Number.isFinite(pct)) { showToast('אחוז לא תקין'); return; }
+                      const ids = Object.keys(selectedMap);
+                      if (ids.length === 0) { showToast('לא נבחרו פריטים'); return; }
+                      try {
+                        setSavingPrice(true);
+                        await Promise.all(ids.map(async (rid) => {
+                          try {
+                            const prod = await getProductByRecipeAPI(rid).catch(()=>null);
+                            const base = Number(prod?.price);
+                            if (Number.isFinite(base)) {
+                              const newPrice = Math.max(0, Math.round((base * (100 - pct)))/100);
+                              await updateProductByRecipeAPI(rid, { price: newPrice });
+                              // cache original and new price for discount UI
+                              setPriceMap(prev => ({ ...prev, [rid]: { price: newPrice, original: (prev[rid]?.original ?? base), discountPct: pct } }));
+                            }
+                          } catch(_) {}
+                        }));
+                        showToast('ההנחה הוחלה');
+                      } finally {
+                        setSavingPrice(false);
+                      }
+                    }}>הוסף הנחה %</button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       {/* Filters */}
       <div className={styles.filters}>
         <input
@@ -403,7 +488,7 @@ export default function Recipes() {
         <select className={styles.select} value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">כל הקטגוריות</option>
           {categoryOptions.map(opt => (
-            <option key={opt} value={opt}>{displayCategory(opt)}</option>
+            <option key={opt.key} value={opt.key}>{opt.label}</option>
           ))}
         </select>
         <select className={styles.select} value={diet} onChange={(e) => setDiet(e.target.value)}>
@@ -413,6 +498,9 @@ export default function Recipes() {
           ))}
         </select>
         <button className={styles.btn} onClick={()=>setShowMacros(v=>!v)} style={{ marginInlineStart: 8 }}>ערכים תזונתיים</button>
+        <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+          <input type="checkbox" checked={discountFirst} onChange={(e)=> setDiscountFirst(e.target.checked)} /> הצג מוצרים עם הנחה
+        </label>
         <button
           type="button"
           className={`${styles.filterIconBtn} ${popularOnly ? 'active' : ''}`}
@@ -450,6 +538,18 @@ export default function Recipes() {
         </div>
       )}
 
+      {/* Empty state for deleted view */}
+      {adminMode && showDeleted && displayList.length === 0 && (
+        <div className={styles.pad16} style={{ textAlign:'center', color:'#6b7280' }}>
+          אין פריטים מחוקים להצגה
+        </div>
+      )}
+      {/* Empty state for discount filter */}
+      {discountFirst && displayList.length === 0 && (
+        <div className={styles.pad16} style={{ textAlign:'center', color:'#6b7280' }}>
+          אין מוצרים בהנחה כרגע
+        </div>
+      )}
       <div className={styles.cardsGrid}>
         {currentItems.map((recipe, idx) => (
           <div key={recipe.id || recipe.recipe_id} className={styles.cardNarrow}>
@@ -471,6 +571,21 @@ export default function Recipes() {
                   פופולרי
                 </span>
               )}
+              {/* Discount badge if discounted (reuse popularBadge style) */}
+              {(() => {
+                const id = String(recipe.id || recipe.recipe_id);
+                const meta = priceMap[id];
+                const price = Number(meta?.price);
+                const disc = Number(meta?.discounted_price);
+                const hasDiscount = Number.isFinite(disc) && Number.isFinite(price) && disc < price;
+                if (!hasDiscount) return null;
+                const pct = Math.round((1 - (disc / price)) * 100);
+                return (
+                  <span className={styles.popularBadge} style={{ insetInlineStart: 8, insetBlockStart: 8 }} title={`הנחה ${pct}%`}>
+                    הנחה
+                  </span>
+                );
+              })()}
               <img
                 src={ensureImageUrl(recipe.picture || recipe.imageUrl || recipe.image)}
                 alt={recipe.name}
@@ -501,6 +616,43 @@ export default function Recipes() {
               />
             </div>
             <h3 className={styles.cardTitle}>{recipe.name}</h3>
+            {/* Price line: if discounted show old/new and % */}
+            {(() => {
+              const id = String(recipe.id || recipe.recipe_id);
+              const meta = priceMap[id] || {};
+              if (!Number.isFinite(meta.price)) return null;
+              const basePrice = Number(meta.price);
+              const disc = Number(meta.discounted_price);
+              const discounted = Number.isFinite(disc) && disc < basePrice;
+              const pct = discounted ? Math.round((1 - (disc / basePrice)) * 100) : null;
+              return (
+                <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
+                  {discounted ? (
+                    <>
+                      <span style={{ textDecoration:'line-through', color:'#9ca3af' }}>{basePrice.toFixed(2)}₪</span>
+                      <span style={{ color:'#111827', fontWeight:600 }}>{disc.toFixed(2)}₪</span>
+                      <span style={{ color:'#059669', fontSize:12 }}>-{pct}%</span>
+                      {isAdmin && adminMode && (
+                        <button
+                          className={styles.btn}
+                          style={{ marginInlineStart:'auto', padding:'2px 6px', fontSize:12 }}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await updateProductByRecipeAPI(id, { clear_discount: true });
+                              setPriceMap(prev => ({ ...prev, [id]: { ...(prev[id]||{}), discounted_price: undefined } }));
+                              showToast('ההנחה בוטלה');
+                            } catch (_) {}
+                          }}
+                        >בטל הנחה</button>
+                      )}
+                    </>
+                  ) : (
+                    <span style={{ color:'#111827', fontWeight:600 }}>{basePrice.toFixed(2)}₪</span>
+                  )}
+                </div>
+              );
+            })()}
             {adminMode && recipe.deleted_at && (
               <div style={{ color:'#b91c1c', fontSize:12 }}>מחוק</div>
             )}
@@ -566,11 +718,12 @@ export default function Recipes() {
         ))}
       </div>
 
-      {/* Pagination controls */}
+      {/* Pagination controls (simple) */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, margin:'12px 0' }}>
         {/* Left chevron navigates forward (next) in RTL */}
         <button className={styles.btn} disabled={page >= totalPages} onClick={() => setPage(p=>Math.min(totalPages, p+1))}>{'<'}</button>
         <span style={{ color:'#6b7280' }}>עמוד {page} מתוך {totalPages}</span>
+        {adminLoading && <span style={{ color:'#6b7280' }}>· טוען פריטי ניהול…</span>}
         {/* Right chevron navigates backward (prev) in RTL */}
         <button className={styles.btn} disabled={page <= 1} onClick={() => setPage(p=>Math.max(1, p-1))}>{'>'}</button>
       </div>

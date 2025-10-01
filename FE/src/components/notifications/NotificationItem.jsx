@@ -79,6 +79,25 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
             </button>
           </div>
         )}
+        {type === 'faq_answer' && (
+          <div className={styles.inlineActions} onClick={(e)=> e.stopPropagation()}>
+            <button
+              className={styles.inlinePrimary}
+              onClick={async () => {
+                try { if (id) await markNotificationReadAPI(id); } catch(_) {}
+                try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
+                const qid = related_id ? String(related_id) : '';
+                const params = new URLSearchParams();
+                // We can always include tab=my; the FAQ page will switch to public if the question is public
+                params.set('tab', 'my');
+                if (qid) params.set('highlight', qid);
+                navigate(`/faq?${params.toString()}`);
+              }}
+            >
+              צפה בתשובה
+            </button>
+          </div>
+        )}
       </div>
       <div className={styles.itemActions} onClick={(e) => e.stopPropagation()}>
         <button className={styles.trashBtn} aria-label="Delete notification" title="Delete"

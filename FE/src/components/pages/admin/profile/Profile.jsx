@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
+import Loading from '../../../common/Loading';
 import {
   User, Shield, Key, LogOut, Edit, Users, Camera, Check, X, ArrowLeft, Settings as SettingsIcon
 } from 'lucide-react';
@@ -162,10 +163,7 @@ export default function Profile() {
   if (loading) {
     return (
       <div className={styles.profileWrapper}>
-        <div style={{ textAlign: 'center', padding: '50px' }}>
-          <div className={styles.loadingSpinner}></div>
-          <p>טוען פרופיל...</p>
-        </div>
+        <Loading text="טוען פרופיל..." />
       </div>
     );
   }

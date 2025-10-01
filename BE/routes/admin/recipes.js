@@ -31,9 +31,15 @@ router.patch('/:id/product', async (req, res) => {
   try {
     const recipeId = Number(req.params.id);
     if (!Number.isFinite(recipeId)) return res.status(400).json({ message: 'Invalid recipe id' });
-    const { price, stock } = req.body || {};
+    const { price, stock, discounted_price, clear_discount } = req.body || {};
     const sets = [];
     const params = [];
+    // We'll need current price to validate discounted_price if provided
+    let currentPrice = null;
+    try {
+      const rows = await query('SELECT price FROM products WHERE recipe_id = ? LIMIT 1', [recipeId]);
+      if (rows && rows[0] && rows[0].price != null) currentPrice = Number(rows[0].price);
+    } catch (_) {}
     if (price != null) {
       const p = Number(price);
       if (!Number.isFinite(p) || p < 0) {
@@ -41,6 +47,7 @@ router.patch('/:id/product', async (req, res) => {
       }
       sets.push('price = ?');
       params.push(p);
+      currentPrice = p; // if price is being updated in same request, use it as base for validation
     }
     if (stock != null) {
       const s = Number(stock);
@@ -50,6 +57,27 @@ router.patch('/:id/product', async (req, res) => {
       sets.push('stock = ?');
       params.push(s);
     }
+    if (typeof clear_discount !== 'undefined' && clear_discount) {
+      sets.push('discounted_price = NULL');
+    } else if (discounted_price != null) {
+      const dp = Number(discounted_price);
+      if (!Number.isFinite(dp) || dp < 0) {
+        return res.status(400).json({ message: 'discounted_price must be a non-negative number' });
+      }
+      // Validate discounted_price < price
+      const base = Number.isFinite(Number(currentPrice)) ? Number(currentPrice) : null;
+      if (Number.isFinite(base) && base <= 0) {
+        return res.status(400).json({ message: 'Cannot apply discount when price <= 0' });
+      }
+      if (dp <= 0) {
+        return res.status(400).json({ message: 'discounted_price must be greater than 0' });
+      }
+      if (Number.isFinite(base) && dp >= base) {
+        return res.status(400).json({ message: 'discounted_price must be less than price' });
+      }
+      sets.push('discounted_price = ?');
+      params.push(dp);
+    }
     if (sets.length === 0) return res.status(400).json({ message: 'No fields to update' });
     params.push(recipeId);
     const sql = `UPDATE products SET ${sets.join(', ')} WHERE recipe_id = ?`;
@@ -58,6 +86,60 @@ router.patch('/:id/product', async (req, res) => {
   } catch (err) {
     console.error('ADMIN UPDATE PRODUCT ERROR:', err);
     return res.status(500).json({ message: 'Failed to update product', error: err.message });
+  }
+});
+
+// POST /api/admin/recipes/discount/bulk
+// Apply a percentage discount to multiple recipes by recipe_id.
+// Body: { recipeIds: number[], percent: number(1..99) }
+router.post('/discount/bulk', async (req, res) => {
+  try {
+    const { recipeIds, percent } = req.body || {};
+    if (!Array.isArray(recipeIds) || recipeIds.length === 0) {
+      return res.status(400).json({ message: 'recipeIds must be a non-empty array' });
+    }
+    const ids = recipeIds
+      .map((x) => Number(x))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (ids.length === 0) {
+      return res.status(400).json({ message: 'recipeIds must contain valid numeric IDs' });
+    }
+    const pct = Number(percent);
+    if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) {
+      return res.status(400).json({ message: 'percent must be between 1 and 99' });
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    const sql = `UPDATE products SET discounted_price = ROUND(price * (100 - ?) / 100, 2) WHERE price > 0 AND recipe_id IN (${placeholders})`;
+    const [result] = await conn.promise().query(sql, [pct, ...ids]);
+    return res.json({ success: true, affected: result?.affectedRows || 0, percent: pct, recipeIds: ids });
+  } catch (err) {
+    console.error('ADMIN BULK DISCOUNT ERROR:', err);
+    return res.status(500).json({ message: 'Failed to apply bulk discount', error: err.message });
+  }
+});
+
+// POST /api/admin/recipes/discount/clear
+// Clear discounts for multiple recipes
+// Body: { recipeIds: number[] }
+router.post('/discount/clear', async (req, res) => {
+  try {
+    const { recipeIds } = req.body || {};
+    if (!Array.isArray(recipeIds) || recipeIds.length === 0) {
+      return res.status(400).json({ message: 'recipeIds must be a non-empty array' });
+    }
+    const ids = recipeIds
+      .map((x) => Number(x))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (ids.length === 0) {
+      return res.status(400).json({ message: 'recipeIds must contain valid numeric IDs' });
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    const sql = `UPDATE products SET discounted_price = NULL WHERE recipe_id IN (${placeholders})`;
+    const [result] = await conn.promise().query(sql, ids);
+    return res.json({ success: true, affected: result?.affectedRows || 0, recipeIds: ids });
+  } catch (err) {
+    console.error('ADMIN BULK CLEAR DISCOUNT ERROR:', err);
+    return res.status(500).json({ message: 'Failed to clear discounts', error: err.message });
   }
 });
 
@@ -114,34 +196,6 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('Failed to list recipes:', err);
     res.status(500).json({ error: 'Failed to list recipes' });
-  }
-});
-
-// GET /api/admin/recipes/:id
-// get single recipe
-router.get('/:id', async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      return res.status(400).json({ error: 'Invalid recipe id' });
-    }
-    const sql = `
-    SELECT 
-      r.recipe_id AS id,
-      r.name, r.description, r.calories, r.servings,
-      r.ingredients, r.instructions, r.picture,
-      (SELECT dt.name FROM diet_type dt WHERE dt.diet_id = r.diet_type_id LIMIT 1) AS diet_type,
-      (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category
-      FROM recipes r
-      WHERE r.recipe_id = ? AND r.deleted_at IS NULL
-    `;
-    const params = [id];
-    const rows = await query(sql, params);
-    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    return res.json(rows[0]);
-  } catch (err) {
-    console.error('Failed to get recipe:', err);
-    res.status(500).json({ error: 'Failed to get recipe' });
   }
 });
 
@@ -224,6 +278,34 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// GET /api/admin/recipes/:id
+// get single recipe
+router.get('/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: 'Invalid recipe id' });
+    }
+    const sql = `
+    SELECT 
+      r.recipe_id AS id,
+      r.name, r.description, r.calories, r.servings,
+      r.ingredients, r.instructions, r.picture,
+      (SELECT dt.name FROM diet_type dt WHERE dt.diet_id = r.diet_type_id LIMIT 1) AS diet_type,
+      (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category
+      FROM recipes r
+      WHERE r.recipe_id = ? AND r.deleted_at IS NULL
+    `;
+    const params = [id];
+    const rows = await query(sql, params);
+    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    return res.json(rows[0]);
+  } catch (err) {
+    console.error('Failed to get recipe:', err);
+    res.status(500).json({ error: 'Failed to get recipe' });
+  }
+});
+
 
 //POST /api/admin/recipes
 //create new recipe
@@ -261,6 +343,11 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     await query('UPDATE recipes SET deleted_at = NOW() WHERE recipe_id = ?', [req.params.id]);
+    try {
+      await query('UPDATE products SET deleted_at = NOW() WHERE recipe_id = ?', [req.params.id]);
+    } catch (e) {
+      // If products.deleted_at doesn't exist, ignore silently
+    }
     return res.json({ id: req.params.id, deleted: true });
   } catch (err) {
     console.error('ADMIN RECIPES DELETE ERROR:', err);
@@ -273,6 +360,11 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/restore', async (req, res) => {
   try {
     await query('UPDATE recipes SET deleted_at = NULL WHERE recipe_id = ?', [req.params.id]);
+    try {
+      await query('UPDATE products SET deleted_at = NULL WHERE recipe_id = ?', [req.params.id]);
+    } catch (e) {
+      // If products.deleted_at doesn't exist, ignore silently
+    }
     return res.json({ id: req.params.id, restored: true });
   } catch (err) {
     console.error('ADMIN RECIPES RESTORE ERROR:', err);

@@ -32,6 +32,7 @@ import Header from "../components/layout/header/Header";
 import Articles from "../components/pages/customer/articles/Articles";
 import QA from "../components/pages/customer/articles/QA";
 import FAQ from "../components/pages/customer/faq/FAQ";
+import AdminFAQ from "../components/pages/admin/faq/AdminFAQ";
 import Recipes from "../components/pages/recipes/Recipes";
 import RecipeDetail from "../components/pages/recipes/RecipeDetail";
 import Menu from "../components/pages/menu/Menu";
@@ -155,6 +156,18 @@ function App() {
                   <div className={classes.withNav}>
                     <Header />
                     <HomeEnhanced />
+                    <Footer />
+                  </div>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/faq"
+              element={
+                <RequireAuth>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <AdminFAQ />
                     <Footer />
                   </div>
                 </RequireAuth>

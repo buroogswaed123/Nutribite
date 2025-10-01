@@ -394,10 +394,12 @@ export async function getProductByRecipeAPI(recipeId) {
   return { ...data, stock };
 }
 
-export async function updateProductByRecipeAPI(recipeId, { price, stock }) {
+export async function updateProductByRecipeAPI(recipeId, { price, stock, discounted_price, clear_discount } = {}) {
   const payload = {};
   if (price != null) payload.price = price;
   if (stock != null) payload.stock = stock;
+  if (discounted_price != null) payload.discounted_price = discounted_price;
+  if (typeof clear_discount !== 'undefined') payload.clear_discount = !!clear_discount;
   const { data } = await axios.patch(`/api/admin/recipes/${recipeId}/product`, payload);
   return data;
 }

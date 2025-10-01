@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Loading from '../../../common/Loading';
 import { fetchRecipes, getCurrentCustomerId, listPlansAPI, getPlanAPI, createPlanAPI, addPlanProductAPI, updatePlanProductAPI, deletePlanProductAPI, fetchCustomerAllergiesAPI, addPlanToCartAPI, replacePlanProductsAPI } from '../../../../utils/functions';
 import { useNavigate } from 'react-router-dom';
 import { buildAllergenSetFromNames, itemHasAllergen } from '../../../../utils/allergens';
@@ -603,7 +604,7 @@ export default function Plan() {
 
   // ---------- Render ----------
 
-  if (loading) return <div className={styles.pad16}>טוען תוכנית...</div>;
+  if (loading) return <Loading text="טוען תוכנית..." />;
   if (err) return <div className={`${styles.pad16} ${styles.errorText}`}>{err}</div>;
   if (!plan) return <div className={styles.pad16}>לא נמצאה תוכנית</div>;
 

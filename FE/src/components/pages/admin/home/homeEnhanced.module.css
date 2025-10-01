@@ -10,7 +10,7 @@
 }
 
 /* Loading State */
-.loading {
+.loadingContainer {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -19,9 +19,23 @@
   color: #4b5563;
 }
 
+/* Container holds spinner + text without rotating the text */
 .loadingSpinner {
-  animation: spin 2s linear infinite;
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0;
+}
+
+/* Visual spinner element */
+.spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid #e5e7eb; /* light gray track */
+  border-top-color: #059669;  /* green progress */
+  animation: spin 1s linear infinite;
 }
 
 .spinnerIcon {

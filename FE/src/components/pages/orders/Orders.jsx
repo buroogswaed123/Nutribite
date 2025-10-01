@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Loading from '../../common/Loading';
 import { Link, useNavigate } from 'react-router-dom';
 import styles from '../cart/cart.module.css';
 import { listOrdersAPI, getLatestDraftOrderAPI } from '../../../utils/functions';
@@ -85,7 +86,7 @@ export default function Orders() {
       </div>
 
       {error && <div style={{ color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
-      {loading && <div>טוען...</div>}
+      {loading && <Loading text="טוען הזמנות..." />}
 
       {!loading && items.length === 0 && (
         <div className={styles.mealSection}>

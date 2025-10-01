@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import Loading from '../../../../common/Loading';
 import styles from './users.module.css'
 import { useAuth } from '../../../../../hooks/useAuth';
 import { ArrowUpDown, X } from 'lucide-react';
@@ -32,6 +33,10 @@ export default function UsersList() {
   const [ordersErr, setOrdersErr] = useState('');
   const [ordersUser, setOrdersUser] = useState(null);
   const [userOrders, setUserOrders] = useState([]);
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
+  const [orderItems, setOrderItems] = useState({}); // { [orderId]: items[] }
+  const [orderItemsLoading, setOrderItemsLoading] = useState({}); // { [orderId]: bool }
+  const [orderItemsError, setOrderItemsError] = useState({}); // { [orderId]: string }
 
   // Derive status flags for the currently selected user (for modal button logic)
   const selectedStatus = selectedUser
@@ -137,7 +142,7 @@ export default function UsersList() {
         {error && (
           <div className={styles.errorBanner}>{error}</div>
         )}
-        {loading && <p className={styles.noData}>טוען נתונים...</p>}
+        {loading && <Loading text="טוען נתונים..." />}
 
         {/* Controls */}
         <div className={styles.controls}>
@@ -456,7 +461,7 @@ export default function UsersList() {
                 <button className={styles.closeBtn} onClick={()=> setOrdersOpen(false)} aria-label="סגור"><X size={18} /></button>
               </div>
               <div className={styles.modalBody}>
-                {ordersLoading && <div>טוען…</div>}
+                {ordersLoading && <Loading text="טוען הזמנות..." />}
                 {ordersErr && <div className={styles.errorBanner}>{ordersErr}</div>}
                 {!ordersLoading && !ordersErr && (
                   userOrders.length === 0 ? (
@@ -476,14 +481,84 @@ export default function UsersList() {
                         </thead>
                         <tbody>
                           {userOrders.map(o => (
-                            <tr key={o.order_id}>
-                              <td>{o.order_id}</td>
-                              <td>{o.status}</td>
-                              <td>{Number(o.total_price || 0).toFixed(2)} ₪</td>
-                              <td>{o.order_date ? new Date(o.order_date).toLocaleString('he-IL') : '—'}</td>
-                              <td>{o.set_delivery_time ? new Date(o.set_delivery_time).toLocaleString('he-IL') : '—'}</td>
-                              <td>{o.payment_group_id || '—'}</td>
-                            </tr>
+                            <React.Fragment key={o.order_id}>
+                              <tr
+                                onClick={async () => {
+                                  const isOpen = expandedOrderId === o.order_id;
+                                  if (isOpen) {
+                                    setExpandedOrderId(null);
+                                    return;
+                                  }
+                                  setExpandedOrderId(o.order_id);
+                                  if (!orderItems[o.order_id]) {
+                                    setOrderItemsLoading(s => ({ ...s, [o.order_id]: true }));
+                                    setOrderItemsError(s => ({ ...s, [o.order_id]: '' }));
+                                    try {
+                                      const res = await fetch(`/api/admin/orders/${o.order_id}/items`, { credentials: 'include' });
+                                      if (!res.ok) throw new Error('שגיאה בטעינת פריטי הזמנה');
+                                      const data = await res.json();
+                                      const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+                                      setOrderItems(prev => ({ ...prev, [o.order_id]: items }));
+                                    } catch (e) {
+                                      setOrderItemsError(s => ({ ...s, [o.order_id]: e?.message || 'שגיאה בטעינת פריטי הזמנה' }));
+                                    } finally {
+                                      setOrderItemsLoading(s => ({ ...s, [o.order_id]: false }));
+                                    }
+                                  }
+                                }}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <td>{o.order_id}</td>
+                                <td>{o.status}</td>
+                                <td>{Number(o.total_price || 0).toFixed(2)} ₪</td>
+                                <td>{o.order_date ? new Date(o.order_date).toLocaleString('he-IL') : '—'}</td>
+                                <td>{o.set_delivery_time ? new Date(o.set_delivery_time).toLocaleString('he-IL') : '—'}</td>
+                                <td>{o.payment_group_id || '—'}</td>
+                              </tr>
+                              {expandedOrderId === o.order_id && (
+                                <tr>
+                                  <td colSpan={6}>
+                                    {orderItemsLoading[o.order_id] && <Loading text="טוען פריטים..." />}
+                                    {orderItemsError[o.order_id] && <div className={styles.errorBanner}>{orderItemsError[o.order_id]}</div>}
+                                    {!orderItemsLoading[o.order_id] && !orderItemsError[o.order_id] && (
+                                      (orderItems[o.order_id]?.length || 0) === 0 ? (
+                                        <div className={styles.noData}>אין פריטים להזמנה זו</div>
+                                      ) : (
+                                        <div className={styles.tableWrap}>
+                                          <table className={styles.table}>
+                                            <thead>
+                                              <tr>
+                                                <th>פריט</th>
+                                                <th>כמות</th>
+                                                <th>מחיר יחידה</th>
+                                                <th>סה"כ שורה</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {orderItems[o.order_id].map((it, idx) => (
+                                                <tr key={it.id || idx}>
+                                                  <td>
+                                                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                                                      {it.picture && (
+                                                        <img src={it.picture} alt={it.recipe_name || 'item'} width={40} height={28} style={{ objectFit:'cover', borderRadius:6 }} />
+                                                      )}
+                                                      <span>{it.recipe_name || `פריט ${idx+1}`}</span>
+                                                    </div>
+                                                  </td>
+                                                  <td>{it.quantity}</td>
+                                                  <td>{Number(it.unit_price || 0).toFixed(2)} ₪</td>
+                                                  <td>{Number(it.line_total || (it.unit_price*it.quantity) || 0).toFixed(2)} ₪</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )
+                                    )}
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           ))}
                         </tbody>
                       </table>

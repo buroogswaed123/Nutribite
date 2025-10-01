@@ -37,6 +37,7 @@ export default function HomeEnhanced() {
   const [recentUsers, setRecentUsers] = useState([]);
   // const [allUsers, setAllUsers] = useState([]); // removed unused state
   const [recipes, setRecipes] = useState([]);
+  const [unansweredCount, setUnansweredCount] = useState(0);
 
   const [ordersByStatus, setOrdersByStatus] = useState(null);
   const [stocks, setStocks] = useState({}); // { [recipeId]: { value, loading } }
@@ -100,6 +101,16 @@ export default function HomeEnhanced() {
         setStats({});
       } finally {
         if (mounted) setLoading(false);
+      }
+    })();
+    // Also fetch unanswered FAQ count for quick action badge
+    (async () => {
+      try {
+        const res = await fetch('/api/questions?answered=false', { credentials: 'include' });
+        const data = await res.json().catch(() => []);
+        if (mounted) setUnansweredCount(Array.isArray(data) ? data.length : 0);
+      } catch (_) {
+        if (mounted) setUnansweredCount(0);
       }
     })();
     return () => { mounted = false; };
@@ -230,7 +241,7 @@ export default function HomeEnhanced() {
       title: "ניהול תגובות",
       description: "אשר ומחק תגובות",
       icon: MessageSquare,
-      path: "/faq",
+      path: "/admin/faq",
       color: "#dc2626",
     },
     {
@@ -392,7 +403,27 @@ export default function HomeEnhanced() {
                       <IconComponent size={24} />
                     </div>
                     <div className={styles.actionContent}>
-                      <h3 className={styles.actionTitle}>{action.title}</h3>
+                      <h3 className={styles.actionTitle}>
+                        {action.title}
+                        {action.title === 'ניהול תגובות' && (
+                          <span style={{
+                            marginInlineStart: 8,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minWidth: 20,
+                            height: 20,
+                            padding: '0 6px',
+                            borderRadius: 9999,
+                            background: unansweredCount > 0 ? '#ef4444' : '#e5e7eb',
+                            color: unansweredCount > 0 ? '#ffffff' : '#374151',
+                            fontSize: 12,
+                            fontWeight: 700
+                          }} title={`ממתינות למענה: ${unansweredCount}`}>
+                            {unansweredCount}
+                          </span>
+                        )}
+                      </h3>
                       <p className={styles.actionDescription}>
                         {action.description}
                       </p>
@@ -508,39 +539,8 @@ export default function HomeEnhanced() {
             </div>
           </div>
 
-          {/* Notifications */}
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>התראות</h2>
-            <div className={styles.notificationsList}>
-              {notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`${styles.notificationCard} ${
-                    styles[notification.type]
-                  }`}
-                >
-                  <div className={styles.notificationIcon}>
-                    {notification.type === "urgent" && (
-                      <AlertTriangle size={18} />
-                    )}
-                    {notification.type === "info" && <Bell size={18} />}
-                    {notification.type === "warning" && <Clock size={18} />}
-                  </div>
-                  <div className={styles.notificationContent}>
-                    <p className={styles.notificationMessage}>
-                      {notification.message}
-                    </p>
-                    <span className={styles.notificationTime}>
-                      {notification.time}
-                    </span>
-                  </div>
-                  <div className={styles.notificationActions}>
-                    <button className={styles.notificationBtn}>צפה</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          
+          
         </>
       )}
 

@@ -221,6 +221,23 @@ export default function NotificationModal({
               המשך עכשיו
             </button>
           )}
+          {typeLower === 'faq_answer' && (
+            <button
+              className={styles.primaryBtn}
+              onClick={async () => {
+                try { onMarkRead?.(id); } catch(_) {}
+                try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
+                const qid = related_id ? String(related_id) : '';
+                const params = new URLSearchParams();
+                params.set('tab', 'my');
+                if (qid) params.set('highlight', qid);
+                navigate(`/faq?${params.toString()}`);
+                onClose?.();
+              }}
+            >
+              צפה בתשובה
+            </button>
+          )}
           {!is_read && (
             <button
               className={styles.primaryBtn}

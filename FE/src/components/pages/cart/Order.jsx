@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import Loading from '../../common/Loading';
 import { useNavigate } from 'react-router-dom';
 import styles from './cart.module.css';
 import {
@@ -363,7 +364,7 @@ export default function Order() {
         <div style={{ color: '#b91c1c', marginTop: 8 }}>בחר/י תאריך ושעה (06:00–23:59)</div>
       )}
       {err && <div style={{ color: '#b91c1c', marginBottom: 8 }}>{err}</div>}
-      {loading && <div>טוען...</div>}
+      {loading && <Loading text="טוען עגלה..." />}
 
       {/* Apply date for all controls (single input + button on its right, aligned to left) */}
       <div className={styles.mealSection} style={{ marginTop: 12 }}>

@@ -30,6 +30,7 @@ router.get('/by-recipe/:recipeId(\\d+)', async (req, res) => {
         p.product_id,
         p.recipe_id,
         p.price,
+        p.discounted_price,
         p.stock,
         r.name,
         r.picture,
@@ -121,13 +122,14 @@ router.get('/', async (req, res) => {
       SELECT COUNT(*) AS total
       FROM products p
       INNER JOIN recipes r ON r.recipe_id = p.recipe_id
-      WHERE r.deleted_at IS NULL
+      WHERE r.deleted_at IS NULL AND p.deleted_at IS NULL
     `;
     const selectSql = `
       SELECT 
         p.product_id,
         p.recipe_id,
         p.price,
+        p.discounted_price,
         p.stock,
         r.name,
         r.description,
@@ -143,7 +145,7 @@ router.get('/', async (req, res) => {
         (SELECT c.name FROM categories c WHERE c.category_id = r.category_id LIMIT 1) AS category_name
       FROM products p
       INNER JOIN recipes r ON r.recipe_id = p.recipe_id
-      WHERE r.deleted_at IS NULL
+      WHERE r.deleted_at IS NULL AND p.deleted_at IS NULL
       ORDER BY p.product_id DESC
       LIMIT ? OFFSET ?
     `;
@@ -268,6 +270,7 @@ router.get('/search', async (req, res) => {
         p.product_id,
         p.recipe_id,
         p.price,
+        p.discounted_price,
         p.stock,
         r.name,
         r.description,

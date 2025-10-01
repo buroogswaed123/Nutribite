@@ -85,9 +85,24 @@ router.put('/:id/answer', async (req, res) => {
       'UPDATE questions SET answer_text = ?, answered = TRUE WHERE question_id = ?',
       [answer_text, questionId]
     );
-    // Return updated row
+    // Return updated row and notify question owner
     const [rows] = await conn.promise().query('SELECT * FROM questions WHERE question_id = ?', [questionId]);
-    res.json(rows[0] || { success: true });
+    const updated = rows[0] || { success: true };
+    // Create notification to the question's user (best-effort)
+    try {
+      if (updated && updated.user_id) {
+        const title = 'התשובה לשאלתך זמינה';
+        const description = `השאלה: ${String(updated.question_text || '').slice(0, 120)}`;
+        await conn.promise().query(
+          'INSERT INTO notifications (user_id, type, related_id, title, description) VALUES (?, ?, ?, ?, ?)',
+          [updated.user_id, 'faq_answer', questionId, title, description]
+        );
+      }
+    } catch (notifyErr) {
+      // Swallow notification errors to not block answering
+      console.warn('FAQ notify failed:', notifyErr?.message || notifyErr);
+    }
+    res.json(updated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'DB error' });

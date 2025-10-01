@@ -1,2 +1,20 @@
+# Node dependencies
 node_modules/
 FE/node_modules/
+
+# Build outputs
+dist/
+build/
+.out/
+.next/
+.vercel/
+
+# Tool caches
+FE/node_modules/.cache/
+FE/.parcel-cache/
+FE/.vite/
+FE/.nuxt/
+FE/.svelte-kit/
+FE/.turbo/
+.cache/
+.tmp/

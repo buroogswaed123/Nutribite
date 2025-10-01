@@ -4,7 +4,7 @@ import classes from "../../assets/styles/login.module.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import SocialAuthButtons from "./SocialAuthButtons";
 import { useAuth } from "../../hooks/useAuth"; 
-import { getLatestDraftOrderAPI, createNotificationAPI } from "../../utils/functions";
+import { getLatestDraftOrderAPI, createNotificationAPI, fetchNotificationsAPI } from "../../utils/functions";
 
 /**
  * Login JSX component
@@ -138,14 +138,22 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
         const draftId = await getLatestDraftOrderAPI();
         if (draftId) {
           setDraftOrderId(draftId);
+          // Avoid duplicating the same "continue your order" notification on every login
           try {
-            await createNotificationAPI({
-              user_id: user.user_id || user.id,
-              type: 'order',
-              related_id: draftId,
-              title: `המשך הגדרת ההזמנה #${draftId}`,
-              description: 'יש לך הזמנה לא גמורה. לחצו כדי להמשיך בהגדרה',
-            });
+            const existing = await fetchNotificationsAPI(user.user_id || user.id);
+            const hasContinue = Array.isArray(existing) && existing.some(n => (
+              String(n.type) === 'order' && Number(n.related_id) === Number(draftId) &&
+              String(n.title || '').includes('המשך הגדרת ההזמנה') && n.status !== 'read'
+            ));
+            if (!hasContinue) {
+              await createNotificationAPI({
+                user_id: user.user_id || user.id,
+                type: 'order',
+                related_id: draftId,
+                title: `המשך הגדרת ההזמנה #${draftId}`,
+                description: 'יש לך הזמנה לא גמורה. לחצו כדי להמשיך בהגדרה',
+              });
+            }
           } catch (_) {}
           // proceed to home; user can open the bell and continue from the notification
         }

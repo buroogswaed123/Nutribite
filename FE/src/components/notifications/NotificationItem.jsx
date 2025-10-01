@@ -1,7 +1,7 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { renewPlanAPI, markNotificationReadAPI } from '../../utils/functions';
+import { renewPlanAPI, markNotificationReadAPI, getOrderAPI } from '../../utils/functions';
 import styles from './Notifications.module.css';
 
 export default function NotificationItem({ notification, onOpen, onDelete }) {
@@ -44,41 +44,63 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
             </button>
           </div>
         )}
-        {type === 'order' && (
-          <div className={styles.inlineActions} onClick={(e)=> e.stopPropagation()}>
-            <button
-              className={styles.inlinePrimary}
-              onClick={async () => {
-                try {
-                  if (id) await markNotificationReadAPI(id);
-                } catch(_) {}
-                try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
-                if (related_id) {
-                  navigate(`/orders/${related_id}`);
-                } else {
-                  navigate('/orders');
-                }
-              }}
-            >
-              הצג סטטוס
-            </button>
-            <button
-              className={styles.inlineSecondary}
-              onClick={async () => {
-                try { if (id) await markNotificationReadAPI(id); } catch(_) {}
-                try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
-                // Placeholder for receipt download; navigate to details for now
-                if (related_id) {
-                  navigate(`/orders/${related_id}?action=download-receipt`);
-                } else {
-                  navigate('/orders');
-                }
-              }}
-            >
-              הורד קבלה
-            </button>
-          </div>
-        )}
+        {type === 'order' && (() => {
+          const t = String(displayTitle || '').toLowerCase();
+          const isContinue = t.includes('continue your order') || displayTitle.includes('המשך הגדרת ההזמנה');
+          if (isContinue) {
+            return (
+              <div className={styles.inlineActions} onClick={(e)=> e.stopPropagation()}>
+                <button
+                  className={styles.inlinePrimary}
+                  onClick={async () => {
+                    try { if (id) await markNotificationReadAPI(id); } catch(_) {}
+                    try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
+                    if (related_id) {
+                      // Guard: if order is not draft anymore, do not allow editing flow
+                      try {
+                        const od = await getOrderAPI(Number(related_id));
+                        const status = od?.order?.order_status;
+                        if (status && status !== 'draft') {
+                          // eslint-disable-next-line no-alert
+                          alert('ההזמנה הושלמה/איננה בטיוטה. לא ניתן להמשיך עריכה.');
+                        }
+                      } catch(_) {}
+                      navigate(`/orders/${related_id}`);
+                    } else {
+                      navigate('/orders');
+                    }
+                  }}
+                >
+                  המשך הזמנה
+                </button>
+              </div>
+            );
+          }
+          return (
+            <div className={styles.inlineActions} onClick={(e)=> e.stopPropagation()}>
+              <button
+                className={styles.inlinePrimary}
+                onClick={async () => {
+                  try { if (id) await markNotificationReadAPI(id); } catch(_) {}
+                  try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
+                  if (related_id) navigate(`/orders/${related_id}`); else navigate('/orders');
+                }}
+              >
+                הצג סטטוס
+              </button>
+              <button
+                className={styles.inlineSecondary}
+                onClick={async () => {
+                  try { if (id) await markNotificationReadAPI(id); } catch(_) {}
+                  try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
+                  if (related_id) navigate(`/orders/${related_id}?action=download-receipt`); else navigate('/orders');
+                }}
+              >
+                הורד קבלה
+              </button>
+            </div>
+          );
+        })()}
         {type === 'faq_answer' && (
           <div className={styles.inlineActions} onClick={(e)=> e.stopPropagation()}>
             <button

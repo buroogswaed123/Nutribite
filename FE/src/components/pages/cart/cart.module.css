@@ -143,17 +143,17 @@
     margin-top: 12px;
   }
   .cardTitle {
-    margin: 0 0 12px 0;
     font-size: 18px;
     font-weight: 700;
     color: #111827;
   }
   .formGrid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 12px;
+    align-items: start;
   }
-  @media (max-width: 640px) {
+  @media (max-width: 480px) {
     .formGrid { grid-template-columns: 1fr; }
   }
   .fieldLabel {
@@ -170,6 +170,7 @@
     padding: 10px 12px;
     outline: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    box-sizing: border-box;
   }
   .input:focus {
     border-color: #2563eb;
@@ -181,7 +182,7 @@
     margin-top: 4px;
   }
 
-  /* Success pill animation for PayPal confirm */
+  /*Success pill animation for PayPal confirm */
   .successPill {
     background: #10b981;
     color: #fff;

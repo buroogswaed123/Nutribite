@@ -20,6 +20,9 @@ function FAQ({ currentUser }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchMy, setSearchMy] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  // Admin inline edit state
+  const [editingId, setEditingId] = useState(null);
+  const [editingText, setEditingText] = useState('');
   // Resolved user (from prop or localStorage fallback)
   const [resolvedUser, setResolvedUser] = useState(currentUser);
   // Normalize user type for robust checks
@@ -139,6 +142,65 @@ function FAQ({ currentUser }) {
     const t = setTimeout(() => setHighlightId(null), 3000);
     return () => clearTimeout(t);
   }, [items, highlightId, activeTab]);
+
+  // Admin actions handlers
+  const handleTogglePublic = async (item) => {
+    try {
+      const nowPublic = !isPublicQuestion(item);
+      const res = await fetch(`/api/questions/${item.question_id}/visibility`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ public: nowPublic })
+      });
+      if (!res.ok) throw new Error('Failed to toggle visibility');
+      const updated = await res.json().catch(() => ({ ...item, public: nowPublic }));
+      setItems(prev => prev.map(i => i.question_id === item.question_id ? { ...i, ...updated, public: nowPublic } : i));
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(e);
+    }
+  };
+
+  const handleStartEdit = (item) => {
+    setEditingId(item.question_id);
+    setEditingText(item.question_text || '');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditingText('');
+  };
+
+  const handleSaveEdit = async (item) => {
+    const text = (editingText || '').trim();
+    if (!text) return;
+    try {
+      const res = await fetch(`/api/questions/${item.question_id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question_text: text })
+      });
+      const updated = await res.json().catch(() => ({ ...item, question_text: text }));
+      setItems(prev => prev.map(i => i.question_id === item.question_id ? { ...i, ...updated, question_text: text } : i));
+      handleCancelEdit();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(e);
+    }
+  };
+
+  const handleDelete = async (item) => {
+    try {
+      const res = await fetch(`/api/questions/${item.question_id}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) throw new Error('Delete failed');
+      setItems(prev => prev.filter(i => i.question_id !== item.question_id));
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(e);
+    }
+  };
 
   // Derived collections per tab
   const publicItems = useMemo(() => (Array.isArray(items) ? items.filter(isPublicQuestion) : []), [items]);
@@ -358,6 +420,31 @@ function FAQ({ currentUser }) {
                 className={`${styles.item} ${isHighlighted ? styles.highlight : ''}`}
               >
                 <h3 className={styles.question}>{item.question_text}</h3>
+                {isAdmin && (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center', marginBottom:8 }}>
+                    <span style={{ color:'#6b7280', fontSize:12 }}>פעולות:</span>
+                    <button className={styles.button} onClick={() => handleTogglePublic(item)}>
+                      {isPublicQuestion(item) ? 'הסר מפרסום' : 'פרסם'}
+                    </button>
+                    {editingId === item.question_id ? (
+                      <>
+                        <input
+                          type="text"
+                          value={editingText}
+                          onChange={e => setEditingText(e.target.value)}
+                          className={styles.input}
+                          style={{ maxWidth: 280 }}
+                          placeholder="ערוך שאלה..."
+                        />
+                        <button className={styles.button} onClick={() => handleSaveEdit(item)}>שמור</button>
+                        <button className={styles.button} onClick={handleCancelEdit}>בטל</button>
+                      </>
+                    ) : (
+                      <button className={styles.button} onClick={() => handleStartEdit(item)}>ערוך שאלה</button>
+                    )}
+                    <button className={styles.button} style={{ background:'#dc2626' }} onClick={() => handleDelete(item)}>מחק</button>
+                  </div>
+                )}
                 {isAdmin && !item.answered && (
                   <AdminAnswerForm question={item} onAnswer={handleAnswer} />
                 )}

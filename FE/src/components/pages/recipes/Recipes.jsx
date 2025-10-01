@@ -28,7 +28,8 @@ export default function Recipes() {
   const [toast, setToast] = useState('');
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
   const [search, setSearch] = useState('');
-  const [calories, setCalories] = useState(''); // max calories
+  const [minCalories, setMinCalories] = useState('');
+  const [maxCalories, setMaxCalories] = useState('');
   const [diet, setDiet] = useState('');
   const [category, setCategory] = useState('');
   // Popular filter and badge support
@@ -76,6 +77,12 @@ export default function Recipes() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedMap, setSelectedMap] = useState({}); // { [id]: true }
   const [confirmDlg, setConfirmDlg] = useState({ open: false, text: '', onConfirm: null });
+  // Bulk modals
+  const [priceModalOpen, setPriceModalOpen] = useState(false);
+  const [priceModalValue, setPriceModalValue] = useState('');
+  const [discountModalOpen, setDiscountModalOpen] = useState(false);
+  const [discountModalValue, setDiscountModalValue] = useState('');
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   // Caches to avoid flicker when toggling admin mode
   const [publicRecipesCache, setPublicRecipesCache] = useState(null);
   const [adminRecipesCache, setAdminRecipesCache] = useState(null);
@@ -84,6 +91,9 @@ export default function Recipes() {
   const [priceMap, setPriceMap] = useState({});
   // Sort helpers
   const [discountFirst, setDiscountFirst] = useState(false);
+  // Admin-only price range filters (client-side)
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -246,11 +256,15 @@ export default function Recipes() {
   const filtered = useMemo(() => {
     const base = (adminMode && showDeleted && Array.isArray(adminRecipesCache)) ? adminRecipesCache.filter(x => !!x.deleted_at) : recipes;
     const s = search.trim().toLowerCase();
-    const maxCal = calories ? parseInt(calories, 10) : null;
+    const minCal = minCalories ? parseInt(minCalories, 10) : null;
+    const maxCal = maxCalories ? parseInt(maxCalories, 10) : null;
     let arr = base.filter(r => {
       const nameOk = !s || String(r.name || '').toLowerCase().includes(s);
       const cal = r.calories != null ? Number(r.calories) : null;
-      const calOk = !maxCal || (cal != null && cal <= maxCal) || (String(r.calories || '').includes(s) && !calories);
+      const calOk = (
+        (minCal == null || (cal != null && cal >= minCal)) &&
+        (maxCal == null || (cal != null && cal <= maxCal))
+      ) || (String(r.calories || '').includes(s) && minCal == null && maxCal == null);
       const dietVal = r.diet_type || r.diet_name || '';
       const dietOk = !diet || String(dietVal) === diet;
       const catKey = r.category_id != null ? String(r.category_id) : String(r.category || r.category_name || '');
@@ -265,7 +279,16 @@ export default function Recipes() {
       const cMaxOk = carbMax === '' || (c != null && c <= Number(carbMax));
       const fMinOk = fatMin === '' || (f != null && f >= Number(fatMin));
       const fMaxOk = fatMax === '' || (f != null && f <= Number(fatMax));
-      return nameOk && calOk && dietOk && catOk && pMinOk && pMaxOk && cMinOk && cMaxOk && fMinOk && fMaxOk;
+      // Admin price range filter (use priceMap when available)
+      let priceOk = true;
+      if (isAdmin && (minPrice !== '' || maxPrice !== '')) {
+        const rid = String(r.id || r.recipe_id);
+        const meta = priceMap[rid];
+        const price = Number(meta?.discounted_price != null ? meta.discounted_price : meta?.price);
+        if (minPrice !== '') priceOk = priceOk && Number(price) >= Number(minPrice);
+        if (maxPrice !== '') priceOk = priceOk && Number(price) <= Number(maxPrice);
+      }
+      return nameOk && calOk && dietOk && catOk && pMinOk && pMaxOk && cMinOk && cMaxOk && fMinOk && fMaxOk && priceOk;
     });
     if (popularOnly) {
       const isTop = (r) => topRatedSet && topRatedSet.has(Number(r.id || r.recipe_id));
@@ -278,12 +301,12 @@ export default function Recipes() {
       });
     }
     return arr;
-  }, [recipes, adminMode, showDeleted, adminRecipesCache, search, calories, diet, category, protMin, protMax, carbMin, carbMax, fatMin, fatMax, popularOnly, topRatedSet]);
+  }, [recipes, adminMode, showDeleted, adminRecipesCache, search, minCalories, maxCalories, diet, category, protMin, protMax, carbMin, carbMax, fatMin, fatMax, popularOnly, topRatedSet, isAdmin, minPrice, maxPrice, priceMap]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, calories, diet, category, protMin, protMax, carbMin, carbMax, fatMin, fatMax]);
+  }, [search, minCalories, maxCalories, diet, category, protMin, protMax, carbMin, carbMax, fatMin, fatMax, minPrice, maxPrice]);
 
   // Discount filter: when enabled, show only discounted items and sort by highest discount percent, before pagination
   const displayList = useMemo(() => {
@@ -314,13 +337,16 @@ export default function Recipes() {
         try {
           const prod = await getProductByRecipeAPI(id);
           if (cancelled) return;
-          setPriceMap(prev => ({ 
-            ...prev, 
-            [id]: { 
-              ...(prev[id]||{}), 
-              price: (prod?.price != null ? Number(prod.price) : prev[id]?.price),
-              discounted_price: (prod?.discounted_price != null ? Number(prod.discounted_price) : prev[id]?.discounted_price)
-            } 
+          // Normalize possible field names from admin/public endpoints
+          const p = [prod?.price, prod?.base_price, prod?.current_price, prod?.original_price, prod?.price_current].find(v => v != null);
+          const d = [prod?.discounted_price, prod?.discount_price, prod?.sale_price].find(v => v != null);
+          setPriceMap(prev => ({
+            ...prev,
+            [id]: {
+              ...(prev[id]||{}),
+              price: (p != null ? Number(p) : prev[id]?.price),
+              discounted_price: (d != null ? Number(d) : prev[id]?.discounted_price)
+            }
           }));
         } catch (_) { /* ignore */ }
       }
@@ -421,56 +447,16 @@ export default function Recipes() {
                         setSelectedMap(map);
                       }
                     }}>בחר הכל</button>
-                    <button className={styles.btn} onClick={async () => {
-                      const priceStr = window.prompt('מחיר חדש (ש"ח):');
-                      if (priceStr == null) return;
-                      const newPrice = Number(priceStr);
-                      if (!Number.isFinite(newPrice) || newPrice < 0) { showToast('מחיר לא תקין'); return; }
-                      const ids = Object.keys(selectedMap);
-                      if (ids.length === 0) { showToast('לא נבחרו פריטים'); return; }
-                      try {
-                        setSavingPrice(true);
-                        await Promise.all(ids.map(async (rid) => {
-                          try { await updateProductByRecipeAPI(rid, { price: newPrice }); } catch(_) {}
-                        }));
-                        showToast('המחירים עודכנו');
-                      } finally {
-                        setSavingPrice(false);
-                      }
-                    }}>שנה מחיר</button>
-                    <button className={styles.btn} onClick={async () => {
-                      const pctStr = window.prompt('הזן אחוז הנחה (לדוגמה 10 עבור 10%):');
-                      if (pctStr == null) return;
-                      const pct = Number(pctStr);
-                      if (!Number.isFinite(pct)) { showToast('אחוז לא תקין'); return; }
-                      const ids = Object.keys(selectedMap);
-                      if (ids.length === 0) { showToast('לא נבחרו פריטים'); return; }
-                      try {
-                        setSavingPrice(true);
-                        await Promise.all(ids.map(async (rid) => {
-                          try {
-                            const prod = await getProductByRecipeAPI(rid).catch(()=>null);
-                            const base = Number(prod?.price);
-                            if (Number.isFinite(base)) {
-                              const newPrice = Math.max(0, Math.round((base * (100 - pct)))/100);
-                              await updateProductByRecipeAPI(rid, { price: newPrice });
-                              // cache original and new price for discount UI
-                              setPriceMap(prev => ({ ...prev, [rid]: { price: newPrice, original: (prev[rid]?.original ?? base), discountPct: pct } }));
-                            }
-                          } catch(_) {}
-                        }));
-                        showToast('ההנחה הוחלה');
-                      } finally {
-                        setSavingPrice(false);
-                      }
-                    }}>הוסף הנחה %</button>
+                    <button className={styles.btn} onClick={() => { setPriceModalValue(''); setPriceModalOpen(true); }}>שנה מחיר</button>
+                    <button className={styles.btn} onClick={() => { setDiscountModalValue(''); setDiscountModalOpen(true); }}>הוסף הנחה %</button>
+                    <button className={styles.btn} style={{ background:'#dc2626' }} onClick={() => setBulkDeleteOpen(true)}>מחק נבחרים</button>
                   </div>
                 )}
               </>
             )}
           </div>
         )}
-      {/* Filters */}
+      {/* Filters - row 1: search by name + price/calories */}
       <div className={styles.filters}>
         <input
           className={styles.search}
@@ -480,11 +466,42 @@ export default function Recipes() {
         />
         <input
           className={styles.search}
-          placeholder="קלוריות מקס׳"
+          placeholder="קלוריות מ-"
           inputMode="numeric"
-          value={calories}
-          onChange={(e) => setCalories(e.target.value.replace(/[^0-9]/g, ''))}
+          value={minCalories}
+          onChange={(e) => setMinCalories(e.target.value.replace(/[^0-9]/g, ''))}
         />
+        <input
+          className={styles.search}
+          placeholder="קלוריות עד"
+          inputMode="numeric"
+          value={maxCalories}
+          onChange={(e) => setMaxCalories(e.target.value.replace(/[^0-9]/g, ''))}
+        />
+        {isAdmin && (
+          <>
+            <input
+              className={styles.search}
+              placeholder="מחיר מ-"
+              inputMode="decimal"
+              value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+              style={{ width: 110 }}
+            />
+            <input
+              className={styles.search}
+              placeholder="מחיר עד"
+              inputMode="decimal"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+              style={{ width: 110 }}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Filters - row 2: filtering menus + toggles */}
+      <div className={styles.filters}>
         <select className={styles.select} value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">כל הקטגוריות</option>
           {categoryOptions.map(opt => (
@@ -598,6 +615,8 @@ export default function Recipes() {
                 onClick={async () => {
                   const id = recipe.id || recipe.recipe_id;
                   setOpenId(id);
+                  setEditMode(false);
+                  setEditForm(null);
                   setSelected(null);
                   setLoadingItem(true);
                   try {
@@ -620,16 +639,19 @@ export default function Recipes() {
             {(() => {
               const id = String(recipe.id || recipe.recipe_id);
               const meta = priceMap[id] || {};
-              if (!Number.isFinite(meta.price)) return null;
-              const basePrice = Number(meta.price);
+              const base = Number(meta.price);
               const disc = Number(meta.discounted_price);
-              const discounted = Number.isFinite(disc) && disc < basePrice;
-              const pct = discounted ? Math.round((1 - (disc / basePrice)) * 100) : null;
+              const hasBase = Number.isFinite(base);
+              const hasDisc = Number.isFinite(disc);
+              if (!hasBase && !hasDisc) return null;
+              const showBase = hasBase ? base : (hasDisc ? disc : null);
+              const discounted = hasBase && hasDisc && disc < base;
+              const pct = discounted ? Math.round((1 - (disc / base)) * 100) : null;
               return (
                 <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
                   {discounted ? (
                     <>
-                      <span style={{ textDecoration:'line-through', color:'#9ca3af' }}>{basePrice.toFixed(2)}₪</span>
+                      <span style={{ textDecoration:'line-through', color:'#9ca3af' }}>{base.toFixed(2)}₪</span>
                       <span style={{ color:'#111827', fontWeight:600 }}>{disc.toFixed(2)}₪</span>
                       <span style={{ color:'#059669', fontSize:12 }}>-{pct}%</span>
                       {isAdmin && adminMode && (
@@ -648,7 +670,7 @@ export default function Recipes() {
                       )}
                     </>
                   ) : (
-                    <span style={{ color:'#111827', fontWeight:600 }}>{basePrice.toFixed(2)}₪</span>
+                    <span style={{ color:'#111827', fontWeight:600 }}>{Number(showBase).toFixed(2)}₪</span>
                   )}
                 </div>
               );
@@ -699,6 +721,8 @@ export default function Recipes() {
             <button className={styles.btn} onClick={async () => {
               const id = recipe.id || recipe.recipe_id;
               setOpenId(id);
+              setEditMode(false);
+              setEditForm(null);
               setSelected(null);
               setLoadingItem(true);
               try {
@@ -728,367 +752,486 @@ export default function Recipes() {
         <button className={styles.btn} disabled={page <= 1} onClick={() => setPage(p=>Math.max(1, p-1))}>{'>'}</button>
       </div>
 
-      {openId && (
-        <div className={styles.modalOverlay} onClick={() => { setOpenId(null); setSelected(null); }}>
-          <div className={styles.modal} style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h3 className={styles.modalTitle}>{editMode ? 'עריכת מתכון' : (selected?.name || 'מתכון')}</h3>
-              <button className={styles.closeBtn} onClick={() => { setOpenId(null); setSelected(null); setSearchParams({}); }}>×</button>
-            </div>
-            <div className={`${styles.modalBody} ${styles.rtl}`}>
-              {loadingItem ? (
-                <div>טוען...</div>
-              ) : selected ? (
-                <div>
+     </div>
+
+    {openId && (
+      <div className={styles.modalOverlay} onClick={() => { setOpenId(null); setSelected(null); setEditMode(false); setEditForm(null); }}>
+        <div className={styles.modal} style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.modalHeader}>
+            <h3 className={styles.modalTitle}>{editMode ? 'עריכת מתכון' : (selected?.name || 'מתכון')}</h3>
+            <button className={styles.closeBtn} onClick={() => { setOpenId(null); setSelected(null); setEditMode(false); setEditForm(null); setSearchParams({}); }}>×</button>
+          </div>
+          <div className={`${styles.modalBody} ${styles.rtl}`}>
+            {loadingItem ? (
+              <div>טוען...</div>
+            ) : selected ? (
+              <div>
+                {!editMode ? (
+                  <>
+                    {(() => {
+                      const img = ensureImageUrl(selected.picture || selected.imageUrl || selected.image);
+                      return img ? (
+                        <img src={img} alt={selected.name} className={styles.modalImg} />
+                      ) : null;
+                    })()}
+                    {selected.description && <p className={`${styles.mt12} ${styles.detailDesc}`}>{selected.description}</p>}
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                      <label className={styles.btn} style={{ cursor:'pointer' }}>
+                        העלה תמונה
+                        <input type="file" accept="image/*" style={{ display:'none' }} onChange={async (e)=>{
+                          const file = e.target.files && e.target.files[0];
+                          if (!file) return;
+                          try {
+                            setEditUploading(true);
+                            const fd = new FormData();
+                            fd.append('image', file);
+                            const resp = await fetch('/api/admin/recipes/upload-image', { method:'POST', credentials:'include', body: fd });
+                            const ok = resp.ok; const data = await resp.json().catch(()=>({}));
+                            if (!ok) throw new Error(data?.message || 'העלאת תמונה נכשלה');
+                            setEditForm(f => ({ ...f, picture: data?.path || f.picture }));
+                          } catch (er) {
+                            showToast(er.message || 'העלאת תמונה נכשלה');
+                          } finally { setEditUploading(false); }
+                        }} />
+                      </label>
+                      {editUploading && <span style={{ color:'#6b7280' }}>מעלה...</span>}
+                      {editForm?.picture && (
+                        <img src={ensureImageUrl(editForm.picture)} alt="preview" style={{ height:48, borderRadius:6, border:'1px solid #e5e7eb' }} />
+                      )}
+                    </div>
+                    <label style={{ display:'block', marginTop:8 }}>שם
+                      <input className={styles.search} value={editForm?.name || ''} onChange={e=>setEditForm(f=>({...f, name: e.target.value}))} />
+                    </label>
+                    <label style={{ display:'block', marginTop:8 }}>תיאור
+                      <textarea className={styles.textarea} value={editForm?.description || ''} onChange={e=>setEditForm(f=>({...f, description: e.target.value}))} />
+                    </label>
+                  </>
+                )}
+                <div className={styles.metaRow}>
                   {!editMode ? (
                     <>
-                      {(() => {
-                        const img = ensureImageUrl(selected.picture || selected.imageUrl || selected.image);
-                        return img ? (
-                          <img src={img} alt={selected.name} className={styles.modalImg} />
-                        ) : null;
-                      })()}
-                      {selected.description && <p className={`${styles.mt12} ${styles.detailDesc}`}>{selected.description}</p>}
+                      {selected.calories != null && <span className={styles.calories}>{selected.calories} קלוריות</span>}
+                      {(selected.diet_type || selected.diet_name) && <span>דיאטה: {selected.diet_type || selected.diet_name}</span>}
+                      {(selected.category || selected.category_name) && <span>קטגוריה: {selected.category || selected.category_name}</span>}
                     </>
                   ) : (
-                    <>
-                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                        <label className={styles.btn} style={{ cursor:'pointer' }}>
-                          העלה תמונה
-                          <input type="file" accept="image/*" style={{ display:'none' }} onChange={async (e)=>{
-                            const file = e.target.files && e.target.files[0];
-                            if (!file) return;
-                            try {
-                              setEditUploading(true);
-                              const fd = new FormData();
-                              fd.append('image', file);
-                              const resp = await fetch('/api/admin/recipes/upload-image', { method:'POST', credentials:'include', body: fd });
-                              const ok = resp.ok; const data = await resp.json().catch(()=>({}));
-                              if (!ok) throw new Error(data?.message || 'העלאת תמונה נכשלה');
-                              setEditForm(f => ({ ...f, picture: data?.path || f.picture }));
-                            } catch (er) {
-                              showToast(er.message || 'העלאת תמונה נכשלה');
-                            } finally { setEditUploading(false); }
-                          }} />
-                        </label>
-                        {editUploading && <span style={{ color:'#6b7280' }}>מעלה...</span>}
-                        {editForm?.picture && (
-                          <img src={ensureImageUrl(editForm.picture)} alt="preview" style={{ height:48, borderRadius:6, border:'1px solid #e5e7eb' }} />
-                        )}
-                      </div>
-                      <label style={{ display:'block', marginTop:8 }}>שם
-                        <input className={styles.search} value={editForm?.name || ''} onChange={e=>setEditForm(f=>({...f, name: e.target.value}))} />
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap', width:'100%' }}>
+                      <label>קלוריות
+                        <input className={styles.search} inputMode="numeric" value={editForm?.calories ?? ''} onChange={e=>setEditForm(f=>({...f, calories: e.target.value.replace(/[^0-9]/g,'')}))} />
                       </label>
-                      <label style={{ display:'block', marginTop:8 }}>תיאור
-                        <textarea className={styles.textarea} value={editForm?.description || ''} onChange={e=>setEditForm(f=>({...f, description: e.target.value}))} />
+                      <label>מנות
+                        <input className={styles.search} inputMode="numeric" value={editForm?.servings ?? ''} onChange={e=>setEditForm(f=>({...f, servings: e.target.value.replace(/[^0-9]/g,'')}))} />
                       </label>
-                    </>
-                  )}
-                  <div className={styles.metaRow}>
-                    {!editMode ? (
-                      <>
-                        {selected.calories != null && <span className={styles.calories}>{selected.calories} קלוריות</span>}
-                        {(selected.diet_type || selected.diet_name) && <span>דיאטה: {selected.diet_type || selected.diet_name}</span>}
-                        {(selected.category || selected.category_name) && <span>קטגוריה: {selected.category || selected.category_name}</span>}
-                      </>
-                    ) : (
-                      <div style={{ display:'flex', gap:8, flexWrap:'wrap', width:'100%' }}>
-                        <label>קלוריות
-                          <input className={styles.search} inputMode="numeric" value={editForm?.calories ?? ''} onChange={e=>setEditForm(f=>({...f, calories: e.target.value.replace(/[^0-9]/g,'')}))} />
-                        </label>
-                        <label>מנות
-                          <input className={styles.search} inputMode="numeric" value={editForm?.servings ?? ''} onChange={e=>setEditForm(f=>({...f, servings: e.target.value.replace(/[^0-9]/g,'')}))} />
-                        </label>
-                        <label>סוג דיאטה
-                          <select className={styles.select} value={editForm?.diet_type_id ?? ''} onChange={e=>setEditForm(f=>({...f, diet_type_id: e.target.value}))}>
-                            <option value="">בחר</option>
-                            {dietTypeList.map(dt => (
-                              <option key={dt.diet_id||dt.id} value={dt.diet_id||dt.id}>{dt.name}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <label>קטגוריה
-                          <select className={styles.select} value={editForm?.category_id ?? ''} onChange={e=>setEditForm(f=>({...f, category_id: e.target.value}))}>
-                            <option value="">בחר</option>
-                            {categoryList.map(c => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Macros (protein, carbs, fats) with colored dots */}
-                  {!editMode && (
-                    <ul className={styles.macroList}>
-                      <li className={styles.macroRow}>
-                        <span className={`${styles.macroDot} ${styles.protein}`}></span>
-                        <span>חלבון: <strong>{macroLine(selected.protein_g, 4, Number(selected.calories))}</strong></span>
-                      </li>
-                      <li className={styles.macroRow}>
-                        <span className={`${styles.macroDot} ${styles.carb}`}></span>
-                        <span>פחמימות: <strong>{macroLine(selected.carbs_g, 4, Number(selected.calories))}</strong></span>
-                      </li>
-                      <li className={styles.macroRow}>
-                        <span className={`${styles.macroDot} ${styles.fat}`}></span>
-                        <span>שומנים: <strong>{macroLine(selected.fats_g, 9, Number(selected.calories))}</strong></span>
-                      </li>
-                    </ul>
-                  )}
-
-                  {/* Ratings */}
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}>
-                    <div style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
-                      {[1,2,3,4,5].map(n => {
-                        const active = (hoverStars ?? userStars ?? Math.round(ratingAvg ?? 0)) >= n;
-                        return (
-                          <span
-                            key={n}
-                            title={`דרג ${n}`}
-                            onMouseEnter={() => setHoverStars(n)}
-                            onMouseLeave={() => setHoverStars(null)}
-                            onClick={async () => {
-                              try {
-                                const rid = selected.id || selected.recipe_id;
-                                const res = await rateRecipeAPI(rid, n);
-                                setUserStars(res?.userStars ?? n);
-                                setRatingAvg(res?.avg ?? n);
-                                setRatingCount(res?.count ?? (ratingCount || 1));
-                              } catch (e) {
-                                const status = e?.response?.status;
-                                if (status === 401) {
-                                  showToast('יש להתחבר כלקוח כדי לדרג מתכונים');
-                                } else {
-                                  console.error('Failed to rate:', e?.message || e);
-                                }
-                              }
-                            }}
-                            style={{ cursor:'pointer', color: active ? '#f59e0b' : '#d1d5db', fontSize:18 }}
-                          >★</span>
-                        );
-                      })}
+                      <label>סוג דיאטה
+                        <select className={styles.select} value={editForm?.diet_type_id ?? ''} onChange={e=>setEditForm(f=>({...f, diet_type_id: e.target.value}))}>
+                          <option value="">בחר</option>
+                          {dietTypeList.map(dt => (
+                            <option key={dt.diet_id||dt.id} value={dt.diet_id||dt.id}>{dt.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>קטגוריה
+                        <select className={styles.select} value={editForm?.category_id ?? ''} onChange={e=>setEditForm(f=>({...f, category_id: e.target.value}))}>
+                          <option value="">בחר</option>
+                          {categoryList.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
-                    <span style={{ color:'#6b7280', fontSize:13 }}>
-                      {ratingAvg != null ? ratingAvg.toFixed(1) : '—'} ({ratingCount}) {hoverStars ? `· דרג ${hoverStars}` : ''}
-                    </span>
-                  </div>
-
-                  {!editMode && (() => {
-                    // Build ingredients array from string/array
-                    let ingredientsArr = [];
-                    if (Array.isArray(selected.ingredients)) {
-                      ingredientsArr = selected.ingredients;
-                    } else if (typeof selected.ingredients === 'string') {
-                      const s = selected.ingredients.trim();
-                      if (s.startsWith('[')) {
-                        try { ingredientsArr = JSON.parse(s); } catch {}
-                      }
-                      if (ingredientsArr.length === 0) {
-                        ingredientsArr = s.split(/\r?\n|,\s*/).map(x => x.trim()).filter(Boolean);
-                      }
-                    }
-
-                    // Build instructions steps
-                    let steps = [];
-                    if (typeof selected.instructions === 'string') {
-                      const raw = selected.instructions.trim();
-                      steps = raw.split(/\r?\n+/).map(x => x.trim()).filter(Boolean);
-                    }
-
-                    return (
-                      <div className={styles.section}>
-                        {ingredientsArr.length > 0 && (
-                          <div className={styles.section}>
-                            <h4 className={styles.sectionTitle}>מרכיבים</h4>
-                            <ul className={`${styles.columnsList} ${styles.rtlList}`}>
-                              {ingredientsArr.map((ing, idx) => (
-                                <li key={idx}>{ing}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {steps.length > 0 && (
-                          <div className={styles.section}>
-                            <h4 className={styles.sectionTitle}>הוראות הכנה</h4>
-                            <ol className={styles.rtlList}>
-                              {steps.map((st, idx) => (
-                                <li key={idx}>{st}</li>
-                              ))}
-                            </ol>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  )}
                 </div>
-              ) : (
-                <div className={styles.errorText}>שגיאה בטעינת מתכון</div>
-              )}
-            </div>
-            <div className={styles.modalFooter}>
-              {isAdmin && !editMode && (
-                <div style={{ display:'flex', gap:8, width:'100%', justifyContent:'space-between' }}>
-                  <button className={styles.btn}
-                          onClick={()=>{
-                            setEditMode(true);
-                            // derive IDs from names if missing
-                            const dietName = selected.diet_type || selected.diet_name || '';
-                            const catName = selected.category || selected.category_name || '';
-                            const dietMatch = dietTypeList.find(dt => String(dt.name).toLowerCase() === String(dietName).toLowerCase());
-                            const catMatch = categoryList.find(c => String(c.name).toLowerCase() === String(catName).toLowerCase());
-                            setEditForm({
-                              id: selected.id || selected.recipe_id,
-                              name: selected.name || '',
-                              description: selected.description || '',
-                              instructions: selected.instructions || '',
-                              calories: selected.calories ?? '',
-                              servings: selected.servings ?? '',
-                              diet_type_id: selected.diet_type_id || dietMatch?.diet_id || dietMatch?.id || '',
-                              category_id: selected.category_id || catMatch?.id || '',
-                              picture: selected.picture || selected.imageUrl || selected.image || '',
-                            });
-                          }}>ערוך</button>
-                  <button className={styles.btn}
-                          style={{ background:'#dc2626' }}
-                          disabled={deleting}
-                          onClick={()=> setConfirmDlg({
-                            open:true,
-                            text:'למחוק את המתכון הזה? ניתן יהיה לשחזר מאוחר יותר.',
-                            onConfirm: async ()=>{
-                              try {
-                                if (!selected) return;
-                                setDeleting(true);
-                                const rid = selected.id || selected.recipe_id;
-                                const resp = await fetch(`/api/admin/recipes/${rid}`, { method:'DELETE', credentials:'include' });
-                                if (!resp.ok) {
-                                  try { const j = await resp.json(); throw new Error(j?.message || 'מחיקה נכשלה'); } catch { throw new Error('מחיקה נכשלה'); }
-                                }
-                                setRecipes(prev => prev.filter(r => (r.id||r.recipe_id) !== rid));
+
+                {!editMode && (
+                  <ul className={styles.macroList}>
+                    <li className={styles.macroRow}>
+                      <span className={`${styles.macroDot} ${styles.protein}`}></span>
+                      <span>חלבון: <strong>{macroLine(selected.protein_g, 4, Number(selected.calories))}</strong></span>
+                    </li>
+                    <li className={styles.macroRow}>
+                      <span className={`${styles.macroDot} ${styles.carb}`}></span>
+                      <span>פחמימות: <strong>{macroLine(selected.carbs_g, 4, Number(selected.calories))}</strong></span>
+                    </li>
+                    <li className={styles.macroRow}>
+                      <span className={`${styles.macroDot} ${styles.fat}`}></span>
+                      <span>שומנים: <strong>{macroLine(selected.fats_g, 9, Number(selected.calories))}</strong></span>
+                    </li>
+                  </ul>
+                )}
+
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}>
+                  <div style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                    {[1,2,3,4,5].map(n => {
+                      const active = (hoverStars ?? userStars ?? Math.round(ratingAvg ?? 0)) >= n;
+                      return (
+                        <span
+                          key={n}
+                          title={`דרג ${n}`}
+                          onMouseEnter={() => setHoverStars(n)}
+                          onMouseLeave={() => setHoverStars(null)}
+                          onClick={async () => {
+                            try {
+                              const rid = selected.id || selected.recipe_id;
+                              const res = await rateRecipeAPI(rid, n);
+                              setUserStars(res?.userStars ?? n);
+                              setRatingAvg(res?.avg ?? n);
+                              setRatingCount(res?.count ?? (ratingCount || 1));
+                            } catch (e) {
+                              const status = e?.response?.status;
+                              if (status === 401) {
+                                showToast('יש להתחבר כלקוח כדי לדרג מתכונים');
+                              } else {
+                                console.error('Failed to rate:', e?.message || e);
+                              }
+                            }
+                          }}
+                          style={{ cursor:'pointer', color: active ? '#f59e0b' : '#d1d5db', fontSize:18 }}
+                        >★</span>
+                      );
+                    })}
+                  </div>
+                  <span style={{ color:'#6b7280', fontSize:13 }}>
+                    {ratingAvg != null ? ratingAvg.toFixed(1) : '—'} ({ratingCount}) {hoverStars ? `· דרג ${hoverStars}` : ''}
+                  </span>
+                </div>
+
+                {!editMode && (() => {
+                  let ingredientsArr = [];
+                  if (Array.isArray(selected.ingredients)) {
+                    ingredientsArr = selected.ingredients;
+                  } else if (typeof selected.ingredients === 'string') {
+                    const s = selected.ingredients.trim();
+                    if (s.startsWith('[')) {
+                      try { ingredientsArr = JSON.parse(s); } catch {}
+                    }
+                    if (ingredientsArr.length === 0) {
+                      ingredientsArr = s.split(/\r?\n|,\s*/).map(x => x.trim()).filter(Boolean);
+                    }
+                  }
+
+                  let steps = [];
+                  if (typeof selected.instructions === 'string') {
+                    const raw = selected.instructions.trim();
+                    steps = raw.split(/\r?\n+/).map(x => x.trim()).filter(Boolean);
+                  }
+
+                  return (
+                    <div className={styles.section}>
+                      {ingredientsArr.length > 0 && (
+                        <div className={styles.section}>
+                          <h4 className={styles.sectionTitle}>מרכיבים</h4>
+                          <ul className={`${styles.columnsList} ${styles.rtlList}`}>
+                            {ingredientsArr.map((ing, idx) => (
+                              <li key={idx}>{ing}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {steps.length > 0 && (
+                        <div className={styles.section}>
+                          <h4 className={styles.sectionTitle}>הוראות הכנה</h4>
+                          <ol className={styles.rtlList}>
+                            {steps.map((st, idx) => (
+                              <li key={idx}>{st}</li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div className={styles.errorText}>שגיאה בטעינת מתכון</div>
+            )}
+          </div>
+          <div className={styles.modalFooter}>
+            {isAdmin && !editMode && (
+              <div style={{ display:'flex', gap:8, width:'100%', justifyContent:'space-between' }}>
+                <button className={styles.btn}
+                        onClick={()=>{
+                          setEditMode(true);
+                          const dietName = selected.diet_type || selected.diet_name || '';
+                          const catName = selected.category || selected.category_name || '';
+                          const dietMatch = dietTypeList.find(dt => String(dt.name).toLowerCase() === String(dietName).toLowerCase());
+                          const catMatch = categoryList.find(c => String(c.name).toLowerCase() === String(catName).toLowerCase());
+                          setEditForm({
+                            id: selected.id || selected.recipe_id,
+                            name: selected.name || '',
+                            description: selected.description || '',
+                            instructions: selected.instructions || '',
+                            calories: selected.calories ?? '',
+                            servings: selected.servings ?? '',
+                            diet_type_id: selected.diet_type_id || dietMatch?.diet_id || dietMatch?.id || '',
+                            category_id: selected.category_id || catMatch?.id || '',
+                            picture: selected.picture || selected.imageUrl || selected.image || '',
+                          });
+                        }}>ערוך</button>
+                <button className={styles.btn}
+                        style={{ background:'#dc2626' }}
+                        disabled={deleting}
+                        onClick={()=> setConfirmDlg({
+                          open:true,
+                          text:'למחוק את המתכון הזה? ניתן יהיה לשחזר מאוחר יותר.',
+                          onConfirm: async ()=>{
+                            try {
+                              if (!selected) return;
+                              setDeleting(true);
+                              const rid = selected.id || selected.recipe_id;
+                              const resp = await fetch(`/api/admin/recipes/${rid}`, { method:'DELETE', credentials:'include' });
+                              if (!resp.ok) {
+                                try { const j = await resp.json(); throw new Error(j?.message || 'מחיקה נכשלה'); } catch { throw new Error('מחיקה נכשלה'); }
+                              }
+                              setRecipes(prev => prev.filter(r => (r.id||r.recipe_id) !== rid));
+                              setOpenId(null);
+                              setSelected(null);
+                              setSearchParams({});
+                              showToast('המתכון נמחק (רך)');
+                            } catch (e) {
+                              showToast(e?.message || 'מחיקה נכשלה');
+                            } finally {
+                              setDeleting(false);
+                              setConfirmDlg({ open:false, text:'', onConfirm:null });
+                            }
+                          }
+                        })}>{deleting ? 'מוחק…' : 'מחק'}</button>
+                {(() => {
+                  const rid = selected?.id || selected?.recipe_id;
+                  const meta = (recipes || []).find(r => (r.id||r.recipe_id) === rid);
+                  const isDeleted = !!meta?.deleted_at;
+                  if (!isDeleted) return null;
+                  return (
+                    <button className={styles.btn}
+                            onClick={async ()=>{
+                              try{
+                                await fetch(`/api/admin/recipes/${rid}/restore`, { method:'POST', credentials:'include' });
+                                setRecipes(prev => prev.map(r => ((r.id||r.recipe_id) === rid ? { ...r, deleted_at: null } : r)));
+                                showToast('המתכון שוחזר');
                                 setOpenId(null);
                                 setSelected(null);
                                 setSearchParams({});
-                                showToast('המתכון נמחק (רך)');
-                              } catch (e) {
-                                showToast(e?.message || 'מחיקה נכשלה');
-                              } finally {
-                                setDeleting(false);
-                                setConfirmDlg({ open:false, text:'', onConfirm:null });
-                              }
-                            }
-                          })}>{deleting ? 'מוחק…' : 'מחק'}</button>
-                  {/* Restore button when soft-deleted (from list metadata) */}
-                  {(() => {
-                    const rid = selected?.id || selected?.recipe_id;
-                    const meta = (recipes || []).find(r => (r.id||r.recipe_id) === rid);
-                    const isDeleted = !!meta?.deleted_at;
-                    if (!isDeleted) return null;
-                    return (
-                      <button className={styles.btn}
-                              onClick={async ()=>{
-                                try{
-                                  await fetch(`/api/admin/recipes/${rid}/restore`, { method:'POST', credentials:'include' });
-                                  // Refresh current meta in list
-                                  setRecipes(prev => prev.map(r => ((r.id||r.recipe_id) === rid ? { ...r, deleted_at: null } : r)));
-                                  showToast('המתכון שוחזר');
-                                  setOpenId(null);
-                                  setSelected(null);
-                                  setSearchParams({});
-                                }catch(e){ showToast(e?.message || 'שחזור נכשל'); }
-                              }}>שחזר</button>
-                    );
-                  })()}
-                </div>
-              )}
-              {isAdmin && editMode && (
-                <>
-                  <button className={styles.btn} onClick={async ()=>{
-                    try{
-                      const rid = editForm.id;
-                      const body = {
-                        name: editForm.name,
-                        description: editForm.description,
-                        instructions: editForm.instructions,
-                        calories: editForm.calories ? Number(editForm.calories) : null,
-                        servings: editForm.servings ? Number(editForm.servings) : null,
-                        diet_type_id: editForm.diet_type_id || null,
-                        category_id: editForm.category_id || null,
-                        picture: editForm.picture || '',
-                      };
-                      const resp = await fetch(`/api/admin/recipes/${rid}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-                      if (!resp.ok) { const j = await resp.json().catch(()=>({})); throw new Error(j?.message || 'שמירה נכשלה'); }
-                      // refresh selected details
-                      const full = await fetchPublicRecipe(rid);
-                      setSelected(full?.item || full);
-                      showToast('נשמר בהצלחה');
-                      setEditMode(false);
-                    }catch(e){ showToast(e.message || 'שמירה נכשלה'); }
-                  }}>שמור</button>
-                  <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=>{ setEditMode(false); }}>בטל</button>
-                </>
-              )}
-              {isAdmin && editMode && (
-                <div style={{ display:'flex', flexDirection:'column', gap:8, marginInlineStart:'auto' }}>
-                  <div style={{ color:'#6b7280', fontSize:12 }}>מחיר נוכחי: {priceInfo.current != null ? `${priceInfo.current}₪` : '—'}</div>
-                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                    <input
-                      className={styles.search}
-                      placeholder="מחיר חדש ₪"
-                      inputMode="decimal"
-                      value={priceInfo.newPrice}
-                      onChange={(e)=> setPriceInfo(pi=>({ ...pi, newPrice: e.target.value.replace(/[^0-9.]/g,'') }))}
-                      style={{ width: 130 }}
-                    />
-                    <input
-                      className={styles.search}
-                      placeholder="הנחה %"
-                      inputMode="numeric"
-                      value={priceInfo.discountPct}
-                      onChange={(e)=> setPriceInfo(pi=>({ ...pi, discountPct: e.target.value.replace(/[^0-9]/g,'') }))}
-                      style={{ width: 110 }}
-                    />
-                    <button
-                      className={styles.btn}
-                      disabled={savingPrice || (priceInfo.newPrice === '' && (priceInfo.discountPct === '' || priceInfo.current == null))}
-                      onClick={async ()=>{
-                        try {
-                          setSavingPrice(true);
-                          const rid = editForm.id;
-                          let priceToApply = null;
-                          if (priceInfo.newPrice !== '') {
-                            // clamp to 2 decimals
-                            priceToApply = Math.round(Number(priceInfo.newPrice) * 100) / 100;
-                          } else if (priceInfo.discountPct !== '' && priceInfo.current != null) {
-                            const pct = Number(priceInfo.discountPct);
-                            // Reduce by percent: price * (1 - pct/100)
-                            priceToApply = Number(priceInfo.current) * (1 - (pct/100));
-                            priceToApply = Math.round(priceToApply * 100) / 100;
-                          }
-                          if (priceToApply == null || isNaN(priceToApply)) return;
-                          if (priceToApply <= 0) priceToApply = 0.01;
-                          await updateProductByRecipeAPI(rid, { price: priceToApply });
-                          setPriceInfo(pi=>({ ...pi, current: priceToApply }));
-                          showToast('המחיר עודכן');
-                        } catch (e) {
-                          showToast(e?.message || 'עדכון מחיר נכשל');
-                        } finally {
-                          setSavingPrice(false);
+                              }catch(e){ showToast(e?.message || 'שחזור נכשל'); }
+                            }}>שחזר</button>
+                  );
+                })()}
+              </div>
+            )}
+            {isAdmin && editMode && (
+              <>
+                <button className={styles.btn} onClick={async ()=>{
+                  try{
+                    const rid = editForm.id;
+                    const body = {
+                      name: editForm.name,
+                      description: editForm.description,
+                      instructions: editForm.instructions,
+                      calories: editForm.calories ? Number(editForm.calories) : null,
+                      servings: editForm.servings ? Number(editForm.servings) : null,
+                      diet_type_id: editForm.diet_type_id || null,
+                      category_id: editForm.category_id || null,
+                      picture: editForm.picture || '',
+                    };
+                    const resp = await fetch(`/api/admin/recipes/${rid}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+                    if (!resp.ok) { const j = await resp.json().catch(()=>({})); throw new Error(j?.message || 'שמירה נכשלה'); }
+                    const full = await fetchPublicRecipe(rid);
+                    setSelected(full?.item || full);
+                    showToast('נשמר בהצלחה');
+                    setEditMode(false);
+                  }catch(e){ showToast(e.message || 'שמירה נכשלה'); }
+                }}>שמור</button>
+                <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=>{ setEditMode(false); }}>בטל</button>
+              </>
+            )}
+            {isAdmin && editMode && (
+              <div style={{ display:'flex', flexDirection:'column', gap:8, marginInlineStart:'auto' }}>
+                <div style={{ color:'#6b7280', fontSize:12 }}>מחיר נוכחי: {priceInfo.current != null ? `${priceInfo.current}₪` : '—'}</div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  <input
+                    className={styles.search}
+                    placeholder="מחיר חדש ₪"
+                    inputMode="decimal"
+                    value={priceInfo.newPrice}
+                    onChange={(e)=> setPriceInfo(pi=>({ ...pi, newPrice: e.target.value.replace(/[^0-9.]/g,'') }))}
+                    style={{ width: 130 }}
+                  />
+                  <input
+                    className={styles.search}
+                    placeholder="הנחה %"
+                    inputMode="numeric"
+                    value={priceInfo.discountPct}
+                    onChange={(e)=> setPriceInfo(pi=>({ ...pi, discountPct: e.target.value.replace(/[^0-9]/g,'') }))}
+                    style={{ width: 110 }}
+                  />
+                  <button
+                    className={styles.btn}
+                    disabled={savingPrice || (priceInfo.newPrice === '' && (priceInfo.discountPct === '' || priceInfo.current == null))}
+                    onClick={async ()=>{
+                      try {
+                        setSavingPrice(true);
+                        const rid = editForm.id;
+                        let priceToApply = null;
+                        if (priceInfo.newPrice !== '') {
+                          priceToApply = Math.round(Number(priceInfo.newPrice) * 100) / 100;
+                        } else if (priceInfo.discountPct !== '' && priceInfo.current != null) {
+                          const pct = Number(priceInfo.discountPct);
+                          priceToApply = Number(priceInfo.current) * (1 - (pct/100));
+                          priceToApply = Math.round(priceToApply * 100) / 100;
                         }
-                      }}
-                    >עדכן מחיר</button>
-                  </div>
+                        if (priceToApply == null || isNaN(priceToApply)) return;
+                        if (priceToApply <= 0) priceToApply = 0.01;
+                        await updateProductByRecipeAPI(rid, { price: priceToApply });
+                        setPriceInfo(pi=>({ ...pi, current: priceToApply }));
+                        showToast('המחיר עודכן');
+                      } catch (e) {
+                        showToast(e?.message || 'עדכון מחיר נכשל');
+                      } finally {
+                        setSavingPrice(false);
+                      }
+                    }}
+                  >עדכן מחיר</button>
                 </div>
-              )}
-              {!editMode && (
-                <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => { setOpenId(null); setSelected(null); setSearchParams({}); }}>סגור</button>
-              )}
-            </div>
+              </div>
+            )}
+            {!editMode && (
+              <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => { setOpenId(null); setSelected(null); setSearchParams({}); }}>סגור</button>
+            )}
           </div>
         </div>
-      )}
-
-    </div>
+      </div>
+    )}
+    {bulkDeleteOpen && (
+      <div className={styles.modalOverlay} onClick={() => setBulkDeleteOpen(false)}>
+        <div className={styles.modal} onClick={(e)=> e.stopPropagation()}>
+          <div className={styles.modalHeader}>
+            <h3 className={styles.modalTitle}>מחיקת פריטים נבחרים</h3>
+            <button className={styles.closeBtn} onClick={() => setBulkDeleteOpen(false)}>×</button>
+          </div>
+          <div className={styles.modalBody}>
+            <div className={styles.rtl} style={{ display:'grid', gap:10 }}>
+              <div>אתה עומד למחוק {Object.keys(selectedMap).length} פריטים. ניתן יהיה לשחזר מאוחר יותר.</div>
+            </div>
+          </div>
+          <div className={styles.modalFooter}>
+            <button className={styles.btn} style={{ background:'#dc2626' }} disabled={deleting} onClick={async ()=>{
+              const ids = Object.keys(selectedMap);
+              if (ids.length === 0) { showToast('לא נבחרו פריטים'); return; }
+              try {
+                setDeleting(true);
+                let okCount = 0;
+                for (const rid of ids) {
+                  try {
+                    const resp = await fetch(`/api/admin/recipes/${rid}`, { method:'DELETE', credentials:'include' });
+                    if (resp.ok) {
+                      okCount += 1;
+                    }
+                  } catch (_) {}
+                }
+                if (okCount > 0) {
+                  setRecipes(prev => prev.filter(r => !selectedMap[String(r.id || r.recipe_id)]));
+                  showToast(`נמחקו ${okCount} פריטים`);
+                } else {
+                  showToast('מחיקה נכשלה');
+                }
+                setSelectedMap({});
+                setBulkDeleteOpen(false);
+              } finally {
+                setDeleting(false);
+              }
+            }}>מחק</button>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=> setBulkDeleteOpen(false)}>ביטול</button>
+          </div>
+        </div>
+      </div>
+    )}
+    {priceModalOpen && (
+      <div className={styles.modalOverlay} onClick={() => setPriceModalOpen(false)}>
+        <div className={styles.modal} onClick={(e)=> e.stopPropagation()}>
+          <div className={styles.modalHeader}>
+            <h3 className={styles.modalTitle}>שינוי מחיר (מרובה)</h3>
+            <button className={styles.closeBtn} onClick={() => setPriceModalOpen(false)}>×</button>
+          </div>
+          <div className={styles.modalBody}>
+            <div className={styles.rtl} style={{ display:'grid', gap:10 }}>
+              <label>מחיר חדש (ש"ח)
+                <input className={styles.search} inputMode="decimal" value={priceModalValue} onChange={(e)=> setPriceModalValue(e.target.value.replace(/[^0-9.]/g,''))} />
+              </label>
+              <div style={{ color:'#6b7280', fontSize:12 }}>יישום על {Object.keys(selectedMap).length} פריטים נבחרים</div>
+            </div>
+          </div>
+          <div className={styles.modalFooter}>
+            <button className={styles.btn} disabled={savingPrice} onClick={async ()=>{
+              const ids = Object.keys(selectedMap);
+              if (ids.length === 0) { showToast('לא נבחרו פריטים'); return; }
+              const newPrice = Number(priceModalValue);
+              if (!Number.isFinite(newPrice) || newPrice < 0) { showToast('מחיר לא תקין'); return; }
+              try {
+                setSavingPrice(true);
+                await Promise.all(ids.map(async (rid) => {
+                  try { await updateProductByRecipeAPI(rid, { price: newPrice }); } catch(_) {}
+                }));
+                showToast('המחירים עודכנו');
+                setPriceModalOpen(false);
+                setPriceModalValue('');
+              } finally {
+                setSavingPrice(false);
+              }
+            }}>החל</button>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=> setPriceModalOpen(false)}>ביטול</button>
+          </div>
+        </div>
+      </div>
+    )}
+    {discountModalOpen && (
+      <div className={styles.modalOverlay} onClick={() => setDiscountModalOpen(false)}>
+        <div className={styles.modal} onClick={(e)=> e.stopPropagation()}>
+          <div className={styles.modalHeader}>
+            <h3 className={styles.modalTitle}>הוספת הנחה באחוזים (מרובה)</h3>
+            <button className={styles.closeBtn} onClick={() => setDiscountModalOpen(false)}>×</button>
+          </div>
+          <div className={styles.modalBody}>
+            <div className={styles.rtl} style={{ display:'grid', gap:10 }}>
+              <label>אחוז הנחה
+                <input className={styles.search} inputMode="numeric" value={discountModalValue} onChange={(e)=> setDiscountModalValue(e.target.value.replace(/[^0-9]/g,''))} />
+              </label>
+              <div style={{ color:'#6b7280', fontSize:12 }}>יישום על {Object.keys(selectedMap).length} פריטים נבחרים</div>
+            </div>
+          </div>
+          <div className={styles.modalFooter}>
+            <button className={styles.btn} disabled={savingPrice} onClick={async ()=>{
+              const ids = Object.keys(selectedMap);
+              if (ids.length === 0) { showToast('לא נבחרו פריטים'); return; }
+              const pct = Number(discountModalValue);
+              if (!Number.isFinite(pct)) { showToast('אחוז לא תקין'); return; }
+              try {
+                setSavingPrice(true);
+                await Promise.all(ids.map(async (rid) => {
+                  try {
+                    const prod = await getProductByRecipeAPI(rid).catch(()=>null);
+                    const base = Number(prod?.price);
+                    if (Number.isFinite(base)) {
+                      let newPrice = base * (1 - (pct/100));
+                      newPrice = Math.max(0, Math.round(newPrice * 100) / 100);
+                      await updateProductByRecipeAPI(rid, { price: newPrice });
+                      setPriceMap(prev => ({ ...prev, [rid]: { price: newPrice, original: (prev[rid]?.original ?? base), discountPct: pct } }));
+                    }
+                  } catch(_) {}
+                }));
+                showToast('ההנחה הוחלה');
+                setDiscountModalOpen(false);
+                setDiscountModalValue('');
+              } finally {
+                setSavingPrice(false);
+              }
+            }}>החל</button>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={()=> setDiscountModalOpen(false)}>ביטול</button>
+          </div>
+        </div>
+      </div>
+    )}
     {adminModalOpen && (
       <div className={styles.modalOverlay} onClick={() => setAdminModalOpen(false)}>
         <div className={styles.modal} onClick={(e) => e.stopPropagation()}>

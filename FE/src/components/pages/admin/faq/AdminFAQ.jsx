@@ -11,6 +11,10 @@ export default function AdminFAQ() {
   const [publishing, setPublishing] = useState({}); // { [id]: boolean }
   const [saving, setSaving] = useState({}); // { [id]: boolean }
   const [unansweredFirst, setUnansweredFirst] = useState(true);
+  // Reply modal state (admin only)
+  const [replyModalOpen, setReplyModalOpen] = useState(false);
+  const [replyEditingId, setReplyEditingId] = useState(null);
+  const [replyText, setReplyText] = useState('');
 
   const fetchData = async () => {
     try {
@@ -28,6 +32,39 @@ export default function AdminFAQ() {
       setItems([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openReplyModal = (q) => {
+    setReplyEditingId(q.question_id);
+    setReplyText(q.answer_text || '');
+    setReplyModalOpen(true);
+  };
+
+  const closeReplyModal = () => {
+    setReplyModalOpen(false);
+    setReplyEditingId(null);
+    setReplyText('');
+  };
+
+  const saveReplyFromModal = async () => {
+    if (!replyEditingId) return;
+    try {
+      setSaving(s => ({ ...s, [replyEditingId]: true }));
+      const res = await fetch(`/api/questions/${replyEditingId}/answer`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer_text: String(replyText || '').trim() })
+      });
+      if (!res.ok) throw new Error('שמירת תשובה נכשלה');
+      const updated = await res.json();
+      setItems(prev => prev.map(it => it.question_id === replyEditingId ? updated : it));
+      closeReplyModal();
+    } catch (e) {
+      setError(e?.message || 'שמירת תשובה נכשלה');
+    } finally {
+      setSaving(s => ({ ...s, [replyEditingId]: false }));
     }
   };
 
@@ -116,6 +153,7 @@ export default function AdminFAQ() {
       {loading ? (
         <Loading text="טוען שאלות..." />
       ) : (
+        <>
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
@@ -164,9 +202,17 @@ export default function AdminFAQ() {
                         <button className={styles.btn} disabled={!!saving[q.question_id] || !answerText[q.question_id]} onClick={()=> handleAnswer(q)}>
                           {saving[q.question_id] ? 'שומר…' : 'השב'}
                         </button>
+                        <button className={styles.btn} onClick={()=> openReplyModal(q)}>
+                          צפה בתשובה
+                        </button>
                       </div>
                     ) : (
-                      <span className={styles.muted}>—</span>
+                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        <button className={styles.btn} onClick={()=> openReplyModal(q)} disabled={!q.answer_text}>
+                          צפה בתשובה
+                        </button>
+                        {!q.answer_text && <span className={styles.muted}>אין תשובה</span>}
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -175,6 +221,27 @@ export default function AdminFAQ() {
           </table>
           {list.length === 0 && <div className={styles.muted} style={{ padding: 12 }}>אין פריטים להצגה</div>}
         </div>
+        {replyModalOpen && (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.35)', zIndex:50 }} onClick={closeReplyModal}>
+            <div style={{ background:'#fff', width:'min(600px, 92vw)', margin:'10vh auto', borderRadius:12, padding:16 }} onClick={(e)=> e.stopPropagation()} dir="rtl">
+              <h3 style={{ marginTop:0, marginBottom:12 }}>עריכת תשובה</h3>
+              <textarea
+                className={styles.input}
+                style={{ width:'100%', minHeight:140, resize:'vertical' }}
+                value={replyText}
+                onChange={(e)=> setReplyText(e.target.value)}
+                placeholder="כתוב/י תשובה..."
+              />
+              <div style={{ display:'flex', gap:8, justifyContent:'flex-start', marginTop:12 }}>
+                <button className={styles.btn} onClick={saveReplyFromModal} disabled={!!saving[replyEditingId]}>
+                  {saving[replyEditingId] ? 'שומר…' : 'שמור'}
+                </button>
+                <button className={styles.btn} onClick={closeReplyModal}>בטל</button>
+              </div>
+            </div>
+          </div>
+        )}
+        </>
       )}
     </div>
   );

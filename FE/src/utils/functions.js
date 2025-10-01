@@ -4,6 +4,19 @@ import axios from "axios";
 
 // Axios defaults for dev: let CRA proxy forward relative /api requests; include cookies
 axios.defaults.withCredentials = true;
+// Prefer explicit base URL via env; fallback to dev heuristic (FE on 3001, BE on 3000)
+try {
+  const envBase = process.env.REACT_APP_API_BASE_URL || process.env.VITE_API_BASE_URL;
+  if (envBase && typeof envBase === 'string') {
+    axios.defaults.baseURL = envBase.replace(/\/$/, '');
+  } else if (typeof window !== 'undefined') {
+    const { protocol, hostname, port } = window.location;
+    const isLocalhost = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
+    if (isLocalhost && String(port) === '3001') {
+      axios.defaults.baseURL = `${protocol}//${hostname}:3000`;
+    }
+  }
+} catch (_) { /* ignore */ }
 
 // Normalize image URLs to absolute backend-served paths
 export function ensureImageUrl(val) {

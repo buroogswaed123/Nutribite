@@ -39,6 +39,7 @@ export default function OrderDetails() {
   const [paymentGroupId, setPaymentGroupId] = useState(null);
   const [childOrders, setChildOrders] = useState([]); // [{ order_id, category_id, delivery_time, total_price }]
   const [autoDownloaded, setAutoDownloaded] = useState(false);
+  const isDraft = !!(orderData?.order?.order_status === 'draft');
 
   const deliveryFee = 12;
   const grandTotal = useMemo(() => Number(orderTotal || 0) + deliveryFee, [orderTotal]);
@@ -354,8 +355,27 @@ export default function OrderDetails() {
           </div>
 
           <div className={styles.footerActions} style={{ marginTop: 16 }}>
-            <button className={`${styles.btn} ${styles.btnSecondary}`} disabled={saving} onClick={onRebuildCart}>חזרה</button>
-            <button className={`${styles.btn}`} disabled={saving} onClick={onRebuildCart}>שחזר לעגלה</button>
+            {isDraft ? (
+              <>
+                <button
+                  className={`${styles.btn} ${styles.btnSecondary}`}
+                  disabled={saving}
+                  onClick={onRebuildCart}
+                  title="חזרה לעמוד ההזמנה והעגלה (משחזר פריטים)"
+                >
+                  חזרה
+                </button>
+                <button className={`${styles.btn}`} disabled={saving} onClick={onRebuildCart}>שחזר לעגלה</button>
+              </>
+            ) : (
+              <button
+                className={`${styles.btn} ${styles.btnSecondary}`}
+                disabled={saving}
+                onClick={() => navigate('/orders')}
+              >
+                חזרה לרשימת הזמנות
+              </button>
+            )}
           </div>
         </div>
       )}

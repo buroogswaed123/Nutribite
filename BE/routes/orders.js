@@ -71,7 +71,7 @@ const TAX_RATE_PERCENT = Number(process.env.TAX_RATE_PERCENT ?? 18.0);
     if (!ohave.has('order_status')) await query("ALTER TABLE orders ADD COLUMN order_status VARCHAR(32) NOT NULL DEFAULT 'pending' AFTER created_at");
     if (!ohave.has('cust_id')) await query("ALTER TABLE orders ADD COLUMN cust_id INT NULL AFTER order_status");
     if (!ohave.has('order_date')) await query("ALTER TABLE orders ADD COLUMN order_date DATETIME NULL AFTER created_at");
-    if (!ohave.has('payment_group_id')) await query("ALTER TABLE orders ADD COLUMN payment_group_id VARCHAR(64) NULL AFTER order_status");
+    // remove legacy payment_group_id usage; do not add this column
   } catch (e) { /* ignore */ }
 })();
 
@@ -153,17 +153,22 @@ router.post('/:id/rebuild_cart', async (req, res) => {
     if (!cust) return res.status(404).json({ message: 'Customer not found' });
 
     // Check ownership
-    const ordRows = await query('SELECT order_id FROM orders WHERE order_id = ? AND cust_id = ? LIMIT 1', [id, cust]);
+    const ordRows = await query('SELECT order_id, order_status FROM orders WHERE order_id = ? AND cust_id = ? LIMIT 1', [id, cust]);
     if (!ordRows || !ordRows[0]) return res.status(404).json({ message: 'Order not found' });
+    // Only allow rebuild if order is still in draft
+    const status = ordRows[0]?.order_status;
+    if (status && String(status).toLowerCase() !== 'draft') {
+      return res.status(400).json({ message: 'Cannot rebuild a non-draft order' });
+    }
 
-    // Load items from order
+    // Load items from order (schema only has product_id, quantity)
     const items = await query('SELECT product_id, quantity FROM order_items WHERE order_id = ? ORDER BY order_item_id ASC', [id]);
     if (!items || items.length === 0) return res.json({ rebuilt: 0 });
 
     // Clear current cart then insert
     await query('DELETE FROM cart_items WHERE user_id = ?', [uid]);
     for (const it of items) {
-      // Use current product price as unit price in cart
+      // Use current product price for cart row; tax fields will be computed by cart routes on update
       const prod = await query('SELECT price FROM products WHERE product_id = ? LIMIT 1', [it.product_id]);
       const price = prod && prod[0] ? Number(prod[0].price || 0) : 0;
       await query(
@@ -258,7 +263,7 @@ router.post('/checkout', async (req, res) => {
       return true;
     };
 
-    // Group cart items by category_id
+    // Group cart items initially by category_id (to fetch per-category schedule)
     const byCat = new Map();
     for (const it of cart) {
       const key = String(it.category_id || '0');
@@ -284,32 +289,38 @@ router.post('/checkout', async (req, res) => {
       }
     }
 
-    // Generate a payment_group_id and insert one order per category (transaction)
-    const paymentGroupId = `pg_${uid}_${Date.now()}_${Math.floor(Math.random()*1e6)}`;
-    const createdOrders = [];
-
-    for (const [key, arr] of byCat.entries()) {
+    // Group items by their delivery datetime (merge categories sharing same date+time into one order)
+    const byDeliveryDT = new Map(); // key: normalized 'YYYY-MM-DD HH:mm:00', value: items[]
+    for (const it of cart) {
+      const key = String(it.category_id || '0');
       const dt = perCatDT.get(key);
-      const orderTotal = arr.reduce((s, it) => s + Number((it.unit_price_gross ?? it.price) || 0) * Number(it.quantity||0), 0);
       const orderDateValue = normalizeToMySQL(dt);
+      if (!byDeliveryDT.has(orderDateValue)) byDeliveryDT.set(orderDateValue, []);
+      byDeliveryDT.get(orderDateValue).push(it);
+    }
+
+    // Insert one order per unique delivery datetime
+    const createdOrders = [];
+    for (const [orderDateValue, arr] of byDeliveryDT.entries()) {
+      const orderTotal = arr.reduce((s, it) => s + Number((it.unit_price_gross ?? it.price) || 0) * Number(it.quantity||0), 0);
       const [ins] = await tx.query(
-        `INSERT INTO orders (order_date, order_status, total_price, cust_id, set_delivery_time, payment_group_id) VALUES (?, 'draft', ?, ?, ?, ?)`,
-        [orderDateValue, orderTotal, cust, orderDateValue, paymentGroupId]
+        `INSERT INTO orders (order_date, order_status, total_price, cust_id, set_delivery_time) VALUES (?, 'draft', ?, ?, ?)`,
+        [orderDateValue, orderTotal, cust, orderDateValue]
       );
       const orderId = ins.insertId;
       for (const it of arr) {
         await tx.query(
-          `INSERT INTO order_items (order_id, product_id, quantity, price, unit_price_net, tax_rate, tax_amount, unit_price_gross, category_id, delivery_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [orderId, it.product_id, it.quantity, it.price ?? 0, it.unit_price_net ?? null, it.tax_rate ?? null, it.tax_amount ?? null, it.unit_price_gross ?? null, it.category_id ?? null, orderDateValue]
+          `INSERT INTO order_items (order_id, product_id, quantity) VALUES (?, ?, ?)`,
+          [orderId, it.product_id, it.quantity]
         );
       }
-      createdOrders.push({ order_id: orderId, category_id: Number(key) || 0, delivery_time: orderDateValue, total_price: Number(orderTotal.toFixed(2)) });
+      createdOrders.push({ order_id: orderId, delivery_time: orderDateValue, total_price: Number(orderTotal.toFixed(2)) });
     }
 
     // Clear cart after creating all orders
     await tx.query(`DELETE FROM cart_items WHERE user_id = ?`, [uid]);
 
-    return res.status(201).json({ payment_group_id: paymentGroupId, orders: createdOrders });
+    return res.status(201).json({ orders: createdOrders });
   } catch (err) {
     console.error('CHECKOUT ERROR:', err);
     return res.status(500).json({ message: 'Failed to checkout', error: err.message });
@@ -317,40 +328,3 @@ router.post('/checkout', async (req, res) => {
 });
 
 module.exports = router;
- 
-// POST /api/orders/:id/rebuild_cart - rebuild current user's cart from a past order
-router.post('/:id/rebuild_cart', async (req, res) => {
-  try {
-    const uid = getUserId(req);
-    if (!uid) return res.status(401).json({ message: 'Not logged in' });
-    const id = Number(req.params.id);
-    // Resolve cust_id
-    const custRows = await query('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [uid]);
-    const cust = custRows && custRows[0] ? custRows[0].cust_id : null;
-    if (!cust) return res.status(404).json({ message: 'Customer not found' });
-
-    // Check ownership
-    const ordRows = await query('SELECT order_id FROM orders WHERE order_id = ? AND cust_id = ? LIMIT 1', [id, cust]);
-    if (!ordRows || !ordRows[0]) return res.status(404).json({ message: 'Order not found' });
-
-    // Load items from order
-    const items = await query('SELECT product_id, quantity FROM order_items WHERE order_id = ? ORDER BY order_item_id ASC', [id]);
-    if (!items || items.length === 0) return res.json({ rebuilt: 0 });
-
-    // Clear current cart then insert
-    await query('DELETE FROM cart_items WHERE user_id = ?', [uid]);
-    for (const it of items) {
-      // Use current product price as unit price in cart
-      const prod = await query('SELECT price FROM products WHERE product_id = ? LIMIT 1', [it.product_id]);
-      const price = prod && prod[0] ? Number(prod[0].price || 0) : 0;
-      await query(
-        'INSERT INTO cart_items (user_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
-        [uid, it.product_id, it.quantity, price]
-      );
-    }
-    return res.json({ rebuilt: items.length });
-  } catch (err) {
-    console.error('REBUILD CART ERROR:', err);
-    return res.status(500).json({ message: 'Failed to rebuild cart', error: err.message });
-  }
-});

@@ -9,6 +9,7 @@ import {
   ensureImageUrl,
   getSessionUser,
   createNotificationAPI,
+  fetchNotificationsAPI,
 } from '../../../utils/functions';
 
 // Order of categories for display: breakfast → drink → snack → lunch → dinner → dessert
@@ -238,7 +239,6 @@ export default function Order() {
       // We do not send applyToAll; schedule remains per-category
       try { /* optionally log */ } catch (_) {}
       const data = await checkoutOrderAPI({ schedule: payloadSchedule });
-      const pgid = data?.payment_group_id;
       const childOrders = Array.isArray(data?.orders) ? data.orders : [];
       const orderId = data?.order_id || (childOrders[0]?.order_id);
       if (!orderId) throw new Error('Order creation failed');
@@ -246,18 +246,28 @@ export default function Order() {
       try {
         const user = await getSessionUser();
         if (user && user.user_id) {
-          await createNotificationAPI({
-            user_id: user.user_id,
-            type: 'order',
-            related_id: orderId,
-            title: `המשך הגדרת ההזמנה #${orderId}`,
-            description: 'לחצו כדי להמשיך בהגדרת ההזמנה שלכם',
-          });
+          // Avoid duplicates: skip if there is an unread continue-notification for this order
+          let hasExisting = false;
+          try {
+            const existing = await fetchNotificationsAPI(user.user_id);
+            hasExisting = Array.isArray(existing) && existing.some(n => (
+              String(n.type) === 'order' && Number(n.related_id) === Number(orderId) &&
+              String(n.title || '').includes('המשך הגדרת ההזמנה') && n.status !== 'read'
+            ));
+          } catch(_) {}
+          if (!hasExisting) {
+            await createNotificationAPI({
+              user_id: user.user_id,
+              type: 'order',
+              related_id: orderId,
+              title: `המשך הגדרת ההזמנה #${orderId}`,
+              description: 'לחצו כדי להמשיך בהגדרת ההזמנה שלכם',
+            });
+          }
         }
       } catch (_) { /* non-fatal */ }
       // Do NOT clear draft; keep schedule in sessionStorage so going back retains values
-      try { console.log('Checkout success, navigating to order', { orderId, payment_group_id: pgid, orders: childOrders }); } catch (_) {}
-      navigate(`/orders/${orderId}`, { state: { payment_group_id: pgid || null, orders: childOrders } });
+      navigate(`/orders/${orderId}`, { state: { orders: childOrders } });
     } catch (e) {
       const serverMsg = e?.response?.data?.message;
       const serverErr = e?.response?.data?.error;
@@ -270,52 +280,82 @@ export default function Order() {
     }
   };
 
-  // Handler for modal actions
+  // Handler for modal actions (apply defaults based on rules)
   const applyDefaultsForMissing = () => {
-    // If any date is missing: set ALL categories to today and time to now+40m (clamped)
-    if ((missingInfo.missingDates || []).length > 0) {
-      const now = new Date();
-      const plus40 = addMinutes(now, 40);
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const plus40Day = new Date(plus40.getFullYear(), plus40.getMonth(), plus40.getDate());
-      let dateStrNow = fmtDate(now);
-      let timeStrNow = fmtTime(plus40);
-      // If plus40 crosses into next day or exceeds window, roll to tomorrow 06:40
-      const crossedDay = plus40Day.getTime() !== today.getTime();
-      if (crossedDay || toMinutes(timeStrNow) > toMinutes('23:59')) {
-        const tomorrow = new Date(today.getTime() + 24*60*60*1000);
-        dateStrNow = fmtDate(tomorrow);
-        timeStrNow = clampTime('06:40');
-      } else {
-        timeStrNow = clampTime(timeStrNow);
-      }
-      setSchedule(prev => {
-        const next = { ...prev };
-        for (const g of groups) {
-          next[g.id] = { date: dateStrNow, time: timeStrNow };
-        }
-        return next;
-      });
-      setShowMissingModal(false);
-      setMissingInfo({ missingDates: [], missingTimes: [] });
-      return;
-    }
-    // Otherwise, set missing times per category's standard time (keeping their dates)
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today.getTime() + 24*60*60*1000);
+    const plus40 = addMinutes(now, 40);
+    const plus40SameDay = (plus40.getFullYear() === today.getFullYear() && plus40.getMonth() === today.getMonth() && plus40.getDate() === today.getDate());
+    const plus40Time = fmtTime(plus40);
+    const withinHours = plus40SameDay && toMinutes(clampTime(plus40Time)) >= toMinutes('06:00') && toMinutes(clampTime(plus40Time)) <= toMinutes('23:59');
+    const todayStrLocal = fmtDate(today);
+    const tomorrowStr = fmtDate(tomorrow);
+    const plus40Clamped = clampTime(plus40Time);
+
     setSchedule(prev => {
       const next = { ...prev };
       for (const g of groups) {
-        const sc = next[g.id] || {};
-        if (sc.date && !sc.time) {
+        const current = next[g.id] || {};
+        const hasDate = !!current.date;
+        const hasTime = !!current.time;
+
+        // Case A: no date and no time
+        if (!hasDate && !hasTime) {
+          if (withinHours) {
+            // Use today + 40 mins
+            next[g.id] = { date: todayStrLocal, time: plus40Clamped };
+          } else {
+            // Too late today → set to tomorrow with category default time
+            let t = standardTimeForCategory(g.name);
+            t = clampTime(t);
+            next[g.id] = { date: tomorrowStr, time: t };
+          }
+          continue;
+        }
+
+        // Case B: date is set for today, but time missing → use today + 40 if within hours; else tomorrow default
+        if (hasDate && current.date === todayStrLocal && !hasTime) {
+          if (withinHours) {
+            next[g.id] = { ...current, time: plus40Clamped };
+          } else {
+            let t = standardTimeForCategory(g.name);
+            t = clampTime(t);
+            next[g.id] = { date: tomorrowStr, time: t };
+          }
+          continue;
+        }
+
+        // Case C: time set without date, and time is later than today+40 → auto make the date today
+        if (!hasDate && hasTime) {
+          try {
+            const [hh, mm] = String(current.time).split(':').map(Number);
+            if (Number.isFinite(hh) && Number.isFinite(mm)) {
+              const tm = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+              if (withinHours && toMinutes(tm) >= toMinutes(plus40Clamped)) {
+                next[g.id] = { date: todayStrLocal, time: clampTime(tm) };
+                continue;
+              }
+            }
+          } catch (_) { /* ignore parse error */ }
+          // otherwise leave as-is (user must choose a date)
+        }
+
+        // Case D: date exists but time missing (not today) → set per-category standard time respecting min if date is today
+        if (hasDate && !hasTime) {
           let t = standardTimeForCategory(g.name);
-          // respect today constraint
-          const minT = (sc.date === todayStr) ? currentTimeRounded() : '06:00';
+          const minT = (current.date === todayStrLocal) ? currentTimeRounded() : '06:00';
           if (toMinutes(t) < toMinutes(minT)) t = minT;
           t = clampTime(t);
-          next[g.id] = { ...sc, time: t };
+          next[g.id] = { ...current, time: t };
+          continue;
         }
+
+        // Other cases (already has both, or other combos not specified) → leave untouched
       }
       return next;
     });
+
     setShowMissingModal(false);
     setMissingInfo({ missingDates: [], missingTimes: [] });
   };
@@ -366,7 +406,7 @@ export default function Order() {
       {err && <div style={{ color: '#b91c1c', marginBottom: 8 }}>{err}</div>}
       {loading && <Loading text="טוען עגלה..." />}
 
-      {/* Apply date for all controls (single input + button on its right, aligned to left) */}
+      {/* Apply DATE for all categories (keeps each category's time as-is) */}
       <div className={styles.mealSection} style={{ marginTop: 12 }}>
         <div className={styles.mealHeader} style={{ display:'flex', gap: 8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
           <input
@@ -402,7 +442,7 @@ export default function Order() {
               });
             }}
           >
-            קבע לכל הקטגוריות
+            קבע תאריך לכל הקטגוריות
           </button>
         </div>
       </div>

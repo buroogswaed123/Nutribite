@@ -57,7 +57,59 @@ router.get('/', async (req, res) => {
       WHERE ci.user_id = ?
       ORDER BY ci.id DESC
     `, [userId]);
-    return res.json({ items: rows });
+    // Backfill/compute VAT fields for legacy rows (response only)
+    const rate = TAX_RATE_PERCENT;
+    const items = rows.map((row) => {
+      let {
+        unit_price_net,
+        unit_price_gross,
+        tax_amount,
+        tax_rate,
+        price: legacy_price,
+        current_price,
+      } = row;
+
+      // If unit_price_gross missing, try to derive
+      if (unit_price_gross == null) {
+        if (legacy_price != null) {
+          // Treat legacy price as gross and derive net+tax
+          const gross = Number(legacy_price) || 0;
+          const net = Number((gross / (1 + rate / 100)).toFixed(2));
+          const tax = Number((gross - net).toFixed(2));
+          unit_price_gross = gross;
+          unit_price_net = net;
+          tax_amount = tax;
+          tax_rate = rate;
+        } else if (current_price != null) {
+          // Treat current product price as net and compute gross+tax
+          const net = Number(current_price) || 0;
+          const tax = Number(((net * rate) / 100).toFixed(2));
+          const gross = Number((net + tax).toFixed(2));
+          unit_price_net = net;
+          unit_price_gross = gross;
+          tax_amount = tax;
+          tax_rate = rate;
+        }
+      } else if (tax_amount == null || tax_rate == null || unit_price_net == null) {
+        // If only parts missing, recompute consistently from gross assuming rate
+        const gross = Number(unit_price_gross) || 0;
+        const net = Number((gross / (1 + rate / 100)).toFixed(2));
+        const tax = Number((gross - net).toFixed(2));
+        unit_price_net = net;
+        tax_amount = tax;
+        tax_rate = rate;
+      }
+
+      return {
+        ...row,
+        unit_price_net,
+        unit_price_gross,
+        tax_amount,
+        tax_rate,
+      };
+    });
+
+    return res.json({ items });
   } catch (err) {
     console.error('CART LIST ERROR:', err);
     return res.status(500).json({ message: 'Failed to fetch cart', error: err.message });

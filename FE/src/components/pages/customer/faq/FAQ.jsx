@@ -36,7 +36,7 @@ function FAQ({ currentUser }) {
     console.log('FAQ currentUser:', currentUser);
   }, [currentUser]);
 
-  // Responsive: detect mobile width
+  // useEffect: Detect mobile width and keep `isMobile` in sync with viewport
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
     const onChange = () => setIsMobile(!!mq.matches);
@@ -53,7 +53,7 @@ function FAQ({ currentUser }) {
     };
   }, []);
  
-  // Parse query params for tab and highlight deep-linking
+  // useEffect: Parse URL query params for tab and item highlight deep-linking
   useEffect(() => {
     const params = new URLSearchParams(location.search || '');
     const tab = (params.get('tab') || '').toLowerCase();
@@ -68,7 +68,7 @@ function FAQ({ currentUser }) {
       setSidebarOpen(true);
     }
   }, [location.search]);
-  // Keep resolvedUser in sync with prop when provided
+  // useEffect: Keep `resolvedUser` in sync with the incoming prop or localStorage fallback
   useEffect(() => {
     if (currentUser) {
       setResolvedUser(currentUser);
@@ -93,8 +93,8 @@ function FAQ({ currentUser }) {
     }
   }, [currentUser]);
 
+  // useEffect: Fetch FAQ questions with optional text search filter
   useEffect(() => {
-    // Fetch questions from backend with optional text search (q)
     const q = String(searchTerm || '').trim();
     const qs = q ? `?q=${encodeURIComponent(q)}` : '';
     setLoading(true);
@@ -118,7 +118,7 @@ function FAQ({ currentUser }) {
       });
   }, [searchTerm]);
 
-  // After items load/update, if highlightId is present, decide where to focus it
+  // useEffect: After items update, focus and scroll to the highlighted question when requested
   useEffect(() => {
     if (!highlightId) return;
     // find the question
@@ -143,7 +143,7 @@ function FAQ({ currentUser }) {
     return () => clearTimeout(t);
   }, [items, highlightId, activeTab]);
 
-  // Admin actions handlers
+  // handleTogglePublic: Toggle question visibility (publish/unpublish) as admin
   const handleTogglePublic = async (item) => {
     try {
       const nowPublic = !isPublicQuestion(item);
@@ -162,16 +162,19 @@ function FAQ({ currentUser }) {
     }
   };
 
+  // handleStartEdit: Enter inline edit mode for a question title
   const handleStartEdit = (item) => {
     setEditingId(item.question_id);
     setEditingText(item.question_text || '');
   };
 
+  // handleCancelEdit: Exit inline edit mode without changes
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditingText('');
   };
 
+  // handleSaveEdit: Persist edited question title to the server and update local state
   const handleSaveEdit = async (item) => {
     const text = (editingText || '').trim();
     if (!text) return;
@@ -191,6 +194,7 @@ function FAQ({ currentUser }) {
     }
   };
 
+  // handleDelete: Remove a question (admin only) and update local list
   const handleDelete = async (item) => {
     try {
       const res = await fetch(`/api/questions/${item.question_id}`, { method: 'DELETE', credentials: 'include' });
@@ -203,13 +207,16 @@ function FAQ({ currentUser }) {
   };
 
   // Derived collections per tab
+  // publicItems: Memoized list of items visible to all users (public=true)
   const publicItems = useMemo(() => (Array.isArray(items) ? items.filter(isPublicQuestion) : []), [items]);
+  // myItems: Memoized subset of items asked by the current user (for sidebar)
   const myItems = useMemo(() => {
     const uid = resolvedUser?.user_id;
     if (!uid) return [];
     return (Array.isArray(items) ? items.filter(i => String(i.user_id) === String(uid)) : []);
   }, [items, resolvedUser]);
 
+  // myFiltered: Text search within the user's own questions (sidebar filter)
   const myFiltered = useMemo(() => {
     const q = (searchMy || '').toLowerCase().trim();
     if (!q) return myItems;
@@ -221,6 +228,7 @@ function FAQ({ currentUser }) {
 
   const displayed = publicItems; // main area always shows public FAQ now
 
+  // handleAddQuestion: Submit a new question by the current (customer) user
   const handleAddQuestion = async () => {
     const q = newQuestion.trim();
     if (!q) return;
@@ -240,6 +248,7 @@ function FAQ({ currentUser }) {
     }
   };
 
+  // handleAnswer: Admin sends an answer to a question (inline form)
   const handleAnswer = async (id, answer) => {
     try {
       const res = await fetch(`/api/questions/${id}/answer`, {
@@ -473,6 +482,7 @@ function FAQ({ currentUser }) {
 }
 
 // Small sub-component for admin answering
+// AdminAnswerForm: Small sub-component for inline answering of a single question
 function AdminAnswerForm({ question, onAnswer }) {
   const [answer, setAnswer] = useState('');
   return (

@@ -1,3 +1,4 @@
+// Menu page: browse products with filters, badges, and add-to-cart; admin bulk tools
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowUpDown, Star } from 'lucide-react'

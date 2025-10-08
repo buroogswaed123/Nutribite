@@ -1,9 +1,9 @@
-//all routes user_type courier could use
+// Courier routes (assigned deliveries, status updates)
 const express = require('express');
 const db = require('../dbSingleton');
 const router = express.Router();
 
-//helper
+// helper: wrapped query that returns [rows]
 const conn = db.getConnection && db.getConnection();
 const runQuery = async (sql, params = []) => {
   if (!conn) throw new Error('DB connection not initialized');
@@ -20,7 +20,8 @@ const runQuery = async (sql, params = []) => {
 };
 
 
-//update status
+// PATCH /api/courier/orders/:id/status
+// Update order status (courier action)
 router.patch('/orders/:id/status', async (req, res) => {
   try {
     const [rows] = await runQuery('UPDATE orders SET status = ? WHERE order_id = ?', [req.body.status, req.params.id]);
@@ -31,7 +32,8 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 });
 
-//Update name
+// PATCH /api/courier/couriers/:id/name
+// Update courier's name
 router.patch('/couriers/:id/name', async (req, res) => {
   try {
     const [rows] = await runQuery('UPDATE couriers SET name = ? WHERE courier_id = ?', [req.body.name, req.params.id]);
@@ -42,7 +44,8 @@ router.patch('/couriers/:id/name', async (req, res) => {
   }
 });
 
-//Update phone
+// PATCH /api/courier/couriers/:id/phone
+// Update courier's phone
 router.patch('/couriers/:id/phone', async (req, res) => {
   try {
     const [rows] = await runQuery('UPDATE couriers SET phone = ? WHERE courier_id = ?', [req.body.phone, req.params.id]);
@@ -53,7 +56,8 @@ router.patch('/couriers/:id/phone', async (req, res) => {
   }
 });
 
-//view all assigned deliveries
+// GET /api/courier/couriers/:id/assigned_deliveries
+// List all deliveries assigned to the courier
 router.get('/couriers/:id/assigned_deliveries', async (req, res) => {
   try {
     const [rows] = await runQuery(`
@@ -80,7 +84,8 @@ router.get('/couriers/:id/assigned_deliveries', async (req, res) => {
   }
 });
 
-// get courier profile
+// GET /api/courier/couriers/:id
+// Get courier profile by id
 router.get('/couriers/:id', async (req, res) => {
   try {
     const [rows] = await runQuery(
@@ -94,7 +99,8 @@ router.get('/couriers/:id', async (req, res) => {
   }
 });
 
-// set courier status (e.g., active, offline, on route)
+// PATCH /api/courier/couriers/:id/status
+// Set courier status (active, offline, on route)
 router.patch('/couriers/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
@@ -106,7 +112,8 @@ router.patch('/couriers/:id/status', async (req, res) => {
   }
 });
 
-// list deliveries for a courier with optional status filter
+// GET /api/courier/couriers/:id/deliveries
+// List courier deliveries (optional ?status=)
 router.get('/couriers/:id/deliveries', async (req, res) => {
   try {
     const params = [req.params.id];
@@ -140,7 +147,8 @@ router.get('/couriers/:id/deliveries', async (req, res) => {
   }
 });
 
-// get a specific delivery (ensuring it belongs to the courier via query param)
+// GET /api/courier/deliveries/:deliveryId
+// Get a delivery (optionally enforce courier via ?courier_id=)
 router.get('/deliveries/:deliveryId', async (req, res) => {
   const { deliveryId } = req.params;
   const { courier_id } = req.query; // ideally derive from session
@@ -164,7 +172,8 @@ router.get('/deliveries/:deliveryId', async (req, res) => {
   }
 });
 
-// update delivery status with cascading updates (transactional when possible)
+// PATCH /api/courier/deliveries/:id/status
+// Update delivery status; cascade to orders/couriers (transactional when possible)
 router.patch('/deliveries/:id/status', async (req, res) => {
   const { status, courier_id } = req.body; // courier_id should correspond to the authenticated courier
   const deliveryId = req.params.id;
@@ -210,7 +219,8 @@ router.patch('/deliveries/:id/status', async (req, res) => {
   }
 });
 
-// accept a delivery (assign to this courier if available)
+// POST /api/courier/deliveries/:id/accept
+// Accept/assign a delivery to this courier (subject to rules)
 router.post('/deliveries/:id/accept', async (req, res) => {
   const { courier_id } = req.body; // derive from session ideally
   try {
@@ -233,7 +243,8 @@ router.post('/deliveries/:id/accept', async (req, res) => {
   }
 });
 
-// decline/unassign a delivery (if business rules allow)
+// POST /api/courier/deliveries/:id/decline
+// Decline/unassign a delivery
 router.post('/deliveries/:id/decline', async (req, res) => {
   const { courier_id } = req.body; // derive from session ideally
   const deliveryId = req.params.id;
@@ -266,7 +277,8 @@ router.post('/deliveries/:id/decline', async (req, res) => {
   }
 });
 
-// basic stats for courier dashboard
+// GET /api/courier/couriers/:id/stats
+// Basic stats for courier dashboard
 router.get('/couriers/:id/stats', async (req, res) => {
   try {
     const [rows] = await runQuery(`

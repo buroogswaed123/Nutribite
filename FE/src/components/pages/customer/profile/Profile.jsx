@@ -1,3 +1,4 @@
+// Customer profile: avatar, settings, plans summary, and orders/deliveries with grouped details
 import React, { useState, useContext, useEffect } from 'react';
 import { Settings as SettingsIcon, Pencil, Check, X, ArrowLeft } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';

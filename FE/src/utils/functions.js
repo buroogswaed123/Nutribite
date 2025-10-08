@@ -70,14 +70,16 @@ export async function getTopRatedSummaryAPI(limit = 3) {
 
 //login
 export async function login(identifier, password, method) {
-  const { data } = await axios.post("/api/login", { identifier, password, loginMethod: method });
-  return extractOrThrow(data, 'Login failed');
+  // validateStatus allows us to read server JSON on 4xx/5xx and show a friendly message
+  const res = await axios.post("/api/login", { identifier, password, loginMethod: method }, { validateStatus: () => true });
+  return extractOrThrow(res.data, 'התחברות נכשלה');
 }
 
 //register
 export async function register(username, email, password, user_type) {
-  const { data } = await axios.post("/api/register", { username, email, password, user_type });
-  return extractOrThrow(data, 'Registration failed');
+  // Same approach for register to surface field-specific messages
+  const res = await axios.post("/api/register", { username, email, password, user_type }, { validateStatus: () => true });
+  return extractOrThrow(res.data, 'הרשמה נכשלה');
 }
 
 // Check if user's password is expired (e.g., older than policy window). Backend should return { expired: true|false }.
@@ -255,8 +257,12 @@ export function validateEmail(email) {
 // We treat HTTP 403 with a message that includes 'banned' (case-insensitive) as banned
 export function isBannedError(err) {
   const status = err?.response?.status;
-  const msg = (err?.response?.data?.message || err?.response?.data?.error || err?.message || '').toString().toLowerCase();
-  return status === 403 && msg.includes('bann'); // matches 'ban', 'banned'
+  const data = err?.response?.data || {};
+  const code = data.code || err?.code;
+  const rawMsg = (data.message || data.error || err?.message || '');
+  const msg = rawMsg.toString().toLowerCase();
+  const heb = rawMsg && /נחסם/.test(String(rawMsg));
+  return status === 403 && (code === 'BANNED' || msg.includes('bann') || heb);
 }
 
 // Normalize and check if a question/item is public
@@ -419,14 +425,24 @@ export async function updateProductByRecipeAPI(recipeId, { price, stock, discoun
 
 // Bulk fetch all menu products once and build a quick lookup by recipe_id
 export async function fetchMenuProductsMap() {
-  const { data } = await axios.get('/api/menu');
-  const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+  // Fetch ALL products from /api/menu by paginating, so stock covers every recipe
   const map = {};
-  for (const it of items) {
-    const rid = it.recipe_id || it.recipe || it.rid;
-    if (!rid) continue;
-    const stock = Number(it.stock ?? it.quantity ?? it.qty ?? 0) || 0;
-    map[rid] = stock;
+  const limit = 200; // page size
+  let offset = 0;
+  let total = Infinity;
+  while (offset < total) {
+    const { data } = await axios.get('/api/menu', { params: { limit, offset } });
+    const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+    const meta = data?.meta || {};
+    total = Number.isFinite(Number(meta.total)) ? Number(meta.total) : (offset + items.length);
+    for (const it of items) {
+      const rid = it.recipe_id || it.recipe || it.rid;
+      if (!rid) continue;
+      const stock = Number(it.stock ?? it.quantity ?? it.qty ?? 0) || 0;
+      map[rid] = stock;
+    }
+    if (!items.length) break;
+    offset += items.length;
   }
   return map;
 }

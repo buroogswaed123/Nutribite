@@ -1,7 +1,9 @@
+// Orders routes (customer orders lifecycle)
 const express = require('express');
 const router = express.Router();
 const db = require('../dbSingleton');
 
+// query: small helper returning rows[] consistently
 const conn = db.getConnection && db.getConnection();
 function query(sql, params = []) {
   if (!conn) throw new Error('DB connection not initialized');
@@ -19,11 +21,12 @@ function query(sql, params = []) {
   throw new Error('Unsupported DB client');
 }
 
+// getUserId: resolve numeric user_id from session
 function getUserId(req){ return req.session && req.session.user_id ? Number(req.session.user_id) : null; }
 
 const TAX_RATE_PERCENT = Number(process.env.TAX_RATE_PERCENT ?? 18.0);
 
-// Ensure orders and order_items tables exist if not present
+// Boot-time ensure: create/alter orders and order_items if missing columns (idempotent)
 (async () => {
   try {
     // Create orders table first (referenced by order_items)
@@ -75,7 +78,8 @@ const TAX_RATE_PERCENT = Number(process.env.TAX_RATE_PERCENT ?? 18.0);
   } catch (e) { /* ignore */ }
 })();
 
-// GET /api/orders - list current user's orders (schema uses cust_id on orders)
+// GET /api/orders
+// List current user's orders (by cust_id)
 router.get('/', async (req, res) => {
   try {
     const uid = getUserId(req);
@@ -103,7 +107,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/orders/draft/latest - latest draft order for current user
+// GET /api/orders/draft/latest
+// Latest draft order for current user (404 if none)
 router.get('/draft/latest', async (req, res) => {
   try {
     const uid = getUserId(req);
@@ -120,7 +125,8 @@ router.get('/draft/latest', async (req, res) => {
   }
 });
 
-// POST /api/orders/:id/confirm - mark order as confirmed (ownership enforced)
+// POST /api/orders/:id/confirm
+// Mark order as confirmed (ownership enforced)
 router.post('/:id/confirm', async (req, res) => {
   try {
     const uid = getUserId(req);
@@ -141,7 +147,8 @@ router.post('/:id/confirm', async (req, res) => {
   }
 });
 
-// POST /api/orders/:id/rebuild_cart - rebuild current user's cart from a past order
+// POST /api/orders/:id/rebuild_cart
+// Rebuild current user's cart from a past order (only for draft)
 router.post('/:id/rebuild_cart', async (req, res) => {
   try {
     const uid = getUserId(req);
@@ -183,7 +190,8 @@ router.post('/:id/rebuild_cart', async (req, res) => {
   }
 });
 
-// GET /api/orders/:id - order details with items (validate by cust_id)
+// GET /api/orders/:id
+// Order details with items (validate ownership by cust_id)
 router.get('/:id', async (req, res) => {
   try {
     const uid = getUserId(req);
@@ -221,8 +229,9 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/orders/checkout - create order from cart with per-category schedule
-// Body: { schedule: { [categoryIdOrName]: ISOString or 'YYYY-MM-DDTHH:mm' }, applyToAll?: ISOString }
+// POST /api/orders/checkout
+// Create orders from cart with per-category or unified schedule
+// Body: { schedule: { [categoryIdOrName]: ISO | 'YYYY-MM-DDTHH:mm' }, applyToAll?: ISO }
 router.post('/checkout', async (req, res) => {
   const tx = conn.promise();
   try {

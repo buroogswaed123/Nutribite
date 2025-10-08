@@ -1,3 +1,4 @@
+// Admin home: dashboard tabs (overview, analytics, stock management) with quick actions and stats
 import React, { useState, useEffect, useContext } from "react";
 import {
   Users,
@@ -19,11 +20,12 @@ import {
   Clock,
   Zap,
   FileText,
+  ArrowUpDown,
 } from "lucide-react";
 import { AuthContext } from "../../../../app/App";
 import { useAuth } from "../../../../hooks/useAuth";
 import { Link } from "react-router-dom";
-import { ensureImageUrl, updateProductByRecipeAPI, getProductByRecipeAPI, fetchMenuProductsMap } from "../../../../utils/functions";
+import { ensureImageUrl, updateProductByRecipeAPI, getProductByRecipeAPI, fetchMenuProductsMap, fetchDietTypes, fetchMenuCategoriesAPI } from "../../../../utils/functions";
 
 import styles from "./homeEnhanced.module.css";
 
@@ -44,6 +46,33 @@ export default function HomeEnhanced() {
   const [expandedCats, setExpandedCats] = useState({}); // { [categoryName]: boolean }
   const [productsMap, setProductsMap] = useState(null); // { recipe_id: stock }
   const [saveStatus, setSaveStatus] = useState({}); // { [recipeId]: 'success' | 'error' }
+  // Manage Stock (table) filters
+  const [stockSearch, setStockSearch] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterDiet, setFilterDiet] = useState('');
+  const [dietTypeList, setDietTypeList] = useState([]);
+  const [categoryList, setCategoryList] = useState([]);
+  const [stockSortAsc, setStockSortAsc] = useState(true); // true => least stock first
+  // Build category options consistently: prefer backend list; else derive from recipes
+  const categoryOptions = React.useMemo(() => {
+    if (Array.isArray(categoryList) && categoryList.length) {
+      return categoryList.map(c => ({ value: String(c.id), label: String(c.name || c.id) }));
+    }
+    const seen = new Set();
+    const opts = [];
+    for (const r of (recipes || [])) {
+      const id = r.category_id;
+      const label = r.category_name || r.category || '';
+      if (id != null && label) {
+        const v = String(id);
+        if (!seen.has(`id:${v}`)) { seen.add(`id:${v}`); opts.push({ value: v, label }); }
+      } else if (label) {
+        const v = String(label);
+        if (!seen.has(`name:${v}`)) { seen.add(`name:${v}`); opts.push({ value: v, label }); }
+      }
+    }
+    return opts.sort((a, b) => a.label.localeCompare(b.label, 'he'));
+  }, [categoryList, recipes]);
   
   //give random num
   function getRandomDouble(min, max) {
@@ -182,13 +211,21 @@ export default function HomeEnhanced() {
     return () => {};
   }, [loading]);
 
-  // Prefill current stock for recipes in expanded categories on the 'reviews' tab
+  // Load filters data and prefill stock for visible rows in 'reviews' tab
   useEffect(() => {
     if (activeTab !== 'reviews') return;
-    const cats = Object.keys(expandedCats).filter((k) => expandedCats[k]);
-    // If no categories expanded yet, still try to load the map once so inputs can prefill fast later
     let mounted = true;
     (async () => {
+      try {
+        // Load filter lists (best-effort)
+        const [diets, cats] = await Promise.all([
+          fetchDietTypes().catch(() => []),
+          fetchMenuCategoriesAPI().catch(() => []),
+        ]);
+        if (!mounted) return;
+        setDietTypeList(Array.isArray(diets) ? diets : []);
+        setCategoryList(Array.isArray(cats) ? cats : []);
+      } catch(_) {}
       try {
         let map = productsMap;
         if (!map) {
@@ -196,24 +233,54 @@ export default function HomeEnhanced() {
           if (!mounted) return;
           setProductsMap(map);
         }
-        // Determine which recipe IDs to prefill: if cats chosen, limit to those; else use all recipes shown
-        const candidate = (recipes || []).filter(r => cats.length === 0 || cats.includes((r.category || r.category_name || 'ללא קטגוריה')));
+        // Prefill for all recipes (table view will filter client-side)
         const updates = {};
-        for (const r of candidate) {
+        for (const r of (recipes || [])) {
           const rid = r.id || r.recipe_id;
           if (!rid) continue;
-          if (stocks[rid]?.value != null) continue; // don't override user edits
+          if (stocks[rid]?.value != null) continue;
           const val = Number(map[rid] ?? 0) || 0;
           updates[rid] = { ...(stocks[rid] || {}), value: String(val) };
         }
-        if (Object.keys(updates).length) {
-          setStocks(prev => ({ ...prev, ...updates }));
-        }
-      } catch (_) { /* ignore */ }
+        if (Object.keys(updates).length) setStocks(prev => ({ ...prev, ...updates }));
+      } catch(_) {}
     })();
     return () => { mounted = false; };
-  }, [activeTab, expandedCats, recipes, productsMap, stocks]);
+  }, [activeTab, recipes, productsMap, stocks]);
 
+  // Derive filtered rows for the Manage Stock table
+  const manageRows = React.useMemo(() => {
+    const s = stockSearch.trim().toLowerCase();
+    const filtered = (recipes || []).filter(r => {
+      const name = String(r.title || r.name || '').toLowerCase();
+      const catName = String(r.category || r.category_name || '');
+      const diet = String(r.diet_type || r.diet_name || '');
+      const nameOk = !s || name.includes(s);
+      let catOk = true;
+      if (filterCategory) {
+        const sel = String(filterCategory);
+        const isId = /^\d+$/.test(sel);
+        if (isId) {
+          catOk = String(r.category_id) === sel;
+        } else {
+          catOk = catName === sel;
+        }
+      }
+      const dietOk = !filterDiet || String(diet) === String(filterDiet);
+      return nameOk && catOk && dietOk;
+    });
+    // sort by stock amount (least at top when stockSortAsc = true)
+    const withStock = filtered.map(r => {
+      const rid = r.id || r.recipe_id;
+      const committed = productsMap ? productsMap[rid] : undefined; // only committed DB value
+      const n = Number(committed);
+      return { r, stock: Number.isFinite(n) ? n : Number.POSITIVE_INFINITY };
+    });
+    withStock.sort((a, b) => stockSortAsc ? (a.stock - b.stock) : (b.stock - a.stock));
+    return withStock.map(x => x.r);
+  }, [recipes, stockSearch, filterCategory, filterDiet, productsMap, stockSortAsc]);
+
+  // Note: keep all hooks above; early return after hooks only
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
@@ -294,6 +361,14 @@ export default function HomeEnhanced() {
     if (!dt) return true; // if no date, keep
     const t = new Date(dt);
     return t >= cutoffDate;
+  };
+
+  // Helper: map category id/value to display name based on existing recipes
+  const rCategoryName = (val, list = []) => {
+    if (val == null) return '';
+    const sVal = String(val);
+    const found = (list || []).find(r => String(r.category_id) === sVal);
+    return found ? (found.category || found.category_name || sVal) : sVal;
   };
 
  
@@ -666,103 +741,120 @@ export default function HomeEnhanced() {
 
       {activeTab === 'reviews' && (
         <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>ניהול מלאי מהיר לפי קטגוריה</h2>
-          {/* Category Buttons */}
-          <div className={styles.quickActionsGrid}>
-            {Array.from(new Set((recipes || []).map(r => r.category || r.category_name || 'ללא קטגוריה')))
-              .sort()
-              .map(cat => (
-                <button
-                  key={cat || 'none'}
-                  className={styles.actionCard}
-                  onClick={() => setExpandedCats(prev => ({ ...prev, [cat]: !prev[cat] }))}
-                >
-                  <div className={styles.actionContent}>
-                    <h3 className={styles.actionTitle}>{cat || 'ללא קטגוריה'}</h3>
-                    <p className={styles.actionDescription}>
-                      {expandedCats[cat] ? 'סגור רשימה' : 'פתח רשימה'}
-                    </p>
-                  </div>
-                </button>
+          <h2 className={styles.sectionTitle}>ניהול מלאי</h2>
+          {/* Filters */}
+          <div className={styles.filters} style={{ marginBottom: 12 }}>
+            <input
+              className={styles.search}
+              placeholder="חפש בשם..."
+              value={stockSearch}
+              onChange={(e) => setStockSearch(e.target.value)}
+            />
+            <select className={styles.select} value={filterCategory} onChange={(e)=> setFilterCategory(e.target.value)}>
+              <option value="">כל הקטגוריות</option>
+              {(categoryList.length ? categoryList : Array.from(new Set((recipes||[]).map(r => r.category_id || (r.category || r.category_name || '')))).map(v => ({ id: v, name: rCategoryName(v, recipes) }))).map(c => (
+                <option key={String(c.id ?? c)} value={String(c.id ?? c)}>{String(c.name ?? c)}</option>
               ))}
+            </select>
+            <select className={styles.select} value={filterDiet} onChange={(e)=> setFilterDiet(e.target.value)}>
+              <option value="">כל סוגי הדיאטה</option>
+              {(dietTypeList.length ? dietTypeList : Array.from(new Set((recipes||[]).map(r => r.diet_type || r.diet_name || '')))).map(d => (
+                <option key={String(d.id ?? d)} value={String(d.name ?? d)}>{String(d.name ?? d)}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={styles.filterIconBtn}
+              onClick={() => setStockSortAsc(v => !v)}
+              title={stockSortAsc ? 'הצג עם המלאי הנמוך למעלה' : 'הצג עם המלאי הגבוה למעלה'}
+              aria-pressed={stockSortAsc}
+              style={{ marginInlineStart: 8 }}
+            >
+              <ArrowUpDown size={16} />
+            </button>
           </div>
 
-          {/* Category Dropdowns */}
-          {Array.from(new Set((recipes || []).map(r => r.category || r.category_name || 'ללא קטגוריה')))
-            .sort()
-            .map(cat => {
-              const items = (recipes || []).filter(r => (r.category || r.category_name || 'ללא קטגוריה') === cat);
-              if (!expandedCats[cat]) return null;
-              return (
-                <div key={`cat-${cat || 'none'}`} className={styles.section}>
-                  <h3 className={styles.sectionTitle}>{cat || 'ללא קטגוריה'}</h3>
-                  <div className={styles.statsGrid}>
-                    {items.map((r) => {
-                      const rid = r.id || r.recipe_id;
-                      const stock = stocks[rid]?.value ?? '';
-                      const isLoading = !!stocks[rid]?.loading;
-                      return (
-                        <div key={rid} className={styles.statCard}>
-                          <div className={styles.statContent}>
-                            <h4 className={styles.statLabel} style={{ marginBottom: 8 }}>{r.title || r.name || 'מתכון'}</h4>
-                            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                              <input
-                                type="number"
-                                min={0}
-                                step={1}
-                                className={styles.input}
-                                value={stock}
-                                placeholder="מלאי"
-                                onChange={(e)=>{
-                                  setStocks((prev)=>({ ...prev, [rid]: { ...(prev[rid]||{}), value: e.target.value } }));
-                                }}
-                              />
-                              <button
-                                disabled={isLoading || !String(stock).length}
-                                className={styles.actionCard}
-                                style={{ padding:'6px 12px' }}
-                                onClick={async()=>{
-                                  // Validate: non-negative integer only
-                                  const n = Number(stock);
-                                  if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
-                                    setSaveStatus((prev)=>({ ...prev, [rid]: 'error' }));
-                                    setTimeout(()=>{
-                                      setSaveStatus((prev)=>{ const m={...prev}; delete m[rid]; return m; });
-                                    }, 2000);
-                                    return;
-                                  }
-                                  setStocks((prev)=>({ ...prev, [rid]: { ...(prev[rid]||{}), loading:true } }));
-                                  try{
-                                    await updateProductByRecipeAPI(rid, { stock: n });
-                                    setSaveStatus((prev)=>({ ...prev, [rid]: 'success' }));
-                                    setTimeout(()=>{
-                                      setSaveStatus((prev)=>{ const n={...prev}; delete n[rid]; return n; });
-                                    }, 1500);
-                                  } catch (e) {
-                                    setSaveStatus((prev)=>({ ...prev, [rid]: 'error' }));
-                                    setTimeout(()=>{
-                                      setSaveStatus((prev)=>{ const n={...prev}; delete n[rid]; return n; });
-                                    }, 2500);
-                                  } finally {
-                                    setStocks((prev)=>({ ...prev, [rid]: { ...(prev[rid]||{}), loading:false } }));
-                                  }
-                                }}
-                              >{isLoading ? 'שומר...' : 'שמור'}</button>
-                              {saveStatus[rid] === 'success' && (
-                                <span style={{ marginInlineStart: 8, color: '#059669', fontSize: 12 }}>✓ נשמר</span>
-                              )}
-                              {saveStatus[rid] === 'error' && (
-                                <span style={{ marginInlineStart: 8, color: '#dc2626', fontSize: 12 }}>✗ שגיאה (מספר שלם ≥ 0 בלבד)</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+          {/* Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table className={styles.stockTable}>
+              <thead>
+                <tr>
+                  <th>שם</th>
+                  <th>קטגוריה</th>
+                  <th>סוג דיאטה</th>
+                  <th style={{ width: 140 }}>מלאי</th>
+                  <th style={{ width: 120 }}>פעולות</th>
+                </tr>
+              </thead>
+              <tbody>
+                {manageRows.map((r) => {
+                  const rid = r.id || r.recipe_id;
+                  const stockVal = stocks[rid]?.value ?? '';
+                  const isLoading = !!stocks[rid]?.loading;
+                  const name = r.title || r.name || 'מתכון';
+                  const catName = r.category || r.category_name || '';
+                  const dietName = r.diet_type || r.diet_name || '';
+                  return (
+                    <tr key={rid}>
+                      <td>{name}</td>
+                      <td>{catName}</td>
+                      <td>{dietName}</td>
+                      <td>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          className={styles.input}
+                          value={stockVal}
+                          placeholder="מלאי"
+                          onChange={(e)=>{
+                            setStocks((prev)=>({ ...prev, [rid]: { ...(prev[rid]||{}), value: e.target.value } }));
+                          }}
+                          style={{ maxWidth: 120 }}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          disabled={isLoading || !String(stockVal).length}
+                          className={styles.btn}
+                          onClick={async()=>{
+                            const n = Number(stockVal);
+                            if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+                              setSaveStatus((prev)=>({ ...prev, [rid]: 'error' }));
+                              setTimeout(()=>{ setSaveStatus((prev)=>{ const m={...prev}; delete m[rid]; return m; }); }, 2000);
+                              return;
+                            }
+                            setStocks((prev)=>({ ...prev, [rid]: { ...(prev[rid]||{}), loading:true } }));
+                            try{
+                              await updateProductByRecipeAPI(rid, { stock: n });
+                              setSaveStatus((prev)=>({ ...prev, [rid]: 'success' }));
+                              setTimeout(()=>{ setSaveStatus((prev)=>{ const m={...prev}; delete m[rid]; return m; }); }, 1500);
+                            } catch (e) {
+                              setSaveStatus((prev)=>({ ...prev, [rid]: 'error' }));
+                              setTimeout(()=>{ setSaveStatus((prev)=>{ const m={...prev}; delete m[rid]; return m; }); }, 2500);
+                            } finally {
+                              setStocks((prev)=>({ ...prev, [rid]: { ...(prev[rid]||{}), loading:false } }));
+                            }
+                          }}
+                        >{isLoading ? 'שומר...' : 'שמור'}</button>
+                        {saveStatus[rid] === 'success' && (
+                          <span style={{ marginInlineStart: 8, color: '#059669', fontSize: 12 }}>✓ נשמר</span>
+                        )}
+                        {saveStatus[rid] === 'error' && (
+                          <span style={{ marginInlineStart: 8, color: '#dc2626', fontSize: 12 }}>✗ שגיאה</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {manageRows.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ padding: 12, color:'#6b7280' }}>אין תוצאות</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

@@ -1,11 +1,11 @@
 // Public menu routes (read-only)
-// Base: /api/menu
+// Base path: /api/menu
 
 const express = require('express');
 const db = require('../dbSingleton');
 const router = express.Router();
 
-// DB helper returning rows[] consistently
+// query: DB helper that consistently resolves to rows[]
 const conn = db.getConnection && db.getConnection();
 function query(sql, params = []) {
   if (!conn) throw new Error('DB connection not initialized');
@@ -18,9 +18,13 @@ function query(sql, params = []) {
         if (err) return reject(err);
         resolve(results);
       });
+    });
+  }
+  throw new Error('Unsupported DB client on connection');
+}
 
 // GET /api/menu/by-recipe/:recipeId
-// Returns the product row joined with recipe info for a given recipe_id
+// Return product joined with recipe for a given recipe_id (404 if missing)
 router.get('/by-recipe/:recipeId(\\d+)', async (req, res) => {
   try {
     const recipeId = Number(req.params.recipeId);
@@ -53,7 +57,7 @@ router.get('/by-recipe/:recipeId(\\d+)', async (req, res) => {
 });
 
 // GET /api/menu/protein?min=&max=
-// Minimal: filter by protein_g (grams)
+// Minimal macro filter by protein_g
 router.get('/protein', async (req, res) => {
   try {
     const min = Number.isFinite(Number(req.query.min)) ? Number(req.query.min) : 0;
@@ -72,6 +76,7 @@ router.get('/protein', async (req, res) => {
 });
 
 // GET /api/menu/carbs?min=&max=
+// Minimal macro filter by carbs_g
 router.get('/carbs', async (req, res) => {
   try {
     const min = Number.isFinite(Number(req.query.min)) ? Number(req.query.min) : 0;
@@ -90,6 +95,7 @@ router.get('/carbs', async (req, res) => {
 });
 
 // GET /api/menu/fats?min=&max=
+// Minimal macro filter by fats_g
 router.get('/fats', async (req, res) => {
   try {
     const min = Number.isFinite(Number(req.query.min)) ? Number(req.query.min) : 0;
@@ -106,13 +112,9 @@ router.get('/fats', async (req, res) => {
     res.status(500).json({ message: 'Error searching by fats' });
   }
 });
-    });
-  }
-  throw new Error('Unsupported DB client on connection');
-}
 
 // GET /api/menu
-// List all products where linked recipe is not soft-deleted
+// List products where linked recipe is not soft-deleted (paginated)
 router.get('/', async (req, res) => {
   try {
     const lim = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
@@ -161,6 +163,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/menu/:id (numeric only)
+// Get a single product by product_id
 router.get('/:id(\\d+)', async (req, res) => {
   const productId = Number(req.params.id);
   if (!Number.isFinite(productId)) return res.status(400).json({ message: 'Invalid product id' });
@@ -182,9 +185,8 @@ router.get('/:id(\\d+)', async (req, res) => {
 });
 
 // GET /api/menu/search
-// Query params (all optional):
-//   q (substring match on recipe name), minPrice, maxPrice, minCalories, maxCalories, dietType, category
-//   limit (default 20, max 100), offset (default 0)
+// Search across products (by recipe name, price, calories, macros, dietType, category)
+// Query: q, minPrice, maxPrice, minCalories, maxCalories, minProtein, maxProtein, minCarbs, maxCarbs, minFats, maxFats, dietType, category, limit, offset
 router.get('/search', async (req, res) => {
   try {
     const qStr = (req.query.q || '').toString().trim();
@@ -302,10 +304,8 @@ router.get('/search', async (req, res) => {
   }
 });
 
-module.exports = router;
-
-// Categories list with counts for Menu filters
 // GET /api/menu/categories
+// Categories list with product counts (for filters)
 router.get('/categories', async (req, res) => {
   try {
     const sql = `
@@ -327,9 +327,9 @@ router.get('/categories', async (req, res) => {
   }
 });
 
-// Additional endpoint: eligible products excluding customer's allergies
 // GET /api/menu/eligible?customer_id=123
-// Optional query: category, dietType, minCalories, maxCalories, minPrice, maxPrice
+// Products eligible for a customer (exclude items with components they are allergic to)
+// Optional: category, dietType, minCalories, maxCalories, minPrice, maxPrice
 router.get('/eligible', async (req, res) => {
   try {
     let customerId = Number(req.query.customer_id);
@@ -413,3 +413,6 @@ router.get('/eligible', async (req, res) => {
     return res.status(500).json({ message: 'Error listing eligible products', error: err.message });
   }
 });
+
+// Export router (placed at end for clarity)
+module.exports = router;

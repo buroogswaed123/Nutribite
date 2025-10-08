@@ -1,8 +1,10 @@
+// App footer: brand, quick links, and social icons
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Twitter, Facebook, Instagram } from 'lucide-react';
 import styles from './footer.module.css';
 
+// Renders simple site footer with 4 columns
 export default function Footer() {
   return (
     <footer className={styles.footer}>

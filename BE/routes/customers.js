@@ -1,8 +1,9 @@
+// Customers routes (profiles, allergies, addresses)
 const express = require("express");
 const router = express.Router();
 const db = require("../dbSingleton");
 
-// Helpers
+// Helpers: DB connection, error sender, required fields
 const getConn = () => {
   const conn = db.getConnection && db.getConnection();
   if (!conn) throw new Error('DB connection not initialized');
@@ -21,7 +22,8 @@ const requireFields = (res, body, fields) => {
   return true;
 };
 
-//get all
+// GET /api/customers
+// List all customers
 router.get("/", (req, res) => {
   try {
     const conn = getConn();
@@ -30,7 +32,8 @@ router.get("/", (req, res) => {
 });
 
 // ---- Allergies Management ----
-// Get allergies list for a customer
+// GET /api/customers/:cust_id/allergies
+// List allergies for a customer
 router.get('/:cust_id/allergies', (req, res) => {
   try {
     const conn = getConn();
@@ -48,7 +51,8 @@ router.get('/:cust_id/allergies', (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
-// Add an allergy for a customer by component name (creates component if needed)
+// POST /api/customers/:cust_id/allergies
+// Add allergy by component name (creates component if needed; supports group expansion)
 router.post('/:cust_id/allergies', (req, res) => {
   try {
     const { name } = req.body || {};
@@ -154,7 +158,8 @@ router.post('/:cust_id/allergies', (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
-// Remove an allergy mapping
+// DELETE /api/customers/:cust_id/allergies/:comp_id
+// Remove a specific allergy mapping
 router.delete('/:cust_id/allergies/:comp_id', (req, res) => {
   try {
     const conn = getConn();
@@ -169,6 +174,7 @@ router.delete('/:cust_id/allergies/:comp_id', (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
+// GET /api/customers/:cust_id/address
 // Get address by customer id
 router.get('/:cust_id/address', (req, res) => {
   try {
@@ -190,7 +196,8 @@ router.get('/:cust_id/address', (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
-// Get a single customer by cust_id (placed after '/:cust_id/address' to avoid shadowing)
+// GET /api/customers/:cust_id
+// Get a single customer by cust_id (placed after address route to avoid shadowing)
 router.get('/:cust_id', (req, res) => {
   try {
     const conn = getConn();
@@ -203,6 +210,7 @@ router.get('/:cust_id', (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
+// GET /api/customers/by-user/:user_id
 // Get a customer by user_id (used by FE to retrieve cust_id and name)
 router.get("/by-user/:user_id", (req, res) => {
   try {
@@ -219,6 +227,7 @@ router.get("/by-user/:user_id", (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
+// DELETE /api/customers/:cust_id
 // Delete a customer
 router.delete("/:cust_id", (req, res) => {
   try {
@@ -231,7 +240,8 @@ router.delete("/:cust_id", (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
-// Add a customer: given a user_id, verify users.user_type === 'customer' then insert into customers
+// POST /api/customers
+// Add a customer: verify users.user_type === 'customer', then upsert into customers
 router.post("/", async (req, res) => {
   try {
     if (!requireFields(res, req.body, ["user_id"])) return;
@@ -268,8 +278,8 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Update customer details (partial: name, address, phone, subscription)
-// Also supports updating address table fields: city, street, house_num, floor, city_code
+// PUT /api/customers/:cust_id
+// Update customer details (partial). Supports address fields: city, street, house_num, floor, city_code
 router.put('/:cust_id', (req, res) => {
   const { cust_id } = req.params;
   // Accept paypal_email and also alias 'paypal' from FE

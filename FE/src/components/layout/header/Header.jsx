@@ -1,3 +1,4 @@
+// App header: top navigation, auth actions, notifications, and mobile menu
 import React, { useState, useEffect, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, Bell, ShoppingCart } from 'lucide-react';
@@ -8,6 +9,7 @@ import useNotifications from '../../../hooks/useNotif';
 import NotificationsPanel from '../../notifications/Notifications';
 import NotificationModal from '../../notifications/NotificationModal';
 
+// Renders responsive header with role-aware nav and notifications
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   // Track scroll to toggle transparent vs solid header
@@ -20,7 +22,7 @@ export default function Header() {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
 
-  // Notifications hook
+  // Notifications hook (list/unread/mark-read/delete)
   const {
     notifications: notifList,
     loading: notifLoading,
@@ -33,6 +35,7 @@ export default function Header() {
   // Simple helper function to check auth state
   const userLoggedIn = () => !!isLoggedIn;
 
+  // Logout handler: clear auth and navigate home
   const onLogout = () => {
     if (typeof handleLogout === 'function') {
       handleLogout();
@@ -88,7 +91,7 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [isAvatarMenuOpen]);
 
-  // Enable scroll-based toggle (match Tailwind snippet behavior)
+  // Toggle header style based on scroll position
   useEffect(() => {
     const handleScroll = () => setIsScrolled((window.scrollY || 0) > 50);
     handleScroll();
@@ -96,7 +99,7 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Auto-close notifications UI when navigation is triggered from a notification item
+  // Auto-close notifications UI when a notification triggers navigation
   useEffect(() => {
     const onNotifClose = () => {
       setIsNotifOpen(false);

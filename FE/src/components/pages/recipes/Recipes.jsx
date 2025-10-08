@@ -1,3 +1,4 @@
+// Recipes page: list, filter, rate, and admin management helpers
 import styles from './recipes.module.css'
 import React, { useState, useEffect, useMemo } from 'react';
 import Loading from '../../common/Loading';
@@ -588,8 +589,8 @@ export default function Recipes() {
                   פופולרי
                 </span>
               )}
-              {/* Discount badge if discounted (reuse popularBadge style) */}
-              {(() => {
+              {/* Discount badge (admin only) */}
+              {isAdmin && (() => {
                 const id = String(recipe.id || recipe.recipe_id);
                 const meta = priceMap[id];
                 const price = Number(meta?.price);
@@ -635,8 +636,9 @@ export default function Recipes() {
               />
             </div>
             <h3 className={styles.cardTitle}>{recipe.name}</h3>
-            {/* Price line: if discounted show old/new and % */}
+            {/* Price line (admin only): if discounted show old/new and % */}
             {(() => {
+              if (!isAdmin) return null;
               const id = String(recipe.id || recipe.recipe_id);
               const meta = priceMap[id] || {};
               const base = Number(meta.price);

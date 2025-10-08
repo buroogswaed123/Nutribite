@@ -1,3 +1,4 @@
+// Notifications routes (user messages and alerts)
 const express = require('express');
 const dbSingleton=require('../dbSingleton');
 const conn=dbSingleton.getConnection();
@@ -5,7 +6,8 @@ const router = express.Router();
 
 
 
-//get all notifications for user
+// GET /api/notifications/user/:user_id
+// List all notifications for a user
 router.get('/user/:user_id', (req, res) => {
     const user_id = req.params.user_id;
     const sql = 'SELECT * FROM notifications WHERE user_id = ?';
@@ -15,7 +17,8 @@ router.get('/user/:user_id', (req, res) => {
     });
 });
 
-// get notification types summary for a user (e.g., counts per type). Optional query: unread=1 to include only unread
+// GET /api/notifications/user/:user_id/type
+// Summary by type for a user. Optional: ?unread=1 to filter unread
 router.get('/user/:user_id/type', (req, res) => {
     const user_id = req.params.user_id;
     const onlyUnread = String(req.query.unread || '').trim() === '1';
@@ -37,7 +40,8 @@ router.get('/user/:user_id/type', (req, res) => {
     });
 });
 
-//delete notification
+// DELETE /api/notifications/:id
+// Delete a single notification
 router.delete('/:id', (req, res) => {
     const id = req.params.id;
     const sql = 'DELETE FROM notifications WHERE  notification_id = ?';
@@ -47,7 +51,8 @@ router.delete('/:id', (req, res) => {
     });
 });
 
-//delete all notifications for user
+// DELETE /api/notifications/user/:user_id
+// Delete all notifications for a user
 router.delete('/user/:user_id', (req, res) => {
     const user_id = req.params.user_id;
     const sql = 'DELETE FROM notifications WHERE user_id = ?';
@@ -57,7 +62,8 @@ router.delete('/user/:user_id', (req, res) => {
     });
 });
 
-//mark notification as read
+// PUT /api/notifications/:id
+// Mark a notification as read (supports status or is_read schema)
 router.put('/:id', (req, res) => {
     const id = req.params.id;
     const sql1 = `UPDATE notifications SET status='read' WHERE notification_id = ?`;
@@ -93,7 +99,8 @@ router.put('/:id', (req, res) => {
 });
 
 
-//create a notification (for admin only)
+// POST /api/notifications
+// Create a notification (typically admin-triggered)
 router.post('/', (req, res) => {
     const { user_id,type,related_id,title,description } = req.body;
     const sql = 'INSERT INTO notifications (user_id,type,related_id,title,description) VALUES (?, ?, ?, ?, ?)';

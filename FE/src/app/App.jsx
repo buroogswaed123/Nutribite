@@ -1,3 +1,4 @@
+// App shell: routes, auth context, and layout wrappers (Header/Footer)
 import { getSessionUser } from "../utils/functions";
 import {
   BrowserRouter,
@@ -11,18 +12,18 @@ import { createContext, useContext, useEffect } from "react";
 import { useState } from "react";
 import classes from "./app.module.css";
 
-//Home Page imports
+// Home pages (by role)
 import CustomerHome from "../components/pages/customer/home/Home";
 import HomeEnhanced from "../components/pages/admin/home/Home";
 import CourierHome from "../components/pages/courier/home/Home";
 import UsersList from "../components/pages/admin/profile/management/UsersList";
 
-//Profile Page imports
+// Profile pages (by role)
 import AdminProfile from "../components/pages/admin/profile/Profile";
 import CustomerProfile from "../components/pages/customer/profile/Profile";
 import CourierProfile from "../components/pages/courier/profile/Profile";
 
-//Regular imports
+// Public and customer pages
 import Login from "../components/pages/Login";
 import Plan from "../components/pages/customer/plan/Plan";
 import PasswordReset from "../components/pages/PasswordReset";
@@ -43,13 +44,16 @@ import Order from "../components/pages/cart/Order";
 import OrderDetails from "../components/pages/orders/OrderDetails";
 import Orders from "../components/pages/orders/Orders";
 
+// Tiny wrapper to pass :articleId as number to QA component
 function QAWrapper() {
   const { articleId } = useParams();
   return <QA articleId={parseInt(articleId, 10)} />;
 }
 
+// Global auth context (login state + current user)
 export const AuthContext = createContext();
 
+// Guarded route wrapper (optionally allows guest rendering)
 const RequireAuth = ({ children, allowGuest = false }) => {
   const location = useLocation();
   const { isLoggedIn, authReady } = useContext(AuthContext);
@@ -71,16 +75,19 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
 
+  // Set logged-in session user
   const handleLogin = (user) => {
     setIsLoggedIn(true);
     setCurrentUser(user);
   };
 
+  // Clear session user
   const handleLogout = () => {
     setIsLoggedIn(false);
     setCurrentUser(null);
   };
 
+  // Context value handed to children
   const auth = {
     isLoggedIn,
     currentUser,
@@ -89,7 +96,7 @@ function App() {
     handleLogout,
   };
 
-  // Optimistic auth hydration: seed from localStorage synchronously, then verify with backend in background
+  // Optimistic auth hydration: seed from localStorage, then verify with backend (non-blocking)
   useEffect(() => {
     let cancelled = false;
     // 1) Seed from localStorage (instant render, avoids blank page)
@@ -131,6 +138,7 @@ function App() {
     return () => { cancelled = true; };
   }, []);
 
+  // Router + routes map (wrap most pages with Header/Footer)
   return (
     <BrowserRouter>
       <AuthContext.Provider value={auth}>

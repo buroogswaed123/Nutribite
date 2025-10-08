@@ -1,5 +1,5 @@
 
-//public recipes routes,what shows to customers
+// Public recipes routes (customer-facing)
 
 const express = require('express');
 const router = express.Router();
@@ -8,7 +8,7 @@ const conn = dbSingleton.getConnection();
 const requireActiveUser = require('../middleware/requireActiveUser');
 const requireAdmin = require('../middleware/requireAdmin');
 
-// Promise-based query helper
+// query: Thin promise-based wrapper over conn.query for convenience
 function query(sql, params = []) {
   return new Promise((resolve, reject) => {
     conn.query(sql, params, (err, results) => {
@@ -19,7 +19,7 @@ function query(sql, params = []) {
 }
 
 // GET /api/recipes/top-rated?limit=5
-// Return top-N recipes by rating (highest first)
+// Returns the top-N recipes by cached average rating (highest first)
 router.get('/top-rated', async (req, res) => {
   try {
     const lim = Math.min(Math.max(Number(req.query.limit) || 5, 1), 50);
@@ -38,8 +38,7 @@ router.get('/top-rated', async (req, res) => {
 });
 
 // GET /api/recipes/macro_search
-// Query: macro=protein|carbs|fats, min (number), max (number), maxCalories (optional), minCalories (optional)
-// Returns minimal fields for quick filtering
+// Quick macro filter. Query: macro=protein|carbs|fats, min/max, optional minCalories/maxCalories
 router.get('/macro_search', async (req, res) => {
   try {
     const macroKey = String(req.query.macro || '').toLowerCase();
@@ -74,6 +73,7 @@ router.get('/macro_search', async (req, res) => {
   }
 });
 
+// ensureRatingsTable: Create ratings table if missing (idempotent)
 async function ensureRatingsTable() {
   const sql = `
     CREATE TABLE IF NOT EXISTS recipe_ratings (
@@ -89,6 +89,7 @@ async function ensureRatingsTable() {
   await conn.promise().query(sql);
 }
 
+// getCustomerIdFromSession: Resolve customer_id from current session
 async function getCustomerIdFromSession(req) {
   const userId = req.session && req.session.user_id;
   if (!userId) return null;
@@ -97,7 +98,7 @@ async function getCustomerIdFromSession(req) {
 }
 
 // GET /api/recipes
-// get all recipes
+// List all public (not soft-deleted) recipes with basic fields
 router.get('/', async (req, res) => {
   try {
     const [rows] = 
@@ -110,7 +111,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/recipes/search_by_catname
-// Filters by recipe name LIKE and category name LIKE, joining categories directly.
+// Filter by recipe name LIKE and category name LIKE (join categories)
 router.get('/search_by_catname', async (req, res) => {
   try {
     const q = String(req.query.q||'').trim(), c = String(req.query.categoryName||'').trim(); //q:substring match on recipes.name, categoryName:substring match on categories.name
@@ -127,7 +128,7 @@ router.get('/search_by_catname', async (req, res) => {
 });
 
 // GET /api/recipes/:id
-// get single recipe
+// Get a single recipe by id (404 if not found)
 router.get('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -155,8 +156,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // GET /api/recipes/search
-// Query params (all optional):
-//   q (substring match on name),minCalories, maxCalories,dietType,category
+// Search by name substring and optional filters: min/max calories, dietType, category
 router.get('/search', async (req, res) => {
   try {
     const qStr = (req.query.q || '').toString().trim();
@@ -226,14 +226,14 @@ router.get('/search', async (req, res) => {
     const rows = await query(selectSql, [...whereParams, lim, off]);
     return res.json({ items: rows, meta: { limit: lim, offset: off, total } });
   } catch (err) {
-    console.error('ADMIN RECIPES SEARCH ERROR:', err);
+    console.error('RECIPES SEARCH ERROR:', err);
     return res.status(500).json({ message: 'Error searching recipes', error: err.message });
   }
 });
 
 
 // PATCH /api/recipes/bulk_price
-// Admin-only: update price for all products linked to the given recipe IDs
+// Admin-only. Update product price for all products linked to the given recipe IDs
 router.patch('/bulk_price', requireActiveUser, requireAdmin, async (req, res) => {
   try {
     const { recipeIds, newPrice } = req.body || {};
@@ -272,11 +272,6 @@ router.patch('/bulk_price', requireActiveUser, requireAdmin, async (req, res) =>
   }
 });
 
-
-
-
-module.exports = router;
-
 // Ratings: GET avg/count/userStars
 router.get('/:id/ratings', async (req, res) => {
   try {
@@ -303,7 +298,7 @@ router.get('/:id/ratings', async (req, res) => {
   }
 });
 
-// Ratings: upsert user rating and update recipe average
+// Ratings: Upsert user rating and refresh cached average on recipe
 router.post('/:id/ratings', requireActiveUser, async (req, res) => {
   try {
     const recipeId = Number(req.params.id);
@@ -336,7 +331,7 @@ router.post('/:id/ratings', requireActiveUser, async (req, res) => {
   }
 });
 
-// Simple helpers to build WHERE clauses safely for macro ranges
+// buildRangeConds: Add BETWEEN/>=/<= clauses for a numeric column
 function buildRangeConds({ min, max, col }, conds, params, tableAlias = 'r') {
   const c = `${tableAlias}.${col}`;
   if (Number.isFinite(min) && Number.isFinite(max)) { conds.push(`${c} BETWEEN ? AND ?`); params.push(min, max); }
@@ -345,6 +340,7 @@ function buildRangeConds({ min, max, col }, conds, params, tableAlias = 'r') {
 }
 
 // GET /api/recipes/protein_range?min=&max=&minCalories=&maxCalories=&limit=&offset=
+// Search recipes by protein_g range with optional calorie range and pagination
 router.get('/protein_range', async (req, res) => {
   try {
     const min = Number(req.query.min);
@@ -375,6 +371,7 @@ router.get('/protein_range', async (req, res) => {
 });
 
 // GET /api/recipes/carbs_range
+// Search recipes by carbs_g range with optional calorie range and pagination
 router.get('/carbs_range', async (req, res) => {
   try {
     const min = Number(req.query.min);
@@ -405,6 +402,7 @@ router.get('/carbs_range', async (req, res) => {
 });
 
 // GET /api/recipes/fats_range
+// Search recipes by fats_g range with optional calorie range and pagination
 router.get('/fats_range', async (req, res) => {
   try {
     const min = Number(req.query.min);
@@ -433,3 +431,6 @@ router.get('/fats_range', async (req, res) => {
     return res.status(500).json({ message: 'Error searching by fats range', error: err.message });
   }
 });
+
+// Export router (placed at end for clarity)
+module.exports = router;

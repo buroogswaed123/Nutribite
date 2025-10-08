@@ -1,9 +1,11 @@
+// FAQ routes (questions and answers)
 const express = require('express');
 const router = express.Router();
 const dbSingleton = require('../dbSingleton');
 const conn = dbSingleton.getConnection();
 
-// 1. Add a new question (customer)
+// POST /api/questions
+// Add a new question (customer)
 router.post('/', async (req, res) => {
   const { user_id, question_text } = req.body;
   if (!user_id || !question_text) return res.status(400).json({ message: 'Missing data' });
@@ -28,8 +30,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// 2. Get questions (optionally only answered via query param)
-// GET /api/questions?answered=true
+// GET /api/questions
+// List questions with optional filters: answered, public, q (text)
 router.get('/', async (req, res) => {
   const { answered, public: pub, q } = req.query;
   try {
@@ -63,7 +65,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 2. Get all answered questions
+// GET /api/questions/answered
+// List only answered questions (shortcut)
 router.get('/answered', async (req, res) => {
   try {
     const [rows] = await conn.promise().query('SELECT * FROM questions WHERE answered = TRUE ORDER BY created_at DESC');
@@ -74,7 +77,8 @@ router.get('/answered', async (req, res) => {
   }
 });
 
-// 3. Admin answers a question
+// PUT /api/questions/:id/answer
+// Admin answers a question and notifies the owner (best-effort)
 router.put('/:id/answer', async (req, res) => {
   const questionId = req.params.id;
   const { answer_text } = req.body;
@@ -109,8 +113,8 @@ router.put('/:id/answer', async (req, res) => {
   }
 });
 
-// 4. Update question visibility (admin): set `public` true/false
-// PATCH /api/questions/:id/visibility { public: true|false }
+// PATCH /api/questions/:id/visibility  { public: true|false }
+// Update question visibility (admin)
 router.patch('/:id/visibility', async (req, res) => {
   const questionId = Number(req.params.id);
   if (!Number.isFinite(questionId)) {
@@ -135,4 +139,5 @@ router.patch('/:id/visibility', async (req, res) => {
   }
 });
 
+// Export router
 module.exports = router;

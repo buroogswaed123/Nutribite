@@ -1,10 +1,10 @@
-/* Admin content router: list/review/approve/hide/restore items */
+// Admin menu routes (products management over recipes)
 
 const express = require('express');
 const db = require('../../dbSingleton');
 const router = express.Router();
 
-//helper
+// helper: wrapped query that returns [rows]
 const conn = db.getConnection && db.getConnection();
 const runQuery = async (sql, params = []) => {
   if (!conn) throw new Error('DB connection not initialized');
@@ -20,10 +20,12 @@ const runQuery = async (sql, params = []) => {
   throw new Error('Unsupported DB client on connection');
 };
 
+// Base path: /api/admin/menu
 /// admin menu router ///
 
 
-//GET /api/admin/menu - all products (hide soft-deleted recipes)
+// GET /api/admin/menu
+// List all products (hide soft-deleted recipes)
 router.get('/', async (req, res) => {
   try {
     const sql = `
@@ -42,7 +44,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// PATCH /api/admin/menu/:id/stock - update stock and auto soft-delete/restore recipe
+// PATCH /api/admin/menu/:id/stock
+// Update stock and auto soft-delete/restore linked recipe
 router.patch('/:id/stock', async (req, res) => {
   const productId = Number(req.params.id);
   if (!Number.isFinite(productId)) return res.status(400).json({ message: 'Invalid product id' });
@@ -90,7 +93,8 @@ router.patch('/:id/stock', async (req, res) => {
   }
 });
 
-//GET /api/admin/menu/:id -single product
+// GET /api/admin/menu/:id
+// Get single product by id
 router.get('/:id', async (req, res) => {
   try {
     const baseSelect = `
@@ -111,6 +115,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // GET /api/admin/menu/search
+// Search products
 // Query params (all optional):
 //   q (substring match on recipe name), minPrice, maxPrice, minCalories, maxCalories, dietType, category
 //   includeDeleted ("true" to include soft-deleted), limit (default 20, max 100), offset (default 0)
@@ -198,7 +203,8 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/products/:id - soft delete via linked recipe
+// DELETE /api/admin/products/:id
+// Soft delete via linked recipe
 router.delete('/products/:id', async (req, res) => {
   const productId = Number(req.params.id);
   if (!Number.isFinite(productId)) return res.status(400).json({ message: 'Invalid product id' });
@@ -222,7 +228,8 @@ router.delete('/products/:id', async (req, res) => {
   }
 });
 
-// PATCH /api/admin/products/:id/stock - update stock and auto soft-delete/restore recipe
+// PATCH /api/admin/products/:id/stock
+// Update stock and auto soft-delete/restore recipe
 router.patch('/products/:id/stock', async (req, res) => {
   const productId = Number(req.params.id);
   if (!Number.isFinite(productId)) return res.status(400).json({ message: 'Invalid product id' });
@@ -286,7 +293,7 @@ router.get('/products/:id/stock', async (req, res) => {
 });
 
 // PATCH /api/admin/products/:id/price
-// Update price by percent or factor
+// Update price by percent or factor (only when stock <= 10)
 router.patch('/:id/price', async (req, res) => {
   const productId = Number(req.params.id);
   if (!Number.isFinite(productId)) return res.status(400).json({ message: 'Invalid product id' });
@@ -344,6 +351,7 @@ router.patch('/:id/price', async (req, res) => {
 });
 
 // GET /api/admin/products/search
+// Search products (admin)
 // Query params (all optional):
 //   q (substring match on recipe name), minPrice, maxPrice, minCalories, maxCalories, dietType, category,maxStock
 //   includeDeleted ("true" to include soft-deleted), limit (default 20, max 100), offset (default 0)

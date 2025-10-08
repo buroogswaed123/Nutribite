@@ -1,11 +1,11 @@
-// routes/plan.js
+// Plan routes (nutrition plans and plan products)
 const express = require('express');
 const router = express.Router();
 const dbSingleton = require('../dbSingleton');
 const conn = dbSingleton.getConnection();
 const requireActiveUser = require('../middleware/requireActiveUser');
 
-// Helpers
+// Helpers: tiny response helpers and utilities
 function ok(res, data) { return res.json(data); }
 function bad(res, msg) { return res.status(400).json({ message: msg }); }
 function notFound(res, msg = 'Not found') { return res.status(404).json({ message: msg }); }
@@ -14,13 +14,14 @@ function serverErr(res, err, msg = 'Internal error') {
   return res.status(500).json({ message: msg, error: err?.message || String(err) });
 }
 
-// Top-level helper: add days to a date/ISO string and return YYYY-MM-DD
+// addDays: add days to a date/ISO string and return YYYY-MM-DD
 function addDays(dateOrIso, days) {
   const d = new Date(dateOrIso);
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
 
+// pickPlanFields: extract supported plan fields from body
 function pickPlanFields(body) {
   const fields = {
     customer_id: body.customer_id,
@@ -40,6 +41,7 @@ function pickPlanFields(body) {
   return fields;
 }
 
+// buildUpdateSet: build SQL SET clause and params from a fields object
 function buildUpdateSet(fields) {
   const keys = [];
   const vals = [];
@@ -57,7 +59,7 @@ function buildUpdateSet(fields) {
 // =========================
 
 // GET /api/plan
-// Optional query: customer_id
+// List plans; optional filter: customer_id
 router.get('/', async (req, res) => {
   try {
     const { customer_id } = req.query;
@@ -130,8 +132,8 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/plan/:id/replace_products
+// Overwrite plan items with exactly the provided list
 // Body: { items: Array<{ product_id: number, servings?: number }> }
-// Overwrites nutrition_plan_contains_products with exactly the provided list
 router.post('/:id/replace_products', requireActiveUser, async (req, res) => {
   const tx = conn.promise();
   try {
@@ -167,7 +169,8 @@ router.post('/:id/replace_products', requireActiveUser, async (req, res) => {
   }
 });
 
-// GET /api/plan/:id  (includes products)
+// GET /api/plan/:id
+// Get a plan by id (includes products)
 router.get('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -233,6 +236,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/plan
+// Create a new plan (defaults: start=today, end=today+7)
 router.post('/', requireActiveUser, async (req, res) => {
   try {
     const data = pickPlanFields(req.body || {});
@@ -275,7 +279,8 @@ router.post('/', requireActiveUser, async (req, res) => {
   }
 });
 
-// PUT /api/plan/:id  (partial supported)
+// PUT /api/plan/:id
+// Update a plan (partial fields supported)
 router.put('/:id', requireActiveUser, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -301,7 +306,8 @@ router.put('/:id', requireActiveUser, async (req, res) => {
   }
 });
 
-// DELETE /api/plan/:id  (deletes links then plan)
+// DELETE /api/plan/:id
+// Delete a plan (first removes linked items)
 router.delete('/:id', requireActiveUser, async (req, res) => {
   const tx = conn.promise();
   try {
@@ -319,6 +325,7 @@ router.delete('/:id', requireActiveUser, async (req, res) => {
 });
 
 // POST /api/plan/:id/renew
+// Renew a plan: start=today, end=today+7
 router.post('/:id/renew', requireActiveUser, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -344,6 +351,7 @@ router.post('/:id/renew', requireActiveUser, async (req, res) => {
 // =========================
 
 // GET /api/plan/:id/products
+// List plan products with recipe/category fields
 router.get('/:id/products', async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -379,7 +387,8 @@ router.get('/:id/products', async (req, res) => {
   }
 });
 
-// POST /api/plan/:id/products   body: {product_id, servings?}
+// POST /api/plan/:id/products
+// Add a product to plan (body: {product_id, servings?})
 router.post('/:id/products', requireActiveUser, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -416,7 +425,8 @@ router.post('/:id/products', requireActiveUser, async (req, res) => {
   }
 });
 
-// PATCH /api/plan/:id/products/:plan_product_id   body: {servings}
+// PATCH /api/plan/:id/products/:plan_product_id
+// Update servings for a plan product link (body: {servings})
 router.patch('/:id/products/:plan_product_id', requireActiveUser, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -443,6 +453,7 @@ router.patch('/:id/products/:plan_product_id', requireActiveUser, async (req, re
 });
 
 // DELETE /api/plan/:id/products/:plan_product_id
+// Remove a product link from the plan
 router.delete('/:id/products/:plan_product_id', requireActiveUser, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -465,6 +476,7 @@ router.delete('/:id/products/:plan_product_id', requireActiveUser, async (req, r
 });
 
 // GET /api/plan/:id/allergies
+// List allergies (components) for the customer who owns this plan
 router.get('/:id/allergies', requireActiveUser, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -489,8 +501,8 @@ router.get('/:id/allergies', requireActiveUser, async (req, res) => {
 });
 
 // POST /api/plan/:id/add_to_cart
-// Copy exact saved plan items (nutrition_plan_contains_products) into cart_items for the logged-in user.
-// Body options: { clear?: boolean (default true), quantityMode?: 'one' | 'servings' }
+// Copy saved plan items into cart for logged-in user
+// Body: { clear?: boolean (default true), quantityMode?: 'one' | 'servings' }
 router.post('/:id/add_to_cart', requireActiveUser, async (req, res) => {
   const tx = conn.promise();
   try {

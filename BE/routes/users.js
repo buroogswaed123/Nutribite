@@ -1,3 +1,4 @@
+// Users routes (accounts, auth-ish endpoints, profile image)
 const express = require("express");
 const dbSingleton = require("../dbSingleton");
 const db = dbSingleton.getConnection();
@@ -7,12 +8,12 @@ const fs = require('fs');
 const path = require('path');
 const router = express.Router();
 
-// Helper functions
+// Helper functions: password hashing/compare and error sender
 const hashPassword = (password) => bcrypt.hash(password, 10);
 const comparePassword = (plain, hash) => bcrypt.compare(plain, hash);
 const sendError = (res, err, status = 500) => res.status(status).json({ message: err.message || err });
 
-// Check required fields
+// requireFields: ensure presence of required body keys
 const requireFields = (res, body, fields) => {
   for (let field of fields) {
     if (!body[field]) {
@@ -23,11 +24,13 @@ const requireFields = (res, body, fields) => {
   return true;
 };
 
+// GET /api/users
 // Get all users
 router.get("/", (req, res) => {
   db.query("SELECT * FROM users", (err, results) => err ? sendError(res, err) : res.json(results));
 });
 
+// DELETE /api/users/:user_id
 // Delete a user
 router.delete("/:user_id", (req, res) => {
   db.query("DELETE FROM users WHERE user_id = ?", [req.params.user_id], (err, results) => {
@@ -37,6 +40,7 @@ router.delete("/:user_id", (req, res) => {
   });
 });
 
+// POST /api/users
 // Add a user (signup)
 router.post("/", async (req, res) => {
   if (!requireFields(res, req.body, ["name", "email", "password"])) return;
@@ -53,9 +57,8 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Update a user (partial updates)
-// - name/username can be updated without any password verification
-// - email change requires currentPassword verification but does NOT require setting a new password
+// PUT /api/users/:user_id
+// Update a user (partial). name/username free; email change requires currentPassword.
 router.put("/:user_id", async (req, res) => {
   const { user_id } = req.params;
   const { name, username, email, currentPassword } = req.body;
@@ -100,7 +103,8 @@ router.put("/:user_id", async (req, res) => {
   }
 });
 
-// Login
+// POST /api/users/login
+// Login by email/password
 router.post("/login", (req, res) => {
   if (!requireFields(res, req.body, ["email", "password"])) return;
   const { email, password } = req.body;
@@ -165,8 +169,7 @@ router.get('/:user_id/password/expired', async (req, res) => {
 });
 
 // POST /api/users/:user_id/password/apply-latest
-// Hash the latest plaintext new_password from password_resets for user's email and store in users.password_hash
-// Returns { updated: true } on success. No-op if no reset record.
+// Apply latest plaintext reset to users.password_hash. Returns { updated }.
 router.post('/:user_id/password/apply-latest', async (req, res) => {
   const { user_id } = req.params;
   try {
@@ -207,8 +210,6 @@ router.post('/:user_id/password/apply-latest', async (req, res) => {
   }
 });
 
-module.exports = router;
-
 // -----------------------------
 // Profile image upload endpoint
 // -----------------------------
@@ -237,7 +238,8 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-// Update user's profile image
+// POST /api/users/:user_id/profile-image
+// Update user's profile image (stores under uploads/profile)
 router.post('/:user_id/profile-image', upload.single('image'), (req, res) => {
   const { user_id } = req.params;
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
@@ -285,3 +287,5 @@ router.post('/:user_id/profile-image', upload.single('image'), (req, res) => {
     });
   });
 });
+
+module.exports = router;

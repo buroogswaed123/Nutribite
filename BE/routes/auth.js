@@ -1,10 +1,11 @@
+// Auth routes (register, login, session, logout, simple password reset)
   const express = require('express');
   const bcrypt = require('bcrypt');
   const db = require('../dbSingleton');
   const router = express.Router();
 
 
-// helpers:
+// Helpers: logging/error, hashing, and DB query wrapper
 
 const handleError = (res, err, msg = 'Server error') => {
   console.error(msg, err);
@@ -49,26 +50,33 @@ const findUserById = async (id) => {
 };
 
 const findUserByName = async (name) => {
+  // Case-insensitive username lookup to avoid 401 due to case mismatches
   const [rows] = await runQuery(
-    'SELECT * FROM users WHERE username = ? LIMIT 1',
+    'SELECT * FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1',
     [name]
   );
   return rows[0];
 };
 
-//routes:
+// Routes
 
-// Register
+// POST /api/register
+// Register a new user; auto-creates customers row for role 'customer'
 router.post('/register', async (req, res) => {
   const { username, email, password, user_type } = req.body;
   const nameToUse = username;
   const role = user_type || 'customer';
   if (!nameToUse || !email || !password)
-    return res.status(400).json({ message: 'Missing fields' });
+    return res.status(400).json({ message: 'חסרים שדות חובה', field: undefined });
 
   try {
-    if (await findUserByEmail(email))
-      return res.status(400).json({ message: 'Email already in use' });
+    // Enforce unique username and email with clear field-specific messages
+    if (await findUserByName(nameToUse)) {
+      return res.status(400).json({ message: 'שם המשתמש כבר תפוס', field: 'username' });
+    }
+    if (await findUserByEmail(email)) {
+      return res.status(400).json({ message: 'כתובת הדוא"ל כבר בשימוש', field: 'email' });
+    }
 
     const hashed = await hashPassword(password);
     const [result] = await runQuery(
@@ -87,13 +95,23 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    res.status(201).json({ message: 'User created', userId: newUserId, user_type: role });
+    res.status(201).json({ message: 'נוצר משתמש חדש', userId: newUserId, user_type: role });
   } catch (err) {
+    // Map duplicate key errors to friendly, field-specific responses
+    if (err && (err.code === 'ER_DUP_ENTRY' || String(err.message || '').includes('duplicate'))) {
+      const msg = String(err.sqlMessage || err.message || '');
+      const isEmail = /email/i.test(msg);
+      const isUsername = /username/i.test(msg);
+      if (isEmail) return res.status(400).json({ message: 'כתובת הדוא"ל כבר בשימוש', field: 'email' });
+      if (isUsername) return res.status(400).json({ message: 'שם המשתמש כבר תפוס', field: 'username' });
+      return res.status(400).json({ message: 'ערך כבר קיים', field: undefined });
+    }
     handleError(res, err, 'Error registering user');
   }
 });
 
-// Login
+// POST /api/login
+// Login with email or username (via loginMethod); enforces password expiry and bans
 router.post('/login', async (req, res) => {
   try {
     const { email, password, identifier, loginMethod } = req.body;
@@ -103,22 +121,22 @@ router.post('/login', async (req, res) => {
     const usernameToUse = isUsernameLogin ? (identifier || null) : null;
 
     if ((!emailToUse && !usernameToUse) || !password) {
-      return res.status(400).json({ message: 'Missing fields' });
+      return res.status(400).json({ message: 'חסרים שדות חובה' });
     }
 
     const user = usernameToUse
       ? await findUserByName(usernameToUse)
       : await findUserByEmail(emailToUse);
 
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!user) return res.status(401).json({ message: 'פרטי התחברות שגויים' });
 
     if (!user.password_hash) {
       console.error('User found but no password field:', user);
-      return res.status(500).json({ message: 'User password missing' });
+      return res.status(500).json({ message: 'חסרה סיסמה למשתמש' });
     }
 
     const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!match) return res.status(401).json({ message: 'פרטי התחברות שגויים' });
 
     // Enforce password expiry (6 months). Use latest password_resets.created_at for email; fallback to account_creation_time
     try {
@@ -160,25 +178,25 @@ router.post('/login', async (req, res) => {
           console.error('Lazy flip on login failed:', e);
         }
       }
-      return res.status(403).json({ error: 'Account is banned' });
+      return res.status(403).json({ message: 'החשבון שלך נחסם. אנא פנה לתמיכה אם זה בשגגה.', code: 'BANNED' });
     }
 
     // Block soft-deleted accounts with a clear message
     const isDeleted = user.status && String(user.status).toLowerCase() === 'deleted';
     if (isDeleted) {
-      return res.status(403).json({ message: 'Account deleted. Please contact support if this is unexpected.' });
+      return res.status(403).json({ message: 'החשבון נמחק. אנא פנה לתמיכה אם זה לא צפוי.' });
     }
 
     if (!req.session) {
       console.error('Session not configured!');
-      return res.status(500).json({ message: 'Session not configured' });
+      return res.status(500).json({ message: 'Session לא הוגדר כראוי בשרת' });
     }
 
     req.session.user_id = user.user_id;
     req.session.user_type = user.user_type;
 
     res.json({
-      message: 'Login successful',
+      message: 'התחברות הצליחה',
       user: {
         user_id: user.user_id,
         email: user.email,
@@ -190,12 +208,12 @@ router.post('/login', async (req, res) => {
 
   } catch (err) {
     console.error('LOGIN ERROR:', err);
-    res.status(500).json({ message: 'Error logging in', error: err.message });
+    res.status(500).json({ message: 'שגיאה בהתחברות', error: err.message });
   }
 });
 
-// Simple password reset: hash and update by identifier (email or username)
-// Body: { identifier: string, newPassword: string }
+// POST /api/password_reset_simple
+// Simple password reset by identifier (email or username). Body: { identifier, newPassword }
 router.post('/password_reset_simple', async (req, res) => {
   try {
     const { identifier, newPassword } = req.body || {};
@@ -241,7 +259,8 @@ router.post('/password_reset_simple', async (req, res) => {
   }
 });
 
-// Get current session user
+// GET /api/me
+// Get current session user (requires active session)
 router.get('/me', async (req, res) => {
   if (!req.session.user_id)
     return res.status(401).json({ message: 'Not logged in' });
@@ -255,7 +274,8 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// Logout
+// POST /api/logout
+// Destroy session and logout
 router.post('/logout', (req, res) => {
   req.session.destroy(() => {
     res.json({ message: 'Logged out successfully' });

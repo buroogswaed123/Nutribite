@@ -1,3 +1,4 @@
+// Login page: handles login/register UI, password expiry prompt, and role-based redirects
 import React, { useState, useEffect } from "react";
 import { Eye, EyeOff } from 'lucide-react';
 import classes from "../../assets/styles/login.module.css";

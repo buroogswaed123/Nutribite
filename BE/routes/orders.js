@@ -95,7 +95,10 @@ router.get('/', async (req, res) => {
         o.order_status AS status,
         o.total_price,
         NULL AS total_calories,
-        o.order_date AS created_at
+        o.order_date AS created_at,
+        o.order_date,
+        o.set_delivery_time,
+        o.order_date AS delivery_datetime
       FROM orders o
       WHERE o.cust_id = ?
       ORDER BY o.order_id DESC
@@ -298,19 +301,11 @@ router.post('/checkout', async (req, res) => {
       }
     }
 
-    // Group items by their delivery datetime (merge categories sharing same date+time into one order)
-    const byDeliveryDT = new Map(); // key: normalized 'YYYY-MM-DD HH:mm:00', value: items[]
-    for (const it of cart) {
-      const key = String(it.category_id || '0');
-      const dt = perCatDT.get(key);
-      const orderDateValue = normalizeToMySQL(dt);
-      if (!byDeliveryDT.has(orderDateValue)) byDeliveryDT.set(orderDateValue, []);
-      byDeliveryDT.get(orderDateValue).push(it);
-    }
-
-    // Insert one order per unique delivery datetime
+    // Create one order per category using its delivery datetime (do not merge categories even if time matches)
     const createdOrders = [];
-    for (const [orderDateValue, arr] of byDeliveryDT.entries()) {
+    for (const [catKey, arr] of byCat.entries()) {
+      const dt = perCatDT.get(catKey);
+      const orderDateValue = normalizeToMySQL(dt);
       const orderTotal = arr.reduce((s, it) => s + Number((it.unit_price_gross ?? it.price) || 0) * Number(it.quantity||0), 0);
       const [ins] = await tx.query(
         `INSERT INTO orders (order_date, order_status, total_price, cust_id, set_delivery_time) VALUES (?, 'draft', ?, ?, ?)`,
@@ -319,8 +314,8 @@ router.post('/checkout', async (req, res) => {
       const orderId = ins.insertId;
       for (const it of arr) {
         await tx.query(
-          `INSERT INTO order_items (order_id, product_id, quantity) VALUES (?, ?, ?)`,
-          [orderId, it.product_id, it.quantity]
+          `INSERT INTO order_items (order_id, product_id, quantity, category_id, delivery_at) VALUES (?, ?, ?, ?, ?)`,
+          [orderId, it.product_id, it.quantity, Number(catKey) || null, orderDateValue]
         );
       }
       createdOrders.push({ order_id: orderId, delivery_time: orderDateValue, total_price: Number(orderTotal.toFixed(2)) });

@@ -241,7 +241,7 @@ export default function Order() {
       const data = await checkoutOrderAPI({ schedule: payloadSchedule });
       const childOrders = Array.isArray(data?.orders) ? data.orders : [];
       const orderId = data?.order_id || (childOrders[0]?.order_id);
-      if (!orderId) throw new Error('Order creation failed');
+      if (!orderId && childOrders.length === 0) throw new Error('Order creation failed');
       // Create a notification so the user can continue setup later
       try {
         const user = await getSessionUser();
@@ -250,9 +250,10 @@ export default function Order() {
           let hasExisting = false;
           try {
             const existing = await fetchNotificationsAPI(user.user_id);
+            // Treat any prior notification for this order as existing (avoid duplicates)
             hasExisting = Array.isArray(existing) && existing.some(n => (
               String(n.type) === 'order' && Number(n.related_id) === Number(orderId) &&
-              String(n.title || '').includes('המשך הגדרת ההזמנה') && n.status !== 'read'
+              String(n.title || '').includes('המשך הגדרת ההזמנה')
             ));
           } catch(_) {}
           if (!hasExisting) {
@@ -267,7 +268,12 @@ export default function Order() {
         }
       } catch (_) { /* non-fatal */ }
       // Do NOT clear draft; keep schedule in sessionStorage so going back retains values
-      navigate(`/orders/${orderId}`, { state: { orders: childOrders } });
+      if (childOrders.length > 1) {
+        // Multiple per-meal orders created → go to orders list for clarity
+        navigate('/orders', { state: { created: childOrders } });
+      } else {
+        navigate(`/orders/${orderId}`, { state: { orders: childOrders } });
+      }
     } catch (e) {
       const serverMsg = e?.response?.data?.message;
       const serverErr = e?.response?.data?.error;

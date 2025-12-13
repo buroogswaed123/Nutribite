@@ -284,7 +284,7 @@ router.get('/orders/:id/items', async (req, res) => {
     if (!Number.isFinite(id)) return res.status(400).json({ message: 'Invalid order id' });
     const [items] = await runQuery(`
       SELECT 
-        oi.order_item_id AS id,
+        oi.id AS id,
         oi.order_id,
         oi.product_id,
         oi.quantity,
@@ -298,7 +298,7 @@ router.get('/orders/:id/items', async (req, res) => {
       INNER JOIN products p ON p.product_id = oi.product_id
       INNER JOIN recipes r ON r.recipe_id = p.recipe_id
       WHERE oi.order_id = ?
-      ORDER BY oi.order_item_id ASC
+      ORDER BY oi.id ASC
     `, [id]);
     return res.json({ items });
   } catch (err) {
@@ -332,7 +332,31 @@ router.delete('/orders/:id', async (req, res) => {
 //update status of a specific order
 router.patch('/orders/:id/status', async (req, res) => {
   try {
-    const [rows] = await runQuery('UPDATE orders SET status = ? WHERE order_id = ?', [req.body.status, req.params.id]);
+    const status = req.body.status;
+    const orderId = req.params.id;
+    const [rows] = await runQuery('UPDATE orders SET status = ? WHERE order_id = ?', [status, orderId]);
+
+    // Best-effort: notify the customer about the status change
+    try {
+      if (conn && typeof conn.promise === 'function') {
+        const cx = conn.promise();
+        const [[o]] = await cx.query('SELECT cust_id FROM orders WHERE order_id = ? LIMIT 1', [orderId]);
+        const custId = o && o.cust_id;
+        if (custId) {
+          const [[u]] = await cx.query('SELECT u.user_id FROM customers c JOIN users u ON u.user_id = c.user_id WHERE c.cust_id = ? LIMIT 1', [custId]);
+          const userId = u && u.user_id;
+          if (userId) {
+            const title = `סטטוס הזמנה #${orderId} עודכן ל-${status}`;
+            const description = `הנהלת המערכת עדכנה את מצב ההזמנה ל-${status}`;
+            await cx.query(
+              'INSERT IGNORE INTO notifications (user_id, type, related_id, title, description) VALUES (?, "order", ?, ?, ?)',
+              [userId, orderId, title, description]
+            );
+          }
+        }
+      }
+    } catch (_) { /* ignore */ }
+
     return res.json(rows);
   } catch (err) {
     console.error('ADMIN ORDERS STATUS PATCH ERROR:', err);

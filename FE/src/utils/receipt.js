@@ -21,6 +21,9 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
   const confirmedAt = (order?.confirmed_at) ? new Date(order.confirmed_at) : now;
   const confirmedStr = confirmedAt.toLocaleString('he-IL');
 
+  // Force RTL embedding for Hebrew strings to avoid mixed letters ordering in some PDF viewers
+  const rtl = (s) => `\u202B${String(s || '')}\u202C`;
+
   let totalGross = 0; // items total (incl. tax)
   let totalTax = 0;
   let totalNet = 0;
@@ -39,11 +42,11 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
 
     return `
       <tr>
-        <td>${String(name)}</td>
-        <td>${money(rowTax)}</td>
-        <td>${qty}</td>
-        <td>${money(unitGross)}</td>
-        <td>${money(rowTotal)}</td>
+        <td style="text-align:right; direction: rtl; unicode-bidi: embed; white-space: pre-wrap;">${String(name)}</td>
+        <td style="text-align:right;">${money(rowTax)}</td>
+        <td style="text-align:right;">${qty}</td>
+        <td style="text-align:right;">${money(unitGross)}</td>
+        <td style="text-align:right;">${money(rowTotal)}</td>
       </tr>
     `;
   }).join('');
@@ -54,7 +57,7 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
   container.style.top = '0';
   container.setAttribute('dir', 'rtl');
   container.innerHTML = `
-    <div style="font-family: 'Noto Sans Hebrew', 'Segoe UI', Tahoma, Arial, 'Arial Unicode MS', sans-serif; direction: rtl; unicode-bidi: bidi-override; padding: 24px; width: 780px; color: #111827;">
+    <div style="font-family: 'Noto Sans Hebrew', 'Segoe UI', Tahoma, Arial, 'Arial Unicode MS', sans-serif; direction: rtl; padding: 24px; width: 780px; color: #111827;">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px;">
         <div style="font-size:22px; font-weight:700;">${siteName}</div>
         <div style="text-align:right;">
@@ -63,14 +66,14 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
         </div>
       </div>
 
-      <table style="width:100%; border-collapse:collapse; font-size:12px; direction: rtl; unicode-bidi: bidi-override;">
+      <table style="width:100%; border-collapse:collapse; font-size:12px; direction: rtl;">
         <thead>
           <tr style="background:#e5e7eb;">
-            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: bidi-override;">שם פריט</th>
-            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: bidi-override;">מע"מ (18%)</th>
-            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: bidi-override;">כמות</th>
-            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: bidi-override;">מחיר ליחידה</th>
-            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: bidi-override;">סה"כ</th>
+            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: embed;">שם פריט</th>
+            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">מע"מ (18%)</th>
+            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">כמות</th>
+            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">מחיר ליחידה</th>
+            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">סה"כ</th>
           </tr>
         </thead>
         <tbody>
@@ -83,25 +86,25 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
       </div>
 
       <div style="margin-top: 16px;">
-        <table style="width:100%; border-collapse:collapse; font-size:12px; direction: rtl; unicode-bidi: bidi-override;">
+        <table style="width:100%; border-collapse:collapse; font-size:12px; direction: rtl;">
           <thead>
             <tr style="background:#f3f4f6;">
-              <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: bidi-override;">סיכום חשבונית</th>
-              <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: bidi-override;">סכום</th>
+              <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: embed;">סיכום חשבונית</th>
+              <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">סכום</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; direction: rtl; unicode-bidi: bidi-override;">לפני מע"מ</td>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; direction: rtl; unicode-bidi: bidi-override;">${money(totalNet)} ₪</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; direction: rtl; unicode-bidi: embed;">לפני מע"מ</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">${money(totalNet)} ₪</td>
             </tr>
             <tr>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; direction: rtl; unicode-bidi: bidi-override;">סכום מע"מ</td>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; direction: rtl; unicode-bidi: bidi-override;">${money(totalTax)} ₪</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; direction: rtl; unicode-bidi: embed;">סכום מע"מ</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">${money(totalTax)} ₪</td>
             </tr>
             <tr>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; font-weight:700; direction: rtl; unicode-bidi: bidi-override;">לאחר מע"מ</td>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; font-weight:700; direction: rtl; unicode-bidi: bidi-override;">${money(totalGross)} ₪</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; font-weight:700; direction: rtl; unicode-bidi: embed;">לאחר מע"מ</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; font-weight:700; text-align:right;">${money(totalGross)} ₪</td>
             </tr>
           </tbody>
         </table>
@@ -129,14 +132,14 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
   const opt = {
     filename: fileName,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' },
+    html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', letterRendering: true },
     jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
     pagebreak: { avoid: ['tr','table','img'] },
   };
 
   // Try jsPDF with embedded Hebrew font first (universal PDF rendering)
   const fetchFontAsBase64 = async (url) => {
-    const res = await fetch(url, { cache: 'force-cache' });
+    const res = await fetch(url, { cache: 'no-cache' });
     if (!res.ok) throw new Error('font fetch failed');
     const buf = await res.arrayBuffer();
     // Convert to base64
@@ -151,11 +154,18 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
   };
 
   const generateWithJsPDF = async () => {
-    const fontUrl = '/fonts/NotoSansHebrew-Regular.ttf';
-    const base64 = await fetchFontAsBase64(fontUrl);
+    // Robust font loading: try absolute then relative path
+    let base64;
+    try {
+      base64 = await fetchFontAsBase64('/fonts/NotoSansHebrew-Regular.ttf');
+    } catch (_) {
+      base64 = await fetchFontAsBase64('fonts/NotoSansHebrew-Regular.ttf');
+    }
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
     doc.addFileToVFS('NotoSansHebrew-Regular.ttf', base64);
     doc.addFont('NotoSansHebrew-Regular.ttf', 'NotoHeb', 'normal');
+    // Map bold to the same file so jsPDF doesn't switch to a Latin-only font
+    doc.addFont('NotoSansHebrew-Regular.ttf', 'NotoHeb', 'bold');
     doc.setFont('NotoHeb', 'normal');
 
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -164,7 +174,7 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
 
     // Header (RTL): title on right, brand left
     doc.setFontSize(12);
-    const title = `חשבונית מס / קבלה (מקור) מספר ${orderId ?? order?.order_id ?? ''}`;
+    const title = rtl(`חשבונית מס / קבלה (מקור) מספר ${orderId ?? order?.order_id ?? ''}`);
     doc.text(title, pageWidth - margin, margin, { align: 'right' });
     doc.setFontSize(18);
     doc.text(siteName, margin, margin, { align: 'left' });
@@ -174,13 +184,13 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
     let infoY = margin + lineH * 2.2;
     const infoXRight = pageWidth - margin;
     const info = [
-      { label: 'פרטי ההזמנה', value: '' },
-      { label: 'שם לקוח', value: customerName || '—' },
-      { label: 'מס׳ הזמנה', value: String(orderId ?? order?.order_id ?? '') },
-      { label: 'מקום', value: 'nutribite' },
-      { label: 'סוג הזמנה', value: 'משלוח' },
-      { label: 'תאריך הפקה', value: confirmedStr },
-      { label: 'אמצעי תשלום', value: paymentMethod || '—' },
+      { label: rtl('פרטי ההזמנה'), value: '' },
+      { label: rtl('שם לקוח'), value: rtl(customerName || '—') },
+      { label: rtl('מס׳ הזמנה'), value: rtl(String(orderId ?? order?.order_id ?? '')) },
+      { label: rtl('מקום'), value: rtl('nutribite') },
+      { label: rtl('סוג הזמנה'), value: rtl('משלוח') },
+      { label: rtl('תאריך הפקה'), value: rtl(confirmedStr) },
+      { label: rtl('אמצעי תשלום'), value: rtl(paymentMethod || '—') },
     ];
     info.forEach((row, i) => {
       if (i === 0) {
@@ -218,11 +228,11 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
       xCursor -= width;
       doc.text(String(text), xCursor + width - 6, y + rowH - 6, { align: 'right' });
     };
-    drawHeaderCell('מחיר', colW.total);
-    drawHeaderCell('מחיר יחידה', colW.unit);
-    drawHeaderCell('כמות', colW.qty);
-    drawHeaderCell('% מע"מ', colW.vat);
-    drawHeaderCell('פריט', colW.name);
+    drawHeaderCell(rtl('מחיר'), colW.total);
+    drawHeaderCell(rtl('מחיר יחידה'), colW.unit);
+    drawHeaderCell(rtl('כמות'), colW.qty);
+    drawHeaderCell(rtl('% מע"מ'), colW.vat);
+    drawHeaderCell(rtl('פריט'), colW.name);
     // Rows
     y += rowH;
     doc.setDrawColor(...borderColor);
@@ -240,7 +250,7 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
       let x = tableX;
       doc.setLineWidth(0.5);
       // name cell
-      doc.text(String(name), x + colW.name - 6, y + rowH - 6, { align: 'right' });
+      doc.text(rtl(String(name)), x + colW.name - 6, y + rowH - 6, { align: 'right' });
       x += colW.name;
       // vat cell
       doc.text('18%', x + colW.vat - 6, y + rowH - 6, { align: 'right' });
@@ -259,13 +269,13 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
     });
 
     doc.setFontSize(12);
-    doc.setFont(undefined, 'bold');
-    doc.text(`סה"כ בש"ח (כולל מע"מ): ${money(Number(totalGross) + Number(deliveryFee || 0))} ₪`, pageWidth - margin, y + lineH, { align: 'right' });
-    doc.setFont(undefined, 'normal');
+    doc.setFont('NotoHeb', 'bold');
+    doc.text(rtl(`סה"כ בש"ח (כולל מע"מ): ${money(Number(totalGross) + Number(deliveryFee || 0))} ₪`), pageWidth - margin, y + lineH, { align: 'right' });
+    doc.setFont('NotoHeb', 'normal');
     y += lineH * 1.4;
     // Optional display of components
     if (Number(deliveryFee)) {
-      doc.text(`(כולל דמי משלוח: ${money(deliveryFee)} ₪)`, pageWidth - margin, y + lineH, { align: 'right' });
+      doc.text(rtl(`(כולל דמי משלוח: ${money(deliveryFee)} ₪)`), pageWidth - margin, y + lineH, { align: 'right' });
       y += lineH * 1.0;
     }
 
@@ -274,11 +284,11 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
       styles: { font: 'NotoHeb', fontStyle: 'normal', halign: 'right' },
       headStyles: { fillColor: [243,244,246], textColor: [17,24,39], halign: 'right' },
       // Bottom summary: 3 columns like the sample: סה"כ, מע"מ, סך נטו
-      head: [[ 'סה"כ', 'מע"מ', 'סך נטו' ]],
+      head: [[ rtl('סה"כ'), rtl('מע"מ'), rtl('סך נטו') ]],
       body: [[
-        `${money(Number(totalGross) + Number(deliveryFee || 0))} ₪`,
-        `${money(totalTax)} ₪`,
-        `${money(totalNet)} ₪`,
+        rtl(`${money(Number(totalGross) + Number(deliveryFee || 0))} ₪`),
+        rtl(`${money(totalTax)} ₪`),
+        rtl(`${money(totalNet)} ₪`),
       ]],
       theme: 'grid',
       columnStyles: {
@@ -329,8 +339,11 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
 
   return ensureHebrewFont()
     .then(() => ensureFonts())
-    .then(() => generateWithJsPDF())
-    .catch(() => { printFallback(); })
+    .then(() => html2pdf().set(opt).from(container).save())
+    .catch(async () => {
+      // Fallback to jsPDF embedded font path
+      try { await generateWithJsPDF(); } catch (_) { printFallback(); }
+    })
     .finally(() => {
       try { document.body.removeChild(container); } catch (_) {}
     });

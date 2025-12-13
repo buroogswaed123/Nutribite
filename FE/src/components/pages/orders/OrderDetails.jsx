@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import styles from '../cart/cart.module.css';
 import { getSessionUser, getCurrentCustomerId, getOrderAPI, createNotificationAPI } from '../../../utils/functions';
-import { generateOrderReceiptPDF } from '../../../utils/receiptPdfmake';
+import { generateOrderReceiptPDF } from '../../../utils/receipt';
 
 export default function OrderDetails() {
   const { id } = useParams(); // order id
@@ -172,16 +172,25 @@ export default function OrderDetails() {
         }
       }
 
-      // Send notifications (best-effort)
+      // Send confirmation notification once (best-effort)
       try {
         if (user?.user_id) {
-          await createNotificationAPI({
-            user_id: user.user_id,
-            type: 'order',
-            related_id: orderId,
-            title: `הזמנה #${orderId} אושרה`,
-            description: `לתשלום (כולל משלוח): ${grandTotal.toFixed(2)}₪`,
-          });
+          const res = await fetch(`/api/notifications/user/${user.user_id}`, { credentials: 'include' });
+          let existing = [];
+          if (res.ok) existing = await res.json();
+          const hasConfirmation = Array.isArray(existing) && existing.some(n => (
+            String(n.type) === 'order' && Number(n.related_id) === Number(orderId) &&
+            (String(n.title || '').includes('אושרה') || /Order\s*#\s*${orderId}\s*confirmed/i.test(String(n.title || '')))
+          ));
+          if (!hasConfirmation) {
+            await createNotificationAPI({
+              user_id: user.user_id,
+              type: 'order',
+              related_id: orderId,
+              title: `הזמנה #${orderId} אושרה`,
+              description: `לתשלום (כולל משלוח): ${grandTotal.toFixed(2)}₪`,
+            });
+          }
         }
       } catch (e) {
         // Non-fatal for UI

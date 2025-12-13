@@ -142,11 +142,12 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
           // Avoid duplicating the same "continue your order" notification on every login
           try {
             const existing = await fetchNotificationsAPI(user.user_id || user.id);
-            const hasContinue = Array.isArray(existing) && existing.some(n => (
+            // Create only once per order: if ANY notification exists for this draft (read or unread), skip
+            const hasAnyContinue = Array.isArray(existing) && existing.some(n => (
               String(n.type) === 'order' && Number(n.related_id) === Number(draftId) &&
-              String(n.title || '').includes('המשך הגדרת ההזמנה') && n.status !== 'read'
+              String(n.title || '').includes('המשך הגדרת ההזמנה')
             ));
-            if (!hasContinue) {
+            if (!hasAnyContinue) {
               await createNotificationAPI({
                 user_id: user.user_id || user.id,
                 type: 'order',

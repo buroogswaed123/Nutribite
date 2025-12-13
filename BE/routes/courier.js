@@ -24,7 +24,31 @@ const runQuery = async (sql, params = []) => {
 // Update order status (courier action)
 router.patch('/orders/:id/status', async (req, res) => {
   try {
-    const [rows] = await runQuery('UPDATE orders SET status = ? WHERE order_id = ?', [req.body.status, req.params.id]);
+    const status = req.body.status;
+    const orderId = req.params.id;
+    const [rows] = await runQuery('UPDATE orders SET status = ? WHERE order_id = ?', [status, orderId]);
+
+    // Best-effort: notify the customer about the status change
+    try {
+      if (conn && typeof conn.promise === 'function') {
+        const cx = conn.promise();
+        const [[o]] = await cx.query('SELECT cust_id FROM orders WHERE order_id = ? LIMIT 1', [orderId]);
+        const custId = o && o.cust_id;
+        if (custId) {
+          const [[u]] = await cx.query('SELECT u.user_id FROM customers c JOIN users u ON u.user_id = c.user_id WHERE c.cust_id = ? LIMIT 1', [custId]);
+          const userId = u && u.user_id;
+          if (userId) {
+            const title = `סטטוס הזמנה #${orderId} עודכן ל-${status}`;
+            const description = `השליח עדכן את מצב ההזמנה ל-${status}`;
+            await cx.query(
+              'INSERT IGNORE INTO notifications (user_id, type, related_id, title, description) VALUES (?, "order", ?, ?, ?)',
+              [userId, orderId, title, description]
+            );
+          }
+        }
+      }
+    } catch (_) { /* ignore notification errors */ }
+
     return res.json(rows);
   } catch (err) {
     console.error('ADMIN ORDERS STATUS PATCH ERROR:', err);
@@ -191,6 +215,29 @@ router.patch('/deliveries/:id/status', async (req, res) => {
           WHERE d.delivery_id = ? AND d.courier_id = ?
         `, [deliveryId, courier_id]);
       }
+      // Notify customer about delivery status change (best-effort)
+      try {
+        if (status) {
+          const [[row]] = await (conn && conn.promise ? conn.promise() : { query: async () => [[]] }).query(
+            'SELECT d.order_id, o.cust_id FROM deliveries d JOIN orders o ON o.order_id = d.order_id WHERE d.delivery_id = ? LIMIT 1',
+            [deliveryId]
+          );
+          const ordId = row && row.order_id;
+          const custId = row && row.cust_id;
+          if (ordId && custId && conn && conn.promise) {
+            const [[u]] = await conn.promise().query('SELECT u.user_id FROM customers c JOIN users u ON u.user_id = c.user_id WHERE c.cust_id = ? LIMIT 1', [custId]);
+            const userId = u && u.user_id;
+            if (userId) {
+              const title = `סטטוס הזמנה #${ordId} עודכן ל-${status}`;
+              const description = `מצב המשלוח עודכן ל-${status}`;
+              await conn.promise().query(
+                'INSERT IGNORE INTO notifications (user_id, type, related_id, title, description) VALUES (?, "order", ?, ?, ?)',
+                [userId, ordId, title, description]
+              );
+            }
+          }
+        }
+      } catch (_) { /* ignore */ }
       return res.json({ ok: true });
     }
 
@@ -211,6 +258,29 @@ router.patch('/deliveries/:id/status', async (req, res) => {
     }
 
     await cx.commit();
+    // Notify customer about delivery status change (best-effort)
+    try {
+      if (status) {
+        const [[row2]] = await cx.query(
+          'SELECT d.order_id, o.cust_id FROM deliveries d JOIN orders o ON o.order_id = d.order_id WHERE d.delivery_id = ? LIMIT 1',
+          [deliveryId]
+        );
+        const ordId2 = row2 && row2.order_id;
+        const custId2 = row2 && row2.cust_id;
+        if (ordId2 && custId2) {
+          const [[u2]] = await cx.query('SELECT u.user_id FROM customers c JOIN users u ON u.user_id = c.user_id WHERE c.cust_id = ? LIMIT 1', [custId2]);
+          const userId2 = u2 && u2.user_id;
+          if (userId2) {
+            const title2 = `סטטוס הזמנה #${ordId2} עודכן ל-${status}`;
+            const description2 = `מצב המשלוח עודכן ל-${status}`;
+            await cx.query(
+              'INSERT IGNORE INTO notifications (user_id, type, related_id, title, description) VALUES (?, "order", ?, ?, ?)',
+              [userId2, ordId2, title2, description2]
+            );
+          }
+        }
+      }
+    } catch (_) { /* ignore */ }
     return res.json({ ok: true });
   } catch (err) {
     try { if (conn && typeof conn.promise === 'function') await conn.promise().rollback(); } catch (_) {}

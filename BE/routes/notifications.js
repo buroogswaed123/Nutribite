@@ -6,6 +6,16 @@ const router = express.Router();
 
 
 
+// Ensure a uniqueness constraint to avoid duplicate notifications per user/order/title
+;(async () => {
+  try {
+    if (!conn || typeof conn.query !== 'function') return;
+    // Try creating a unique index; ignore error if it already exists
+    const sql = 'CREATE UNIQUE INDEX uniq_notifications_user_type_rel_title ON notifications (user_id, type, related_id, title)';
+    conn.query(sql, (err) => { /* ignore if exists */ });
+  } catch (_) { /* ignore */ }
+})();
+
 // GET /api/notifications/user/:user_id
 // List all notifications for a user
 router.get('/user/:user_id', (req, res) => {

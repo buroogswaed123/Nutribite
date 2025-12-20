@@ -334,7 +334,8 @@ router.patch('/orders/:id/status', async (req, res) => {
   try {
     const status = req.body.status;
     const orderId = req.params.id;
-    const [rows] = await runQuery('UPDATE orders SET status = ? WHERE order_id = ?', [status, orderId]);
+    // Write to the canonical column name used by customer routes: order_status
+    const [rows] = await runQuery('UPDATE orders SET order_status = ? WHERE order_id = ?', [status, orderId]);
 
     // Best-effort: notify the customer about the status change
     try {

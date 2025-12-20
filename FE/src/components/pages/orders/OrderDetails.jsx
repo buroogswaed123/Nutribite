@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import styles from '../cart/cart.module.css';
 import { getSessionUser, getCurrentCustomerId, getOrderAPI, createNotificationAPI } from '../../../utils/functions';
-import { generateOrderReceiptPDF } from '../../../utils/receipt';
+import { generateOrderReceiptPDF } from '../../../utils/receiptPdfmake';
 
 export default function OrderDetails() {
   const { id } = useParams(); // order id
@@ -434,8 +434,7 @@ export default function OrderDetails() {
                     paymentMethod: paypal ? `PayPal (${paypal})` : '—',
                   });
                 } catch (e) {
-                  // eslint-disable-next-line no-alert
-                  alert('נכשלה יצירת קובץ הקבלה');
+                  setError('נכשלה יצירת קובץ הקבלה');
                 }
               }}
             >

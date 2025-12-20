@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { renewPlanAPI, markNotificationReadAPI, getOrderAPI, deleteOrderAPI } from '../../utils/functions';
@@ -6,6 +6,9 @@ import styles from './Notifications.module.css';
 
 export default function NotificationItem({ notification, onOpen, onDelete }) {
   const navigate = useNavigate();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmError, setConfirmError] = useState('');
+  const [confirmLoading, setConfirmLoading] = useState(false);
   if (!notification) return null;
   const { id, computedTitle, title, description, is_read, status, type, related_id } = notification;
   const displayTitle = (computedTitle || title || 'התראה');
@@ -61,8 +64,7 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
                         const od = await getOrderAPI(Number(related_id));
                         const status = od?.order?.order_status;
                         if (status && status !== 'draft') {
-                          // eslint-disable-next-line no-alert
-                          alert('ההזמנה הושלמה/איננה בטיוטה. לא ניתן להמשיך עריכה.');
+                          setConfirmError('ההזמנה הושלמה/איננה בטיוטה. לא ניתן להמשיך עריכה.');
                         }
                       } catch(_) {}
                       navigate(`/orders/${related_id}`);
@@ -76,31 +78,8 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
                 <button
                   className={styles.inlineSecondary}
                   onClick={async () => {
-                    try {
-                      if (!related_id) return;
-                      // Check draft status before deletion
-                      let canDelete = true;
-                      try {
-                        const od = await getOrderAPI(Number(related_id));
-                        const st = String(od?.order?.order_status || '').toLowerCase();
-                        if (st !== 'draft') {
-                          canDelete = false;
-                          alert('לא ניתן לבטל הזמנה שאינה בטיוטה.');
-                          return;
-                        }
-                      } catch (_) {}
-                      if (canDelete) {
-                        const ok = window.confirm('לבטל ולהסיר את ההזמנה בטיוטה? פעולה זו תמחק את הטיוטה.');
-                        if (!ok) return;
-                        await deleteOrderAPI(Number(related_id));
-                        try { if (id) await markNotificationReadAPI(id); } catch(_) {}
-                        if (onDelete && id) onDelete(id);
-                        try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
-                      }
-                    } catch (err) {
-                      console.error('Failed to cancel draft order from notification:', err);
-                      alert('ביטול ההזמנה נכשל.');
-                    }
+                    setConfirmError('');
+                    setConfirmOpen(true);
                   }}
                 >
                   בטל הזמנה
@@ -159,6 +138,50 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
           <Trash2 size={16} />
         </button>
       </div>
+      {/* Confirm cancel draft order modal */}
+      {confirmOpen && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}
+             onClick={() => !confirmLoading && setConfirmOpen(false)}>
+          <div style={{ background:'#fff', borderRadius:12, width:'min(520px, 92vw)', padding:16, boxShadow:'0 10px 24px rgba(0,0,0,0.2)' }}
+               onClick={(e)=> e.stopPropagation()}>
+            <h3 style={{ marginTop:0, marginBottom:8 }}>ביטול הזמנה בטיוטה</h3>
+            <p style={{ color:'#374151', marginTop:0 }}>האם לבטל ולהסיר לצמיתות את ההזמנה בטיוטה? פעולה זו תמחק את הטיוטה.</p>
+            {confirmError && <div style={{ color:'#b91c1c', marginBottom:8 }}>{confirmError}</div>}
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button className={styles.inlineSecondary} disabled={confirmLoading} onClick={()=> setConfirmOpen(false)}>ביטול</button>
+              <button
+                className={styles.inlinePrimary}
+                disabled={confirmLoading}
+                onClick={async ()=> {
+                  try {
+                    setConfirmLoading(true);
+                    if (!related_id) { setConfirmError('מזהה הזמנה חסר'); return; }
+                    // Validate still draft before deleting
+                    let st = 'draft';
+                    try {
+                      const od = await getOrderAPI(Number(related_id));
+                      st = String(od?.order?.order_status || '').toLowerCase();
+                    } catch (_) {}
+                    if (st !== 'draft') { setConfirmError('לא ניתן לבטל הזמנה שאינה בטיוטה.'); return; }
+                    await deleteOrderAPI(Number(related_id));
+                    try { if (id) await markNotificationReadAPI(id); } catch(_) {}
+                    if (onDelete && id) onDelete(id);
+                    try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
+                    setConfirmOpen(false);
+                  } catch (err) {
+                    console.error('Failed to cancel draft order from notification:', err);
+                    setConfirmError('ביטול ההזמנה נכשל');
+                  } finally {
+                    setConfirmLoading(false);
+                  }
+                }}
+              >
+                {confirmLoading ? 'מבטל…' : 'אשר ביטול'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

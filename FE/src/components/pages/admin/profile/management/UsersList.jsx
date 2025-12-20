@@ -37,17 +37,51 @@ export default function UsersList() {
   const [orderItems, setOrderItems] = useState({}); // { [orderId]: items[] }
   const [orderItemsLoading, setOrderItemsLoading] = useState({}); // { [orderId]: bool }
   const [orderItemsError, setOrderItemsError] = useState({}); // { [orderId]: string }
+  // Lock page scroll when orders modal is open
+  useEffect(() => {
+    try {
+      if (ordersOpen) {
+        const prev = document.body.style.overflow;
+        document.body.setAttribute('data-prev-overflow', prev || '');
+        document.body.style.overflow = 'hidden';
+      } else {
+        const prev = document.body.getAttribute('data-prev-overflow');
+        document.body.style.overflow = prev || '';
+        document.body.removeAttribute('data-prev-overflow');
+      }
+    } catch (_) {}
+    return () => {
+      try {
+        const prev = document.body.getAttribute('data-prev-overflow');
+        document.body.style.overflow = prev || '';
+        document.body.removeAttribute('data-prev-overflow');
+      } catch (_) {}
+    };
+  }, [ordersOpen]);
 
   const fmtDT = (v) => {
     try { return v ? new Date(v).toLocaleString('he-IL') : '—'; } catch { return v || '—'; }
   };
+  const heStatusLabel = (vRaw) => {
+    const v = String(vRaw || '').toLowerCase();
+    const map = {
+      draft: 'טיוטה',
+      confirmed: 'אושרה',
+      preparing: 'בהכנה',
+      'on route': 'בדרך',
+      out_for_delivery: 'בדרך',
+      complete: 'הושלמה',
+      cancelled: 'בוטלה',
+    };
+    return map[v] || (vRaw || '—');
+  };
   const StatusBadge = ({ value }) => {
-    const v = String(value || '—');
+    const v = String(value || '—').toLowerCase();
     const palette = {
-      draft: '#e5e7eb', confirmed: '#dbeafe', preparing: '#fef3c7', 'on route': '#e0f2fe', complete: '#dcfce7', cancelled: '#fee2e2', '—': '#e5e7eb'
+      draft: '#e5e7eb', confirmed: '#dbeafe', preparing: '#fef3c7', 'on route': '#e0f2fe', out_for_delivery: '#e0f2fe', complete: '#dcfce7', cancelled: '#fee2e2', '—': '#e5e7eb'
     };
     const bg = palette[v] || '#e5e7eb';
-    return (<span style={{ padding:'2px 8px', borderRadius: 8, background: bg }}>{v}</span>);
+    return (<span style={{ padding:'2px 8px', borderRadius: 8, background: bg }}>{heStatusLabel(v)}</span>);
   };
 
   // Derive status flags for the currently selected user (for modal button logic)
@@ -202,12 +236,10 @@ export default function UsersList() {
                     <td>{u.username}</td>
                     <td>{u.email}</td>
                     <td>{u.user_type}</td>
-                    <td>{u.is_online ? 'מחובר' : (u.status || '—')}</td>
+                    <td>{String(u.status).toLowerCase() === 'active' ? 'פעיל' : 'לא פעיל'}</td>
                     <td>{u.created_at ? new Date(u.created_at).toLocaleDateString('he-IL') : '—'}</td>
                     <td style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                      <button className={styles.manageBtn}
-                        onClick={() => { setSelectedUser(u); setIsModalOpen(true); }}
-                      >ניהול</button>
+                      {/* ניהול משתמש הוסר לפי בקשה */}
                       <button className={styles.manageBtn}
                         onClick={async () => {
                           try {
@@ -243,217 +275,7 @@ export default function UsersList() {
           </div>
         )}
 
-        {/* Manage Modal */}
-        {isModalOpen && selectedUser && (
-          <div className={styles.modalOverlay} onClick={() => setIsModalOpen(false)}>
-            <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-              <div className={styles.modalHeader}>
-                <h3 className={styles.modalTitle}>ניהול משתמש</h3>
-                <button className={styles.closeBtn} onClick={() => setIsModalOpen(false)} aria-label="סגור">
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className={styles.modalBody}>
-                {/* User info rows */}
-                <div className={styles.infoRow}>
-                  <span className={styles.infoLabel}>שם משתמש:</span>
-                  <span className={styles.infoValue}>{selectedUser.username}</span>
-                </div>
-                <div className={styles.infoRow}>
-                  <span className={styles.infoLabel}>אימייל:</span>
-                  <span className={styles.infoValue}>{selectedUser.email}</span>
-                </div>
-                <div className={styles.infoRow}>
-                  <span className={styles.infoLabel}>תאריך הצטרפות:</span>
-                  <span className={styles.infoValue}>{selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString('he-IL') : '—'}</span>
-                </div>
-                <div className={styles.infoRow}>
-                  <span className={styles.infoLabel}>סטטוס חיבור:</span>
-                  <span className={`${styles.statusLabel} ${selectedUser.is_online ? styles.active : styles.inactive}`}>
-                    {selectedUser.is_online ? 'מחובר' : 'לא מחובר'}
-                  </span>
-                </div>
-
-                {/* Role change (hidden if deleted) */}
-                {!isSelectedDeleted && (
-                  <div className={styles.fieldGroup}>
-                    <label className={styles.infoLabel} htmlFor="roleSelect">תפקיד:</label>
-                    <select
-                      id="roleSelect"
-                      className={styles.select}
-                      value={pendingRole ?? selectedUser.user_type}
-                      disabled={savingRole}
-                      onChange={(e) => {
-                        const newRole = e.target.value;
-                        if (newRole === selectedUser.user_type) {
-                          setPendingRole(null);
-                          return;
-                        }
-                        setPendingRole(newRole);
-                      }}
-                    >
-                      <option value="admin">מנהל</option>
-                      <option value="customer">לקוח</option>
-                      <option value="courier">שליח</option>
-                    </select>
-                  </div>
-                )}
-
-                {pendingRole && !isSelectedDeleted && (
-                  <div className={styles.confirmBar}>
-                    <span className={styles.confirmText}>לאשר שינוי תפקיד ל- {pendingRole}?</span>
-                    <div className={styles.confirmActions}>
-                      <button
-                        className={styles.confirmBtn}
-                        disabled={savingRole}
-                        onClick={async () => {
-                          try {
-                            setSavingRole(true);
-                            await updateUserRole(selectedUser.user_id, pendingRole);
-                            setSelectedUser((prev) => ({ ...prev, user_type: pendingRole }));
-                            setRecentUsers((list) => list.map(u => u.user_id === selectedUser.user_id ? { ...u, user_type: pendingRole } : u));
-                            addToast('success', 'התפקיד עודכן בהצלחה');
-                            setPendingRole(null);
-                          } catch (err) {
-                            console.error('Failed to update role', err);
-                            addToast('error', 'עדכון התפקיד נכשל');
-                          } finally {
-                            setSavingRole(false);
-                          }
-                        }}
-                      >
-                        אשר
-                      </button>
-                      <button
-                        className={styles.cancelBtn}
-                        disabled={savingRole}
-                        onClick={() => setPendingRole(null)}
-                      >
-                        ביטול
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Action buttons row */}
-                <div className={styles.buttonsRow}>
-                  {/* Ban/Unban only if not deleted */}
-                  {!isSelectedDeleted && (
-                    <button
-                      className={styles.primaryBtn}
-                      onClick={() => {
-                        // if currently banned, pendingBan=false triggers unban flow below
-                        setPendingBan(!isSelectedBanned);
-                      }}
-                    >
-                      {isSelectedBanned ? 'בטל חסימה' : 'חסום משתמש'}
-                    </button>
-                  )}
-                  {/* Delete vs Restore */}
-                  {isSelectedDeleted ? (
-                    <button
-                      className={styles.primaryBtn}
-                      onClick={async () => {
-                        try {
-                          await adminRestoreUserAPI(selectedUser.user_id);
-                          setSelectedUser(prev => ({ ...prev, status: 'active' }));
-                          setRecentUsers(list => list.map(u => u.user_id === selectedUser.user_id ? { ...u, status: 'active' } : u));
-                          addToast('success', 'המשתמש שוחזר');
-                        } catch (e) {
-                          addToast('error', 'שחזור המשתמש נכשל');
-                        }
-                      }}
-                    >בטל מחיקה</button>
-                  ) : (
-                    <button
-                      className={styles.dangerBtn}
-                      onClick={() => setConfirmingDelete(true)}
-                    >
-                      מחק משתמש
-                    </button>
-                  )}
-                </div>
-
-                {pendingBan !== null && !isSelectedDeleted && (
-                  <div className={styles.confirmBar}>
-                    <span className={styles.confirmText}>
-                      {pendingBan ? 'לחסום משתמש זה?' : 'לבטל חסימה למשתמש זה?'}
-                    </span>
-                    <div className={styles.confirmActions}>
-                      <button
-                        className={styles.confirmBtn}
-                        onClick={async () => {
-                          if (pendingBan === true) {
-                            // Open ban scheduling form instead of immediate ban
-                            setIsBanFormOpen(true);
-                            return;
-                          }
-                          // Unban flow immediate
-                          try {
-                            await adminUnbanUser(selectedUser.user_id);
-                            setSelectedUser((prev) => ({ ...prev, is_banned: false }));
-                            setRecentUsers((list) => list.map(u => u.user_id === selectedUser.user_id ? { ...u, status: 'active' } : u));
-                            addToast('success', 'החסימה בוטלה');
-                          } catch (e) {
-                            console.error('Unban failed', e);
-                            addToast('error', 'פעולת החסימה נכשלה');
-                          } finally {
-                            setPendingBan(null);
-                          }
-                        }}
-                      >
-                        אשר
-                      </button>
-                      <button
-                        className={styles.cancelBtn}
-                        onClick={() => setPendingBan(null)}
-                      >
-                        ביטול
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {confirmingDelete && (
-                  <div className={styles.confirmBar}>
-                    <span className={styles.confirmText}>למחוק משתמש זה? פעולה זו אינה הפיכה</span>
-                    <div className={styles.confirmActions}>
-                      <button
-                        className={styles.confirmBtn}
-                        onClick={async () => {
-                          try {
-                            await deleteUser(selectedUser.user_id);
-                            setRecentUsers((list) => list.filter(u => u.user_id !== selectedUser.user_id));
-                            setIsModalOpen(false);
-                            addToast('success', 'המשתמש נמחק');
-                          } catch (e) {
-                            console.error('Delete failed', e);
-                            addToast('error', 'מחיקת המשתמש נכשלה');
-                          } finally {
-                            setConfirmingDelete(false);
-                          }
-                        }}
-                      >
-                        אשר
-                      </button>
-                      <button
-                        className={styles.cancelBtn}
-                        onClick={() => setConfirmingDelete(false)}
-                      >
-                        ביטול
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-              </div>
-              <div className={styles.modalFooter}>
-                <button className={styles.closeFooterBtn} onClick={() => setIsModalOpen(false)}>סגור</button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* ניהול משתמש הוסר לפי בקשה */}
 
         {/* Toasts */}
         <div className={styles.toastContainer}>
@@ -467,12 +289,12 @@ export default function UsersList() {
         {/* Orders Modal */}
         {ordersOpen && (
           <div className={styles.modalOverlay} onClick={()=> setOrdersOpen(false)}>
-            <div className={styles.modal} onClick={(e)=> e.stopPropagation()}>
+            <div className={styles.modal} onClick={(e)=> e.stopPropagation()} style={{ maxHeight:'80vh', display:'flex', flexDirection:'column' }}>
               <div className={styles.modalHeader}>
                 <h3 className={styles.modalTitle}>הזמנות המשתמש {ordersUser?.username} (ID: {ordersUser?.user_id})</h3>
                 <button className={styles.closeBtn} onClick={()=> setOrdersOpen(false)} aria-label="סגור"><X size={18} /></button>
               </div>
-              <div className={styles.modalBody}>
+              <div className={styles.modalBody} style={{ overflowY:'auto' }}>
                 {ordersLoading && <Loading text="טוען הזמנות..." />}
                 {ordersErr && <div className={styles.errorBanner}>{ordersErr}</div>}
                 {!ordersLoading && !ordersErr && (
@@ -540,18 +362,18 @@ export default function UsersList() {
                                           body: JSON.stringify({ status: newStatus })
                                         });
                                         if (!res.ok) throw new Error('עדכון סטטוס נכשל');
-                                        setUserOrders((rows) => rows.map(r => r.order_id === o.order_id ? { ...r, status: newStatus } : r));
+                                        setUserOrders((rows) => rows.map(r => r.order_id === o.order_id ? { ...r, status: newStatus, order_status: newStatus } : r));
                                       } catch (e) {
                                         addToast('error', e.message || 'עדכון סטטוס נכשל');
                                       }
                                     }}
                                   >
-                                    <option value="draft">draft</option>
-                                    <option value="confirmed">confirmed</option>
-                                    <option value="preparing">preparing</option>
-                                    <option value="on route">on route</option>
-                                    <option value="complete">complete</option>
-                                    <option value="cancelled">cancelled</option>
+                                    <option value="draft">טיוטה</option>
+                                    <option value="confirmed">אושרה</option>
+                                    <option value="preparing">בהכנה</option>
+                                    <option value="on route">בדרך</option>
+                                    <option value="complete">הושלמה</option>
+                                    <option value="cancelled">בוטלה</option>
                                   </select>
                                   {/* Download receipt (opens customer view) */}
                                   <button className={styles.manageBtn}

@@ -284,7 +284,7 @@ router.get('/orders/:id/items', async (req, res) => {
     if (!Number.isFinite(id)) return res.status(400).json({ message: 'Invalid order id' });
     const [items] = await runQuery(`
       SELECT 
-        oi.id AS id,
+        oi.order_item_id AS id,
         oi.order_id,
         oi.product_id,
         oi.quantity,
@@ -298,7 +298,7 @@ router.get('/orders/:id/items', async (req, res) => {
       INNER JOIN products p ON p.product_id = oi.product_id
       INNER JOIN recipes r ON r.recipe_id = p.recipe_id
       WHERE oi.order_id = ?
-      ORDER BY oi.id ASC
+      ORDER BY oi.order_item_id ASC
     `, [id]);
     return res.json({ items });
   } catch (err) {

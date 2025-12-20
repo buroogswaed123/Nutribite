@@ -38,6 +38,18 @@ export default function UsersList() {
   const [orderItemsLoading, setOrderItemsLoading] = useState({}); // { [orderId]: bool }
   const [orderItemsError, setOrderItemsError] = useState({}); // { [orderId]: string }
 
+  const fmtDT = (v) => {
+    try { return v ? new Date(v).toLocaleString('he-IL') : '—'; } catch { return v || '—'; }
+  };
+  const StatusBadge = ({ value }) => {
+    const v = String(value || '—');
+    const palette = {
+      draft: '#e5e7eb', confirmed: '#dbeafe', preparing: '#fef3c7', 'on route': '#e0f2fe', complete: '#dcfce7', cancelled: '#fee2e2', '—': '#e5e7eb'
+    };
+    const bg = palette[v] || '#e5e7eb';
+    return (<span style={{ padding:'2px 8px', borderRadius: 8, background: bg }}>{v}</span>);
+  };
+
   // Derive status flags for the currently selected user (for modal button logic)
   const selectedStatus = selectedUser
     ? String(selectedUser.status ?? (selectedUser.is_banned ? 'banned' : 'active')).toLowerCase()
@@ -474,9 +486,9 @@ export default function UsersList() {
                             <th>#</th>
                             <th>סטטוס</th>
                             <th>סה"כ</th>
-                            <th>תאריך הזמנה</th>
-                            <th>זמן משלוח</th>
-                            <th>קבוצת תשלום</th>
+                            <th>נוצר</th>
+                            <th>משלוח</th>
+                            <th>פעולות</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -509,11 +521,43 @@ export default function UsersList() {
                                 style={{ cursor: 'pointer' }}
                               >
                                 <td>{o.order_id}</td>
-                                <td>{o.status}</td>
+                                <td><StatusBadge value={o.status || o.order_status} /></td>
                                 <td>{Number(o.total_price || 0).toFixed(2)} ₪</td>
-                                <td>{o.order_date ? new Date(o.order_date).toLocaleString('he-IL') : '—'}</td>
-                                <td>{o.set_delivery_time ? new Date(o.set_delivery_time).toLocaleString('he-IL') : '—'}</td>
-                                <td>{o.payment_group_id || '—'}</td>
+                                <td>{fmtDT(o.order_date || o.created_at)}</td>
+                                <td>{fmtDT(o.set_delivery_time || o.delivery_datetime)}</td>
+                                <td style={{ display:'flex', gap:8, flexWrap:'wrap' }} onClick={(e)=> e.stopPropagation()}>
+                                  {/* Change status inline */}
+                                  <select
+                                    className={styles.select}
+                                    value={String(o.status || o.order_status || 'draft')}
+                                    onChange={async (e) => {
+                                      const newStatus = e.target.value;
+                                      try {
+                                        const res = await fetch(`/api/admin/orders/${o.order_id}/status`, {
+                                          method: 'PATCH',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          credentials: 'include',
+                                          body: JSON.stringify({ status: newStatus })
+                                        });
+                                        if (!res.ok) throw new Error('עדכון סטטוס נכשל');
+                                        setUserOrders((rows) => rows.map(r => r.order_id === o.order_id ? { ...r, status: newStatus } : r));
+                                      } catch (e) {
+                                        addToast('error', e.message || 'עדכון סטטוס נכשל');
+                                      }
+                                    }}
+                                  >
+                                    <option value="draft">draft</option>
+                                    <option value="confirmed">confirmed</option>
+                                    <option value="preparing">preparing</option>
+                                    <option value="on route">on route</option>
+                                    <option value="complete">complete</option>
+                                    <option value="cancelled">cancelled</option>
+                                  </select>
+                                  {/* Download receipt (opens customer view) */}
+                                  <button className={styles.manageBtn}
+                                    onClick={() => window.open(`/orders/${o.order_id}?action=download-receipt`, '_blank')}
+                                  >קבלה</button>
+                                </td>
                               </tr>
                               {expandedOrderId === o.order_id && (
                                 <tr>

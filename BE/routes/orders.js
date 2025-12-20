@@ -89,6 +89,36 @@ router.get('/', async (req, res) => {
     const cust = custRows && custRows[0] ? custRows[0].cust_id : null;
     if (!cust) return res.json({ items: [] });
 
+// DELETE /api/orders/:id
+// Cancel and delete a DRAFT order owned by the current user
+router.delete('/:id', async (req, res) => {
+  try {
+    const uid = getUserId(req);
+    if (!uid) return res.status(401).json({ message: 'Not logged in' });
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: 'Invalid order id' });
+
+    // Resolve cust_id for current user
+    const custRows = await query('SELECT cust_id FROM customers WHERE user_id = ? LIMIT 1', [uid]);
+    const cust = custRows && custRows[0] ? custRows[0].cust_id : null;
+    if (!cust) return res.status(404).json({ message: 'Customer not found' });
+
+    // Ensure ownership and draft status
+    const ord = await query('SELECT order_id, order_status FROM orders WHERE order_id = ? AND cust_id = ? LIMIT 1', [id, cust]);
+    if (!ord || !ord[0]) return res.status(404).json({ message: 'Order not found' });
+    const status = String(ord[0].order_status || '').toLowerCase();
+    if (status !== 'draft') return res.status(400).json({ message: 'Only draft orders can be cancelled' });
+
+    // Delete items then order (in case FK CASCADE is not present)
+    await query('DELETE FROM order_items WHERE order_id = ?', [id]);
+    await query('DELETE FROM orders WHERE order_id = ? AND cust_id = ?', [id, cust]);
+    return res.json({ ok: true, deleted: id });
+  } catch (err) {
+    console.error('DELETE ORDER ERROR:', err);
+    return res.status(500).json({ message: 'Failed to delete order', error: err.message });
+  }
+});
+
     const rows = await query(`
       SELECT 
         o.order_id,

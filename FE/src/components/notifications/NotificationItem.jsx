@@ -1,7 +1,7 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { renewPlanAPI, markNotificationReadAPI, getOrderAPI } from '../../utils/functions';
+import { renewPlanAPI, markNotificationReadAPI, getOrderAPI, deleteOrderAPI } from '../../utils/functions';
 import styles from './Notifications.module.css';
 
 export default function NotificationItem({ notification, onOpen, onDelete }) {
@@ -72,6 +72,38 @@ export default function NotificationItem({ notification, onOpen, onDelete }) {
                   }}
                 >
                   המשך הזמנה
+                </button>
+                <button
+                  className={styles.inlineSecondary}
+                  onClick={async () => {
+                    try {
+                      if (!related_id) return;
+                      // Check draft status before deletion
+                      let canDelete = true;
+                      try {
+                        const od = await getOrderAPI(Number(related_id));
+                        const st = String(od?.order?.order_status || '').toLowerCase();
+                        if (st !== 'draft') {
+                          canDelete = false;
+                          alert('לא ניתן לבטל הזמנה שאינה בטיוטה.');
+                          return;
+                        }
+                      } catch (_) {}
+                      if (canDelete) {
+                        const ok = window.confirm('לבטל ולהסיר את ההזמנה בטיוטה? פעולה זו תמחק את הטיוטה.');
+                        if (!ok) return;
+                        await deleteOrderAPI(Number(related_id));
+                        try { if (id) await markNotificationReadAPI(id); } catch(_) {}
+                        if (onDelete && id) onDelete(id);
+                        try { window.dispatchEvent(new Event('notif-close')); } catch(_) {}
+                      }
+                    } catch (err) {
+                      console.error('Failed to cancel draft order from notification:', err);
+                      alert('ביטול ההזמנה נכשל.');
+                    }
+                  }}
+                >
+                  בטל הזמנה
                 </button>
               </div>
             );

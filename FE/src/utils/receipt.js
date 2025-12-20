@@ -42,22 +42,26 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
 
     return `
       <tr>
-        <td style="text-align:right; direction: rtl; unicode-bidi: embed; white-space: pre-wrap;">${String(name)}</td>
-        <td style="text-align:right;">${money(rowTax)}</td>
-        <td style="text-align:right;">${qty}</td>
-        <td style="text-align:right;">${money(unitGross)}</td>
-        <td style="text-align:right;">${money(rowTotal)}</td>
+        <td style="text-align:right; direction: rtl; unicode-bidi: plaintext; white-space: normal;">${String(name)}</td>
+        <td style="text-align:right; direction:ltr; unicode-bidi: plaintext; font-variant-numeric: tabular-nums;">${money(rowTax)}</td>
+        <td style="text-align:right; direction:ltr; unicode-bidi: plaintext; font-variant-numeric: tabular-nums;">${qty}</td>
+        <td style="text-align:right; direction:ltr; unicode-bidi: plaintext; font-variant-numeric: tabular-nums;">${money(unitGross)}</td>
+        <td style="text-align:right; direction:ltr; unicode-bidi: plaintext; font-variant-numeric: tabular-nums;">${money(rowTotal)}</td>
       </tr>
     `;
   }).join('');
 
   const container = document.createElement('div');
+  // Ensure element is laid out (not display:none) so html2canvas can measure it,
+  // but keep it hidden from the user.
   container.style.position = 'fixed';
-  container.style.left = '-99999px';
+  container.style.left = '0';
   container.style.top = '0';
+  container.style.visibility = 'hidden';
+  container.style.background = '#ffffff';
   container.setAttribute('dir', 'rtl');
   container.innerHTML = `
-    <div style="font-family: 'Noto Sans Hebrew', 'Segoe UI', Tahoma, Arial, 'Arial Unicode MS', sans-serif; direction: rtl; padding: 24px; width: 780px; color: #111827;">
+    <div style="font-family: 'Noto Sans Hebrew', 'Segoe UI', Tahoma, Arial, 'Arial Unicode MS', sans-serif; direction: rtl; padding: 24px; width: 780px; color: #111827; font-size:12px; line-height:1.6; text-align:right;">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px;">
         <div style="font-size:22px; font-weight:700;">${siteName}</div>
         <div style="text-align:right;">
@@ -66,14 +70,21 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
         </div>
       </div>
 
-      <table style="width:100%; border-collapse:collapse; font-size:12px; direction: rtl;">
+      <table style="width:100%; border-collapse:collapse; direction: rtl; table-layout: fixed;">
+        <colgroup>
+          <col style="width:40%" />
+          <col style="width:15%" />
+          <col style="width:15%" />
+          <col style="width:15%" />
+          <col style="width:15%" />
+        </colgroup>
         <thead>
           <tr style="background:#e5e7eb;">
-            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: embed;">שם פריט</th>
-            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">מע"מ (18%)</th>
-            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">כמות</th>
-            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">מחיר ליחידה</th>
-            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">סה"כ</th>
+            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: plaintext;">שם פריט</th>
+            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction:ltr; unicode-bidi: plaintext;">מע"מ (18%)</th>
+            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction:ltr; unicode-bidi: plaintext;">כמות</th>
+            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction:ltr; unicode-bidi: plaintext;">מחיר ליחידה</th>
+            <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction:ltr; unicode-bidi: plaintext;">סה"כ</th>
           </tr>
         </thead>
         <tbody>
@@ -86,25 +97,29 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
       </div>
 
       <div style="margin-top: 16px;">
-        <table style="width:100%; border-collapse:collapse; font-size:12px; direction: rtl;">
+        <table style="width:100%; border-collapse:collapse; direction: rtl; table-layout: fixed;">
+          <colgroup>
+            <col style="width:50%" />
+            <col style="width:50%" />
+          </colgroup>
           <thead>
             <tr style="background:#f3f4f6;">
-              <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: embed;">סיכום חשבונית</th>
-              <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">סכום</th>
+              <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction: rtl; unicode-bidi: plaintext;">סיכום חשבונית</th>
+              <th style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction:ltr; unicode-bidi: plaintext;">סכום</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; direction: rtl; unicode-bidi: embed;">לפני מע"מ</td>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">${money(totalNet)} ₪</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; direction: rtl; unicode-bidi: plaintext;">לפני מע"מ</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction:ltr; unicode-bidi: plaintext; font-variant-numeric: tabular-nums;">${money(totalNet)} ₪</td>
             </tr>
             <tr>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; direction: rtl; unicode-bidi: embed;">סכום מע"מ</td>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; text-align:right;">${money(totalTax)} ₪</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; direction: rtl; unicode-bidi: plaintext;">סכום מע"מ</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; text-align:right; direction:ltr; unicode-bidi: plaintext; font-variant-numeric: tabular-nums;">${money(totalTax)} ₪</td>
             </tr>
             <tr>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; font-weight:700; direction: rtl; unicode-bidi: embed;">לאחר מע"מ</td>
-              <td style="border:1px solid #d1d5db; padding:6px 8px; font-weight:700; text-align:right;">${money(totalGross)} ₪</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; font-weight:700; direction: rtl; unicode-bidi: plaintext;">לאחר מע"מ</td>
+              <td style="border:1px solid #d1d5db; padding:6px 8px; font-weight:700; text-align:right; direction:ltr; unicode-bidi: plaintext; font-variant-numeric: tabular-nums;">${money(totalGross)} ₪</td>
             </tr>
           </tbody>
         </table>
@@ -132,7 +147,8 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
   const opt = {
     filename: fileName,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', letterRendering: true },
+    // Tweak html2canvas to avoid blank pages on some setups
+    html2canvas: { scale: 1.5, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', letterRendering: true, windowWidth: 780 },
     jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
     pagebreak: { avoid: ['tr','table','img'] },
   };
@@ -337,13 +353,11 @@ export function generateOrderReceiptPDF({ siteName = 'Nutribite', orderId, order
     } catch (_) {}
   };
 
+  // Always use jsPDF with embedded Hebrew font for reliable RTL text
   return ensureHebrewFont()
     .then(() => ensureFonts())
-    .then(() => html2pdf().set(opt).from(container).save())
-    .catch(async () => {
-      // Fallback to jsPDF embedded font path
-      try { await generateWithJsPDF(); } catch (_) { printFallback(); }
-    })
+    .then(() => generateWithJsPDF())
+    .catch(() => { printFallback(); })
     .finally(() => {
       try { document.body.removeChild(container); } catch (_) {}
     });

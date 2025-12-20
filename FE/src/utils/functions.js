@@ -707,6 +707,12 @@ export async function getOrderAPI(orderId) {
   return data; // { order, items }
 }
 
+export async function deleteOrderAPI(orderId) {
+  if (!orderId) throw new Error('Missing orderId');
+  const { data } = await axios.delete(`/api/orders/${orderId}`);
+  return data; // { ok, deleted }
+}
+
 // Get latest draft order for current user; returns order_id or null
 export async function getLatestDraftOrderAPI() {
   try {

@@ -103,27 +103,36 @@ export default function Orders() {
       {!loading && items.length > 0 && (
         <section className={styles.mealSection}>
           <ul className={styles.mealList}>
-            {items.map((o) => (
-              <li key={o.order_id} className={styles.mealItem}>
-                <div className={styles.mealBody}>
-                  <div className={styles.mealNameLink}>
-                    הזמנה #{o.order_id}
+            {items.map((o) => {
+              const deliveryStr = fmtDelivery(o);
+              const amountStr = `${Number(o.total_price || 0).toFixed(2)} ₪`;
+              const statusStr = o.status || '—';
+              return (
+                <li key={o.order_id} className={styles.mealItem}>
+                  <div className={styles.mealBody}>
+                    <div className={styles.mealNameLink}>
+                      הזמנה #{o.order_id}
+                    </div>
+                    {/* Primary metadata row: delivery time and status */}
+                    <div className={styles.smallDark} style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+                      <span>מצב: <span style={{ padding:'2px 6px', background:'#eef2ff', borderRadius:6 }}>{statusStr}</span></span>
+                      {deliveryStr && <span>מועד משלוח: <strong>{deliveryStr}</strong></span>}
+                    </div>
+                    {/* Secondary metadata row: totals and created date */}
+                    <div className={styles.smallMuted} style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+                      <span>סכום: {amountStr}</span>
+                      <span>תאריך יצירה: {fmtDate(o.created_at)}</span>
+                      {o.total_calories != null && (
+                        <span>סה"כ קלוריות: {Number(o.total_calories || 0)}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className={styles.smallDark}>
-                    מצב: {o.status || '—'} • סכום: {Number(o.total_price || 0).toFixed(2)} ₪ • תאריך: {fmtDate(o.created_at)}
+                  <div>
+                    <Link className={styles.btnPrimary} to={`/orders/${o.order_id}`}>פרטים</Link>
                   </div>
-                  {fmtDelivery(o) && (
-                    <div className={styles.smallMuted}>מועד משלוח: {fmtDelivery(o)}</div>
-                  )}
-                  {o.total_calories != null && (
-                    <div className={styles.smallMuted}>סה"כ קלוריות: {Number(o.total_calories || 0)}</div>
-                  )}
-                </div>
-                <div>
-                  <Link className={styles.btnPrimary} to={`/orders/${o.order_id}`}>פרטים</Link>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

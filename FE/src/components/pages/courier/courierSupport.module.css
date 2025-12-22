@@ -1,0 +1,118 @@
+.container { display: grid; gap: 16px; }
+
+.quickGrid { display: grid; grid-template-columns: repeat(3, 40px); gap: 10px; justify-content: start; }
+.iconOnlyBtn { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid #e5e7eb; background: #ffffff; color: #111827; border-radius: 8px; cursor: pointer; }
+.iconOnlyBtn:hover { background: #f9fafb; }
+.danger { background: #dc2626; color: #ffffff; border-color: #b91c1c; }
+
+.chat { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 10px; display: grid; grid-template-rows: auto 1fr auto; height: 420px; }
+.chatHeader { padding: 10px 12px; border-bottom: 1px solid #e5e7eb; }
+.chatTitle { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #111827; }
+.chatSubtitle { font-size: 12px; color: #6b7280; }
+.messages { padding: 12px; overflow-y: auto; display: grid; gap: 8px; }
+.messageRow { display: flex; }
+.left { justify-content: flex-start; }
+.right { justify-content: flex-end; }
+.bubbleAdmin { background: #f3f4f6; color: #111827; border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px 10px; max-width: 65%; }
+.bubbleCourier { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; border-radius: 10px; padding: 8px 10px; max-width: 65%; }
+.bubbleMeta { display: flex; align-items: center; gap: 6px; font-size: 10px; opacity: .7; margin-top: 4px; }
+
+.inputBar { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #e5e7eb; }
+.textInput { flex: 1; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px; }
+.sendBtn { background: #059669; color: #ffffff; border: none; border-radius: 8px; padding: 0 12px; cursor: pointer; display: grid; place-items: center; }
+.sendBtn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Modals */
+.modalWrap { position: fixed; inset: 0; z-index: 50; }
+.backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.45); }
+.modal { position: relative; z-index: 1; width: min(520px, 92vw); margin: 6vh auto; background: #ffffff; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 10px 24px rgba(0,0,0,0.15); }
+.modalHeader { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #e5e7eb; }
+.modalTitle { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #111827; }
+.contactsTitle { display: flex; align-items: center; gap: 6px; font-weight: 700; color: #111827; }
+.close { background: transparent; border: none; font-size: 20px; color: #6b7280; cursor: pointer; }
+.modalBody { padding: 14px; display: grid; gap: 12px; }
+.fieldLabel { display: block; font-size: 13px; color: #374151; margin-bottom: 6px; }
+.select { border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 10px; width: 100%; }
+.pill { background: #fff7ed; color: #7c2d12; border: 1px solid #fed7aa; border-radius: 999px; padding: 8px 12px; font-size: 13px; }
+.row { display: flex; gap: 8px; }
+.primary { background: #059669; color: #ffffff; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+.secondary { background: #e5e7eb; color: #111827; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+
+/* Contacts */
+.list { display: grid; gap: 8px; margin-top: 8px; }
+.contactItem { display: flex; align-items: center; justify-content: space-between; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px 10px; cursor: pointer; }
+.contactItem:hover { background: #f3f4f6; }
+.contactLeft { display: flex; align-items: center; gap: 8px; }
+.badgeRole { font-size: 12px; color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 2px 8px; border-radius: 999px; }
+.dot { width: 8px; height: 8px; border-radius: 999px; background: #d1d5db; }
+.dotActive { background: #16a34a; }
+.dotInactive { background: #9ca3af; }
+
+/* --- Overrides from user-provided design --- */
+.container { display: grid; gap: 24px; }
+.quickGrid { display: flex; gap: 4px; flex-wrap: wrap; }
+@media (min-width: 768px) { .quickGrid { gap: 4px; } }
+.button { display: flex; align-items: center; justify-content: center; padding: 16px; border-radius: 8px; border: none; cursor: pointer; }
+.call { background: #16a34a; color: #fff; }
+.call:hover { background: #15803d; }
+.emergency { background: #dc2626; color: #fff; }
+.emergency:hover { background: #b91c1c; }
+.info { background: #dcfce7; color: #166534; border-radius: 8px; padding: 16px; display: flex; align-items: center; justify-content: center; }
+.iconOnlyBtn { display:flex; align-items:center; justify-content:center; width: 40px; height: 40px; border-radius: 999px; background:#059669; color:#fff; border:none; cursor:pointer; }
+.iconOnlyBtn:hover { background:#047857; }
+
+
+.chat { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; display: flex; flex-direction: column; height: 24rem; }
+.chatHeader { padding: 16px 24px; border-bottom: 1px solid #e5e7eb; }
+.chatTitle { font-size: 1.125rem; font-weight: 600; color: #111827; display:flex; align-items:center; gap:8px; }
+.chatSubtitle { color: #4b5563; font-size: 0.875rem; }
+.messages { flex: 1; overflow-y: auto; padding: 20px; display: grid; gap: 6px; }
+.messageRow { display: flex; }
+.right { justify-content: flex-end; }
+.left { justify-content: flex-start; }
+.bubbleCourier { background: #059669; color: #fff; padding: 6px 10px; border-radius: 8px; max-width: 24rem; }
+.bubbleAdmin { background: #f3f4f6; color: #111827; padding: 6px 10px; border-radius: 8px; max-width: 24rem; }
+.bubbleMeta { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; font-size: 11px; opacity: 0.8; }
+
+
+.inputBar { padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; gap: 12px; }
+.textInput { flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+.sendBtn { background: #059669; color: #fff; padding: 8px 12px; border: none; border-radius: 8px; cursor: pointer; }
+.sendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+
+.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; }
+.cardTitle { color: #111827; font-weight: 600; font-size: 1.125rem; margin-bottom: 16px; }
+.cardGrid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 768px) { .cardGrid { grid-template-columns: repeat(2, 1fr); } }
+.pill { background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; font-size: 14px; color: #991b1b; }
+
+
+.modalWrap { position: fixed; inset: 0; z-index: 50; }
+.backdrop { position: fixed; inset: 0; background: rgba(75,85,99,0.75); }
+.modal { position: relative; margin: 0 auto; max-width: 28rem; background: #fff; border-radius: 8px; padding: 24px; }
+.modalHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.modalTitle { display: flex; align-items: center; color: #dc2626; font-weight: 600; }
+.close { border: none; background: transparent; color: #9ca3af; cursor: pointer; }
+.fieldLabel { display: block; font-size: 14px; color: #374151; margin-bottom: 8px; }
+.select { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; }
+.row { display: flex; gap: 12px; }
+.primary { flex: 1; background: #dc2626; color: #fff; padding: 8px 12px; border: none; border-radius: 8px; cursor: pointer; }
+.secondary { flex: 1; background: #e5e7eb; color: #374151; padding: 8px 12px; border: none; border-radius: 8px; cursor: pointer; }
+
+
+/* Contacts Modal */
+.contactsTitle { font-size: 1rem; font-weight: 600; color:#111827; }
+.list { display:grid; gap:8px; margin-top:8px; }
+.contactItem { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border:1px solid #e5e7eb; border-radius:8px; cursor:pointer; background:#fff; }
+.contactItem:hover { background:#f3f4f6; }
+.contactLeft { display:flex; align-items:center; gap:8px; }
+.dot { width:10px; height:10px; border-radius:999px; }
+.dotActive { background:#22c55e; }
+.dotInactive { background:#9ca3af; }
+.badgeRole { font-size: 12px; padding:2px 6px; border-radius:999px; background:#dcfce7; color:#166534; }
+
+/* Inline-style replacements from CourierSupport.jsx */
+.mr8 { margin-right: 8px; }
+.mis8 { margin-inline-start: 8px; }
+.msgTextSmall { font-size: 12px; }

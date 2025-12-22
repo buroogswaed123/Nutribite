@@ -131,7 +131,7 @@ export default function Profile() {
   const getHomePath = () => {
     const type = getUserType().toLowerCase();
     if (type === 'admin') return '/adminhome';
-    if (type === 'courier') return '/courierhome';
+    if (type === 'courier') return '/courier/dashboard';
     if (type === 'customer') return '/customerhome';
     return '/customerhome';
   };

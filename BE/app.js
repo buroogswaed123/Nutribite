@@ -452,6 +452,67 @@ app.use((err, req, res, next) => {
 });
 
 // ========================
+// Auto-assign scheduler (every ~2 minutes)
+// Assign unassigned deliveries that are within 0–60 minutes of desired time
+// to the least-loaded active courier (capacity < 10).
+// ========================
+const AUTO_ASSIGN_INTERVAL_MS = 2 * 60 * 1000;
+async function autoAssignTick() {
+  try {
+    // 1) Find unassigned deliveries within window
+    const sqlFind = `
+      SELECT d.delivery_id
+      FROM deliveries d
+      JOIN orders o ON o.order_id = d.order_id
+      WHERE (d.courier_id IS NULL OR d.courier_id = 0)
+        AND TIMESTAMPDIFF(MINUTE, NOW(), o.set_delivery_time) BETWEEN 0 AND 60
+      ORDER BY o.set_delivery_time ASC
+      LIMIT 100`;
+    const findRows = await new Promise((resolve, reject) => {
+      db.query(sqlFind, (err, rows) => err ? reject(err) : resolve(rows || []));
+    });
+    if (!Array.isArray(findRows) || findRows.length === 0) return;
+
+    for (const r of findRows) {
+      const deliveryId = r.delivery_id;
+      // 2) Pick least-loaded active courier with capacity
+      const sqlPick = `
+        SELECT courier_id, deliveries_assigned
+        FROM couriers
+        WHERE status IN ('active','on route') AND deliveries_assigned < 10
+        ORDER BY deliveries_assigned ASC, courier_id ASC
+        LIMIT 1`;
+      const pick = await new Promise((resolve, reject) => {
+        db.query(sqlPick, (err, rows) => err ? reject(err) : resolve(Array.isArray(rows) && rows[0] ? rows[0] : null));
+      });
+      if (!pick) break; // no available couriers
+
+      // 3) Assign delivery if still unassigned
+      const sqlAssign = `
+        UPDATE deliveries
+        SET courier_id = ?, status = 'on route'
+        WHERE delivery_id = ? AND (courier_id IS NULL OR courier_id = 0)`;
+      const assignRes = await new Promise((resolve, reject) => {
+        db.query(sqlAssign, [pick.courier_id, deliveryId], (err, res) => err ? reject(err) : resolve(res));
+      });
+      if (assignRes && assignRes.affectedRows > 0) {
+        // 4) Bump courier load and ensure status
+        await new Promise((resolve, reject) => {
+          db.query(
+            `UPDATE couriers SET deliveries_assigned = deliveries_assigned + 1, status = 'on route' WHERE courier_id = ?`,
+            [pick.courier_id],
+            (err) => err ? reject(err) : resolve()
+          );
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Auto-assign scheduler error:', e);
+  }
+}
+setInterval(() => { autoAssignTick().catch(() => {}); }, AUTO_ASSIGN_INTERVAL_MS);
+
+// ========================
 // Startup
 // ========================
 // Bind on 0.0.0.0 so phones on your LAN can reach the server

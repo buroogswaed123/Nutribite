@@ -7,6 +7,7 @@ import {
   Navigate,
   useLocation,
   useParams,
+  useNavigate,
 } from "react-router-dom";
 import { createContext, useContext, useEffect } from "react";
 import { useState } from "react";
@@ -21,7 +22,10 @@ import UsersList from "../components/pages/admin/profile/management/UsersList";
 // Profile pages (by role)
 import AdminProfile from "../components/pages/admin/profile/Profile";
 import CustomerProfile from "../components/pages/customer/profile/Profile";
-import CourierProfile from "../components/pages/courier/profile/Profile";
+import CourierProfile from "../components/pages/courier/CourierProfile";
+import CourierDashboard from "../components/pages/courier/CourierDashboard";
+import CourierSupport from "../components/pages/courier/CourierSupport";
+import CourierLayout from "../components/layouts/courier/CourierLayout";
 
 // Public and customer pages
 import Login from "../components/pages/Login";
@@ -69,6 +73,34 @@ const RequireAuth = ({ children, allowGuest = false }) => {
 
   return <>{children}</>;
 };
+
+// Guard: only allow couriers
+const RequireCourier = ({ children }) => {
+  const location = useLocation();
+  const { currentUser, authReady } = useContext(AuthContext);
+  if (!authReady) return null;
+  const role = (currentUser?.role || currentUser?.user_role || currentUser?.user_type || '').toString().toLowerCase();
+  if (role !== 'courier') {
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+  return <>{children}</>;
+};
+
+// Helper to render CourierLayout and sync section with URL
+function CourierLayoutRoute({ section, children }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeSection = section || (location.pathname.split('/')[2] || 'dashboard');
+  const onSectionChange = (next) => {
+    const target = next === 'dashboard' ? 'dashboard' : next;
+    navigate(`/courier/${target}`);
+  };
+  return (
+    <CourierLayout activeSection={activeSection} onSectionChange={onSectionChange}>
+      {children}
+    </CourierLayout>
+  );
+}
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -253,11 +285,44 @@ function App() {
             <Route
               path="/courierprofile"
               element={
-                <RequireAuth>
-                  <div className={classes.withNav}>
+                <RequireCourier>
+                  <CourierLayoutRoute section="profile">
                     <CourierProfile />
-                  </div>
-                </RequireAuth>
+                  </CourierLayoutRoute>
+                </RequireCourier>
+              }
+            />
+            {/* Legacy redirects */}
+            <Route path="/courierhome" element={<Navigate to="/courier/dashboard" replace />} />
+            {/* New courier routes */}
+            <Route
+              path="/courier/dashboard"
+              element={
+                <RequireCourier>
+                  <CourierLayoutRoute section="dashboard">
+                    <CourierDashboard />
+                  </CourierLayoutRoute>
+                </RequireCourier>
+              }
+            />
+            <Route
+              path="/courier/profile"
+              element={
+                <RequireCourier>
+                  <CourierLayoutRoute section="profile">
+                    <CourierProfile />
+                  </CourierLayoutRoute>
+                </RequireCourier>
+              }
+            />
+            <Route
+              path="/courier/support"
+              element={
+                <RequireCourier>
+                  <CourierLayoutRoute section="support">
+                    <CourierSupport />
+                  </CourierLayoutRoute>
+                </RequireCourier>
               }
             />
 

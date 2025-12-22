@@ -365,9 +365,90 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 });
 
+// POST /api/admin/deliveries/auto-assign
+// If body.delivery_id provided, auto-assign that single delivery.
+// Else, assign all unassigned deliveries to active couriers using least-load round-robin.
+router.post('/deliveries/auto-assign', async (req, res) => {
+  try {
+    if (!conn || typeof conn.promise !== 'function') throw new Error('DB connection not initialized');
+    const cx = conn.promise();
+    const deliveryId = Number(req.body?.delivery_id) || null;
+
+    await cx.beginTransaction();
+    // Load candidates: active couriers with capacity
+    const [couriers] = await cx.query(
+      `SELECT courier_id, deliveries_assigned
+       FROM couriers
+       WHERE status IN ('active','on route') AND deliveries_assigned < 10
+       ORDER BY deliveries_assigned ASC, courier_id ASC`
+    );
+    if (!Array.isArray(couriers) || couriers.length === 0) {
+      await cx.rollback();
+      return res.status(400).json({ message: 'No available couriers' });
+    }
+
+    // Pick deliveries to assign
+    let deliveriesRows;
+    if (deliveryId) {
+      const [row] = await cx.query(
+        `SELECT delivery_id FROM deliveries WHERE delivery_id = ? AND (courier_id IS NULL OR courier_id = 0)`,
+        [deliveryId]
+      );
+      deliveriesRows = Array.isArray(row) ? row : [];
+    } else {
+      const [rows] = await cx.query(
+        `SELECT delivery_id FROM deliveries WHERE (courier_id IS NULL OR courier_id = 0) ORDER BY delivery_id ASC`
+      );
+      deliveriesRows = rows;
+    }
+
+    if (!Array.isArray(deliveriesRows) || deliveriesRows.length === 0) {
+      await cx.commit();
+      return res.json({ assigned: 0, message: 'No unassigned deliveries' });
+    }
+
+    let assigned = 0;
+    let idx = 0; // pointer into couriers (sorted by least load)
+    for (const d of deliveriesRows) {
+      let tries = 0;
+      // Find next courier with capacity
+      while (tries < couriers.length && couriers[idx].deliveries_assigned >= 10) {
+        idx = (idx + 1) % couriers.length;
+        tries++;
+      }
+      if (couriers[idx].deliveries_assigned >= 10) break; // no capacity left
+      const cid = couriers[idx].courier_id;
+      const [upd] = await cx.query(
+        `UPDATE deliveries SET courier_id = ?, status = 'on route' WHERE delivery_id = ? AND (courier_id IS NULL OR courier_id = 0)`,
+        [cid, d.delivery_id]
+      );
+      if (upd && upd.affectedRows > 0) {
+        // bump courier load and maybe status
+        await cx.query(
+          `UPDATE couriers SET deliveries_assigned = deliveries_assigned + 1, status = 'on route' WHERE courier_id = ?`,
+          [cid]
+        );
+        couriers[idx].deliveries_assigned += 1;
+        assigned += 1;
+        // advance pointer for fair distribution
+        idx = (idx + 1) % couriers.length;
+      }
+    }
+
+    await cx.commit();
+    return res.json({ assigned });
+  } catch (err) {
+    try { if (conn && typeof conn.promise === 'function') await conn.promise().rollback(); } catch (_) {}
+    console.error('ADMIN AUTO-ASSIGN ERROR:', err);
+    return res.status(500).json({ message: 'Error auto-assigning deliveries', error: err.message });
+  }
+});
+
 module.exports = router;
 
 
 
 
 
+
+*** End Patch

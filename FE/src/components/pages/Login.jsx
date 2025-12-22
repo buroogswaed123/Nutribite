@@ -49,7 +49,7 @@ export default function LoginPage({ onLoginSuccess, newUserCredentials }) {
       case "admin":
         return "/adminhome";
       case "courier":
-        return "/courierhome";
+        return "/courier/dashboard";
       default:
         return "/customerhome";
     }

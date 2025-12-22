@@ -19,6 +19,21 @@ const runQuery = async (sql, params = []) => {
   throw new Error('Unsupported DB client on connection');
 };
 
+// GET /api/courier/by-user/:userId
+// Resolve courier row by linked users.user_id
+router.get('/by-user/:userId', async (req, res) => {
+  try {
+    const [rows] = await runQuery(
+      'SELECT courier_id, user_id, name, phone, status, deliveries_assigned FROM couriers WHERE user_id = ? LIMIT 1',
+      [req.params.userId]
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.error('COURIER BY-USER GET ERROR:', err);
+    return res.status(500).json({ message: 'Error resolving courier by user', error: err.message });
+  }
+});
+
 
 // PATCH /api/courier/orders/:id/status
 // Update order status (courier action)

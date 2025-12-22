@@ -52,7 +52,7 @@ export default function Header() {
   const getProfilePath = () => {
     const type = getUserType().toLowerCase();
     if (type === 'admin') return '/adminprofile';
-    if (type === 'courier') return '/courierprofile';
+    if (type === 'courier') return '/courier/profile';
     if (type === 'customer') return '/customerprofile';
     // default customer
     return '/customerprofile';
@@ -61,7 +61,7 @@ export default function Header() {
   const getHomePath = () => {
     const type = getUserType().toLowerCase();
     if (type === 'admin') return '/adminhome';
-    if (type === 'courier') return '/courierhome';
+    if (type === 'courier') return '/courier/dashboard';
     if (type === 'customer') return '/customerhome';
     // default customer
     return '/customerhome';

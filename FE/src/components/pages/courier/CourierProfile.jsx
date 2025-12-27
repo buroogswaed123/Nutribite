@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   User,
   Phone,
@@ -12,10 +12,13 @@ import {
   ToggleRight
 } from 'lucide-react';
 import { mockCourierProfile, mockEarnings } from './data/courierMockData.js';
+import { AuthContext } from '../../../app/App';
 import styles from './courierProfile.module.css';
 
 export default function CourierProfile() {
+  const { currentUser } = useContext(AuthContext) || {};
   const [isOnline, setIsOnline] = useState(mockCourierProfile.isOnline);
+  const [courierId, setCourierId] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState('week');
   const formatILS = (n) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(n);
   // Local editable profile state
@@ -28,9 +31,48 @@ export default function CourierProfile() {
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState({ phone: profile.phone, email: profile.email, city: profile.city });
 
-  const toggleOnlineStatus = () => {
-    setIsOnline(!isOnline);
-    console.log('Toggling online status:', !isOnline);
+  // Resolve courier id and status from backend
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const uid = currentUser?.user_id || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('currentUser') || '{}')?.user_id : null);
+        if (!uid) return;
+        const res = await fetch(`/api/courier/by-user/${uid}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const rows = await res.json();
+        const row = Array.isArray(rows) ? rows[0] : rows;
+        if (!row) return;
+        if (cancelled) return;
+        setCourierId(row.courier_id);
+        const status = String(row.status || '').toLowerCase();
+        setIsOnline(status === 'active' || status === 'on route');
+      } catch (_) {}
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser]);
+
+  const toggleOnlineStatus = async () => {
+    try {
+      if (!courierId) return setIsOnline(prev => !prev);
+      const next = !isOnline;
+      const status = next ? 'active' : 'offline';
+      const res = await fetch(`/api/courier/couriers/${courierId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) throw new Error('status update failed');
+      setIsOnline(next);
+      // Notify header to update status indicator
+      try {
+        window.dispatchEvent(new CustomEvent('courier:statusChanged'));
+      } catch (_) {}
+    } catch (_) {
+      // best-effort fallback to local toggle
+      setIsOnline(prev => !prev);
+    }
   };
 
   const getEarningsData = () => {
@@ -64,7 +106,7 @@ export default function CourierProfile() {
               <span className={styles.label}>סטטוס:</span>
               <button onClick={toggleOnlineStatus} className={`${styles.statusBtn} ${isOnline ? styles.statusOnline : styles.statusOffline}`}>
                 {isOnline ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-                <span>{isOnline ? 'מחובר' : 'מנותק'}</span>
+                <span>{isOnline ? 'עובד' : 'לא עובד'}</span>
               </button>
             </div>
           </div>

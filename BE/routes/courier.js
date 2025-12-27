@@ -104,15 +104,14 @@ router.get('/couriers/:id/assigned_deliveries', async (req, res) => {
         d.delivery_id,
         CONCAT('#', o.order_id, '1000') AS order_number,
         c.name AS customer_name,
-        c.phone AS customer_phone,
+        c.phone_number AS customer_phone,
         a.street,
         a.city,
-        a.zip,
         o.set_delivery_time AS delivery_time
       FROM deliveries d
       JOIN orders o ON d.order_id = o.order_id
       JOIN customers c ON o.cust_id = c.cust_id
-      JOIN address a ON c.address_id = a.address_id
+      LEFT JOIN address a ON c.address_id = a.address_id
       WHERE d.courier_id = ?
       ORDER BY o.set_delivery_time ASC;
     `, [req.params.id]);
@@ -139,11 +138,16 @@ router.get('/couriers/:id', async (req, res) => {
 });
 
 // PATCH /api/courier/couriers/:id/status
-// Set courier status (active, offline, on route)
+// Set courier status (active, offline, on route) and update is_active accordingly
 router.patch('/couriers/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
-    const [rows] = await runQuery('UPDATE couriers SET status = ? WHERE courier_id = ?', [status, req.params.id]);
+    // Set is_active to 1 if status is 'active' or 'on route', otherwise 0
+    const isActive = (status === 'active' || status === 'on route') ? 1 : 0;
+    const [rows] = await runQuery(
+      'UPDATE couriers SET status = ?, is_active = ? WHERE courier_id = ?', 
+      [status, isActive, req.params.id]
+    );
     return res.json(rows);
   } catch (err) {
     console.error('COURIER STATUS PATCH ERROR:', err);
@@ -162,10 +166,9 @@ router.get('/couriers/:id/deliveries', async (req, res) => {
         d.status AS delivery_status,
         CONCAT('#', o.order_id, '1000') AS order_number,
         c.name AS customer_name,
-        c.phone AS customer_phone,
+        c.phone_number AS customer_phone,
         a.street,
         a.city,
-        a.zip,
         o.set_delivery_time AS delivery_time
       FROM deliveries d
       JOIN orders o ON d.order_id = o.order_id
@@ -195,8 +198,8 @@ router.get('/deliveries/:deliveryId', async (req, res) => {
     const [rows] = await runQuery(`
       SELECT d.delivery_id, d.status AS delivery_status, o.order_id,
              CONCAT('#', o.order_id, '1000') AS order_number,
-             c.name AS customer_name, c.phone AS customer_phone,
-             a.street, a.city, a.zip, o.set_delivery_time
+             c.name AS customer_name, c.phone_number AS customer_phone,
+             a.street, a.city, o.set_delivery_time
       FROM deliveries d
       JOIN orders o ON d.order_id = o.order_id
       JOIN customers c ON o.cust_id = c.cust_id
@@ -221,7 +224,7 @@ router.patch('/deliveries/:id/status', async (req, res) => {
       // Fallback without explicit transaction
       await runQuery('UPDATE deliveries SET status = ? WHERE delivery_id = ? AND courier_id = ?', [status, deliveryId, courier_id]);
       if (status === 'delivered') {
-        await runQuery(`UPDATE orders o JOIN deliveries d ON d.order_id = o.order_id SET o.status = 'complete' WHERE d.delivery_id = ?`, [deliveryId]);
+        await runQuery(`UPDATE orders o JOIN deliveries d ON d.order_id = o.order_id SET o.order_status = 'complete' WHERE d.delivery_id = ?`, [deliveryId]);
         await runQuery(`
           UPDATE couriers c
           JOIN deliveries d ON d.courier_id = c.courier_id
@@ -262,7 +265,7 @@ router.patch('/deliveries/:id/status', async (req, res) => {
     await cx.query('UPDATE deliveries SET status = ? WHERE delivery_id = ? AND courier_id = ?', [status, deliveryId, courier_id]);
 
     if (status === 'delivered') {
-      await cx.query(`UPDATE orders o JOIN deliveries d ON d.order_id = o.order_id SET o.status = 'complete' WHERE d.delivery_id = ?`, [deliveryId]);
+      await cx.query(`UPDATE orders o JOIN deliveries d ON d.order_id = o.order_id SET o.order_status = 'complete' WHERE d.delivery_id = ?`, [deliveryId]);
       await cx.query(`
         UPDATE couriers c
         JOIN deliveries d ON d.courier_id = c.courier_id
@@ -318,6 +321,7 @@ router.post('/deliveries/:id/accept', async (req, res) => {
           c.status = 'on route'
       WHERE d.delivery_id = ?
         AND (d.courier_id IS NULL OR d.courier_id = c.courier_id)
+        AND c.is_active = 1
         AND c.status IN ('active','on route')
         AND c.deliveries_assigned < 10;
     `, [courier_id, req.params.id]);

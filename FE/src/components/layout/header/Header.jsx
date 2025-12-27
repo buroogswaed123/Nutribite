@@ -21,6 +21,7 @@ export default function Header() {
   const avatarWrapperRef = React.useRef(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
+  const displayName = (currentUser?.username || currentUser?.email || '').toString();
 
   // Notifications hook (list/unread/mark-read/delete)
   const {
@@ -36,7 +37,31 @@ export default function Header() {
   const userLoggedIn = () => !!isLoggedIn;
 
   // Logout handler: clear auth and navigate home
-  const onLogout = () => {
+  const onLogout = async () => {
+    // If courier, set status to offline before logging out
+    if (isCourier) {
+      try {
+        const uid = currentUser?.user_id || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('currentUser') || '{}')?.user_id : null);
+        if (uid) {
+          const courierRes = await fetch(`/api/courier/by-user/${uid}`, { credentials: 'include' });
+          if (courierRes.ok) {
+            const rows = await courierRes.json();
+            const row = Array.isArray(rows) ? rows[0] : rows;
+            if (row?.courier_id) {
+              await fetch(`/api/courier/couriers/${row.courier_id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ status: 'offline' })
+              });
+            }
+          }
+        }
+      } catch (_) {
+        // Continue with logout even if status update fails
+      }
+    }
+    
     if (typeof handleLogout === 'function') {
       handleLogout();
     }
@@ -143,6 +168,60 @@ export default function Header() {
   ];
 
   const isCustomer = (getUserType() || '').toLowerCase() === 'customer';
+  const isCourier = (getUserType() || '').toLowerCase() === 'courier';
+  const [courierIsOnline, setCourierIsOnline] = useState(false);
+
+  // For courier pages, filter notifications to relevant types
+  const notifIsCourierContext = isCourier && location.pathname.startsWith('/courier');
+  const filteredNotifList = React.useMemo(() => {
+    if (!notifIsCourierContext) return notifList;
+    const allow = new Set(['order', 'courier']);
+    return Array.isArray(notifList) ? notifList.filter(n => allow.has(String(n.type || '').toLowerCase())) : [];
+  }, [notifIsCourierContext, notifList]);
+  const filteredUnreadCount = React.useMemo(() => {
+    if (!notifIsCourierContext) return unreadCount;
+    return Array.isArray(filteredNotifList) ? filteredNotifList.filter(n => !n.is_read && (n.status !== 'read')).length : 0;
+  }, [notifIsCourierContext, filteredNotifList, unreadCount]);
+
+  // Fetch courier online status
+  useEffect(() => {
+    if (!isCourier) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const uid = currentUser?.user_id || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('currentUser') || '{}')?.user_id : null);
+        if (!uid) return;
+        const res = await fetch(`/api/courier/by-user/${uid}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const rows = await res.json();
+        const row = Array.isArray(rows) ? rows[0] : rows;
+        if (!row || cancelled) return;
+        const status = String(row.status || '').toLowerCase();
+        setCourierIsOnline(status === 'active' || status === 'on route');
+      } catch (_) {}
+    })();
+    return () => { cancelled = true; };
+  }, [isCourier, currentUser]);
+
+  // Listen for status changes from the sidebar toggle
+  useEffect(() => {
+    if (!isCourier) return;
+    const handler = async () => {
+      try {
+        const uid = currentUser?.user_id || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('currentUser') || '{}')?.user_id : null);
+        if (!uid) return;
+        const res = await fetch(`/api/courier/by-user/${uid}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const rows = await res.json();
+        const row = Array.isArray(rows) ? rows[0] : rows;
+        if (!row) return;
+        const status = String(row.status || '').toLowerCase();
+        setCourierIsOnline(status === 'active' || status === 'on route');
+      } catch (_) {}
+    };
+    window.addEventListener('courier:statusChanged', handler);
+    return () => window.removeEventListener('courier:statusChanged', handler);
+  }, [isCourier, currentUser]);
 
   // Apply transparent on home top, solid when scrolled or on other routes
   const solid = isScrolled || location.pathname !== '/';
@@ -151,8 +230,31 @@ export default function Header() {
     <header className={`${styles.header} ${solid ? styles.headerSolid : styles.headerTransparent}`} style={{ position: 'fixed' }}>
       <div className={styles.container}>
         <div className={styles.row}>
-          {/* Logo + Notifications bell (bell only when logged in) */}
+          {/* Courier sidebar toggle + Logo + Notifications bell (bell only when logged in) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Courier menu toggle to the left of the logo */}
+            {isCourier && location.pathname.startsWith('/courier') && (
+              <button
+                type="button"
+                aria-label="פתח תפריט שליח"
+                title="תפריט"
+                onClick={() => {
+                  try { window.dispatchEvent(new CustomEvent('courier:toggleSidebar')); } catch(_) {}
+                }}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 36,
+                  height: 36,
+                }}
+              >
+                <Menu size={22} color={solid ? '#111827' : '#ffffff'} />
+              </button>
+            )}
             <Link to={userLoggedIn() ? getHomePath() : '/'} className={styles.logo}>
               <span className={styles.brand}>Nutribite</span>
             </Link>
@@ -180,7 +282,7 @@ export default function Header() {
                   onClick={() => setIsNotifOpen((v) => !v)}
                 >
                   <Bell size={20} color={solid ? '#111827' : '#ffffff'} />
-                  {unreadCount > 0 && (
+                  {(notifIsCourierContext ? filteredUnreadCount : unreadCount) > 0 && (
                     <span
                       style={{
                         position: 'absolute',
@@ -200,7 +302,7 @@ export default function Header() {
                         boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
                       }}
                     >
-                      {unreadCount}
+                      {notifIsCourierContext ? filteredUnreadCount : unreadCount}
                     </span>
                   )}
                 </button>
@@ -223,13 +325,33 @@ export default function Header() {
             </nav>
           )}
 
-          {/* Auth Buttons - Desktop */}
+          {/* Auth Buttons - Desktop (with courier welcome/status inline) */}
           <div className={styles.authDesktop}>
             {userLoggedIn() ? (
               <div
                 ref={avatarWrapperRef}
                 style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
               >
+                {isCourier && location.pathname.startsWith('/courier') && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginInlineEnd: 10,
+                    whiteSpace: 'nowrap'
+                  }}>
+                    <div style={{ fontSize: 13 }}>
+                      <div>ברוך השב{displayName ? `, ${displayName}` : ''}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', color: courierIsOnline ? '#16a34a' : '#9ca3af', fontSize: 11 }}>
+                        <span style={{
+                          display: 'inline-block', width: 8, height: 8, borderRadius: 9999,
+                          background: courierIsOnline ? '#16a34a' : '#9ca3af', marginInlineEnd: 6
+                        }} />
+                        <span>{courierIsOnline ? 'עובד' : 'לא עובד'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <button
                   onClick={() => setIsAvatarMenuOpen((v) => !v)}
                   aria-haspopup="menu"
@@ -345,7 +467,7 @@ export default function Header() {
           <NotificationsPanel
             isOpen={isNotifOpen}
             onClose={() => setIsNotifOpen(false)}
-            notifications={notifList}
+            notifications={notifIsCourierContext ? filteredNotifList : notifList}
             loading={notifLoading}
             onOpenNotification={(n) => {
               setSelectedNotification(n);

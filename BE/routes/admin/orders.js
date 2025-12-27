@@ -227,6 +227,7 @@ router.patch('/deliveries/:id/courier', async (req, res) => {
           c.deliveries_assigned = c.deliveries_assigned + 1,
           c.status = 'on route'
       WHERE d.delivery_id = ?
+        AND c.is_active = 1
         AND c.status = 'active' 
         AND c.deliveries_assigned < 10;
       `,
@@ -379,7 +380,7 @@ router.post('/deliveries/auto-assign', async (req, res) => {
     const [couriers] = await cx.query(
       `SELECT courier_id, deliveries_assigned
        FROM couriers
-       WHERE status IN ('active','on route') AND deliveries_assigned < 10
+       WHERE is_active = 1 AND status IN ('active','on route') AND deliveries_assigned < 10
        ORDER BY deliveries_assigned ASC, courier_id ASC`
     );
     if (!Array.isArray(couriers) || couriers.length === 0) {
@@ -430,6 +431,29 @@ router.post('/deliveries/auto-assign', async (req, res) => {
         );
         couriers[idx].deliveries_assigned += 1;
         assigned += 1;
+        // notify courier about new assignment (best-effort)
+        try {
+          const [[ordRow]] = await cx.query(
+            `SELECT o.order_id
+             FROM deliveries d JOIN orders o ON o.order_id = d.order_id
+             WHERE d.delivery_id = ? LIMIT 1`,
+            [d.delivery_id]
+          );
+          const orderId = ordRow && ordRow.order_id;
+          const [[uRow]] = await cx.query(
+            `SELECT user_id FROM couriers WHERE courier_id = ? LIMIT 1`,
+            [cid]
+          );
+          const userId = uRow && uRow.user_id;
+          if (userId) {
+            const title = 'שויך לך משלוח חדש';
+            const description = orderId ? `הזמנה #${orderId} הוקצתה אליך` : `הוקצתה אליך משימה חדשה (משלוח #${d.delivery_id})`;
+            await cx.query(
+              'INSERT IGNORE INTO notifications (user_id, type, related_id, title, description) VALUES (?, "order", ?, ?, ?)',
+              [userId, orderId || d.delivery_id, title, description]
+            );
+          }
+        } catch (_) { /* ignore notif errors */ }
         // advance pointer for fair distribution
         idx = (idx + 1) % couriers.length;
       }
@@ -451,4 +475,4 @@ module.exports = router;
 
 
 
-*** End Patch
+

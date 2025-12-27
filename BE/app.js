@@ -354,6 +354,82 @@ app.use('/api/admin/auth', adminAuthRoutes); // no requireAdmin on /login
 const adminIndexRoutes = require('./routes/admin');
 app.use('/api/admin', requireActiveUser, requireAdmin, adminIndexRoutes);
 
+// Public demo endpoint for auto-assignment (no auth required)
+app.post('/api/demo/auto-assign', async (req, res) => {
+  try {
+    const adminOrdersRoutes = require('./routes/admin/orders');
+    // Call the auto-assign logic directly
+    const conn = db;
+    if (!conn || typeof conn.promise !== 'function') {
+      return res.status(500).json({ message: 'DB connection not initialized' });
+    }
+    const cx = conn.promise();
+    const deliveryId = Number(req.body?.delivery_id) || null;
+
+    await cx.beginTransaction();
+    const [couriers] = await cx.query(
+      `SELECT courier_id, deliveries_assigned
+       FROM couriers
+       WHERE is_active = 1 AND status IN ('active','on route') AND deliveries_assigned < 10
+       ORDER BY deliveries_assigned ASC, courier_id ASC`
+    );
+    if (!Array.isArray(couriers) || couriers.length === 0) {
+      await cx.rollback();
+      return res.status(400).json({ message: 'No available couriers' });
+    }
+
+    let deliveriesRows;
+    if (deliveryId) {
+      const [row] = await cx.query(
+        `SELECT delivery_id FROM deliveries WHERE delivery_id = ? AND (courier_id IS NULL OR courier_id = 0)`,
+        [deliveryId]
+      );
+      deliveriesRows = Array.isArray(row) ? row : [];
+    } else {
+      const [rows] = await cx.query(
+        `SELECT delivery_id FROM deliveries WHERE (courier_id IS NULL OR courier_id = 0) ORDER BY delivery_id ASC`
+      );
+      deliveriesRows = rows;
+    }
+
+    if (!Array.isArray(deliveriesRows) || deliveriesRows.length === 0) {
+      await cx.commit();
+      return res.json({ assigned: 0, message: 'No unassigned deliveries' });
+    }
+
+    let assigned = 0;
+    let idx = 0;
+    for (const d of deliveriesRows) {
+      let tries = 0;
+      while (tries < couriers.length && couriers[idx].deliveries_assigned >= 10) {
+        idx = (idx + 1) % couriers.length;
+        tries++;
+      }
+      if (couriers[idx].deliveries_assigned >= 10) break;
+      const cid = couriers[idx].courier_id;
+      const [upd] = await cx.query(
+        `UPDATE deliveries SET courier_id = ?, status = 'on route' WHERE delivery_id = ? AND (courier_id IS NULL OR courier_id = 0)`,
+        [cid, d.delivery_id]
+      );
+      if (upd && upd.affectedRows > 0) {
+        await cx.query(
+          `UPDATE couriers SET deliveries_assigned = deliveries_assigned + 1, status = 'on route' WHERE courier_id = ?`,
+          [cid]
+        );
+        couriers[idx].deliveries_assigned += 1;
+        assigned += 1;
+        idx = (idx + 1) % couriers.length;
+      }
+    }
+
+    await cx.commit();
+    return res.json({ assigned, message: `Successfully assigned ${assigned} deliveries` });
+  } catch (err) {
+    console.error('DEMO AUTO-ASSIGN ERROR:', err);
+    return res.status(500).json({ message: 'Error auto-assigning deliveries', error: err.message });
+  }
+});
+
 const notificationsRoutes = require('./routes/notifications');
 app.use('/api/notifications', notificationsRoutes);
 
@@ -479,7 +555,7 @@ async function autoAssignTick() {
       const sqlPick = `
         SELECT courier_id, deliveries_assigned
         FROM couriers
-        WHERE status IN ('active','on route') AND deliveries_assigned < 10
+        WHERE is_active = 1 AND status IN ('active','on route') AND deliveries_assigned < 10
         ORDER BY deliveries_assigned ASC, courier_id ASC
         LIMIT 1`;
       const pick = await new Promise((resolve, reject) => {
@@ -504,8 +580,81 @@ async function autoAssignTick() {
             (err) => err ? reject(err) : resolve()
           );
         });
+        // 5) Notify courier about new assignment (best-effort)
+        try {
+          const orderRow = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT o.order_id FROM deliveries d JOIN orders o ON o.order_id = d.order_id WHERE d.delivery_id = ? LIMIT 1`,
+              [deliveryId],
+              (err, rows) => err ? reject(err) : resolve(Array.isArray(rows) && rows[0] ? rows[0] : null)
+            );
+          });
+          const orderId = orderRow && orderRow.order_id;
+          const userRow = await new Promise((resolve, reject) => {
+            db.query(
+              `SELECT user_id FROM couriers WHERE courier_id = ? LIMIT 1`,
+              [pick.courier_id],
+              (err, rows) => err ? reject(err) : resolve(Array.isArray(rows) && rows[0] ? rows[0] : null)
+            );
+          });
+          const userId = userRow && userRow.user_id;
+          if (userId) {
+            const title = 'שויך לך משלוח חדש';
+            const description = orderId ? `הזמנה #${orderId} הוקצתה אליך` : `הוקצתה אליך משימה חדשה (משלוח #${deliveryId})`;
+            await new Promise((resolve, reject) => {
+              db.query(
+                'INSERT INTO notifications (user_id, type, related_id, title, description) VALUES (?, "order", ?, ?, ?)',
+                [userId, orderId || deliveryId, title, description],
+                (err) => err ? reject(err) : resolve()
+              );
+            });
+          }
+        } catch (_) { /* ignore */ }
       }
     }
+
+    // 6) Send ~60-minute reminder for assigned deliveries not yet delivered
+    try {
+      const remindRows = await new Promise((resolve, reject) => {
+        db.query(
+          `SELECT d.delivery_id, d.courier_id, o.order_id
+           FROM deliveries d
+           JOIN orders o ON o.order_id = d.order_id
+           WHERE d.courier_id IS NOT NULL
+             AND d.status IN ('assigned','on route')
+             AND TIMESTAMPDIFF(MINUTE, NOW(), o.set_delivery_time) BETWEEN 55 AND 60`,
+          (err, rows) => err ? reject(err) : resolve(rows || [])
+        );
+      });
+      for (const row of remindRows) {
+        const userRow = await new Promise((resolve, reject) => {
+          db.query(
+            `SELECT user_id FROM couriers WHERE courier_id = ? LIMIT 1`,
+            [row.courier_id],
+            (err, rows) => err ? reject(err) : resolve(Array.isArray(rows) && rows[0] ? rows[0] : null)
+          );
+        });
+        const userId = userRow && userRow.user_id;
+        if (!userId) continue;
+        // check if a reminder for this delivery was already sent
+        const exists = await new Promise((resolve, reject) => {
+          db.query(
+            `SELECT 1 FROM notifications WHERE user_id = ? AND type = 'courier' AND related_id = ? LIMIT 1`,
+            [userId, row.delivery_id],
+            (err, rows) => err ? reject(err) : resolve(Array.isArray(rows) && rows.length > 0)
+          );
+        });
+        if (exists) continue;
+        await new Promise((resolve, reject) => {
+          db.query(
+            `INSERT INTO notifications (user_id, type, related_id, title, description)
+             VALUES (?, 'courier', ?, ?, ?)`,
+            [userId, row.delivery_id, 'תזכורת משלוח', `כ-60 דקות לפני יעד ההספקה להזמנה #${row.order_id}`],
+            (err) => err ? reject(err) : resolve()
+          );
+        });
+      }
+    } catch (_) { /* ignore reminders errors */ }
   } catch (e) {
     console.error('Auto-assign scheduler error:', e);
   }

@@ -48,6 +48,8 @@ import Order from "../components/pages/cart/Order";
 import OrderDetails from "../components/pages/orders/OrderDetails";
 import Orders from "../components/pages/orders/Orders";
 
+//courier specific pages
+import {CourierUIProvider  } from "../components/layouts/CourierUiContext";
 // Tiny wrapper to pass :articleId as number to QA component
 function QAWrapper() {
   const { articleId } = useParams();
@@ -87,7 +89,7 @@ const RequireCourier = ({ children }) => {
 };
 
 // Helper to render CourierLayout and sync section with URL
-function CourierLayoutRoute({ section, children }) {
+function CourierLayoutRoute({ section, children, showHeader = true }) {
   const location = useLocation();
   const navigate = useNavigate();
   const activeSection = section || (location.pathname.split('/')[2] || 'dashboard');
@@ -96,7 +98,7 @@ function CourierLayoutRoute({ section, children }) {
     navigate(`/courier/${target}`);
   };
   return (
-    <CourierLayout activeSection={activeSection} onSectionChange={onSectionChange}>
+    <CourierLayout activeSection={activeSection} onSectionChange={onSectionChange} showHeader={showHeader}>
       {children}
     </CourierLayout>
   );
@@ -285,11 +287,17 @@ function App() {
             <Route
               path="/courierprofile"
               element={
+                <CourierUIProvider> 
                 <RequireCourier>
-                  <CourierLayoutRoute section="profile">
-                    <CourierProfile />
-                  </CourierLayoutRoute>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <CourierLayoutRoute section="profile" showHeader={false}>
+                      <CourierProfile />
+                    </CourierLayoutRoute>
+                    <Footer />
+                  </div>
                 </RequireCourier>
+                </CourierUIProvider>
               }
             />
             {/* Legacy redirects */}
@@ -299,30 +307,47 @@ function App() {
               path="/courier/dashboard"
               element={
                 <RequireCourier>
-                  <CourierLayoutRoute section="dashboard">
-                    <CourierDashboard />
-                  </CourierLayoutRoute>
-                </RequireCourier>
+                  <CourierUIProvider>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <CourierLayoutRoute section="dashboard" showHeader={false}>
+                      <CourierDashboard />
+                    </CourierLayoutRoute>
+                    <Footer />
+                  </div>
+                  </CourierUIProvider>                </RequireCourier>
               }
             />
             <Route
               path="/courier/profile"
               element={
+                <CourierUIProvider> 
                 <RequireCourier>
-                  <CourierLayoutRoute section="profile">
-                    <CourierProfile />
-                  </CourierLayoutRoute>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <CourierLayoutRoute section="profile" showHeader={false}>
+                      <CourierProfile />
+                    </CourierLayoutRoute>
+                    <Footer />
+                  </div>
                 </RequireCourier>
+                </CourierUIProvider>
               }
             />
             <Route
               path="/courier/support"
               element={
+                <CourierUIProvider> 
                 <RequireCourier>
-                  <CourierLayoutRoute section="support">
-                    <CourierSupport />
-                  </CourierLayoutRoute>
+                  <div className={classes.withNav}>
+                    <Header />
+                    <CourierLayoutRoute section="support" showHeader={false}>
+                      <CourierSupport />
+                    </CourierLayoutRoute>
+                    <Footer />
+                  </div>
                 </RequireCourier>
+                </CourierUIProvider>
               }
             />
 

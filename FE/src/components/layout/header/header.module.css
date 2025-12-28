@@ -77,9 +77,28 @@
   display: none;
   align-items: center;
   gap: 1rem; /* space-x-4 */
+  flex-shrink: 0; /* Don't shrink */
 }
 @media (min-width: 768px) {
   .authDesktop { display: flex; }
+}
+
+/* Courier welcome section */
+.courierWelcome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-end: 10px;
+  white-space: nowrap;
+  flex-shrink: 0; /* Never shrink */
+  direction: rtl;
+  text-align: right;
+}
+
+.courierName {
+  white-space: nowrap;
+  direction: rtl;
+  text-align: right;
 }
 
 .loginLink {

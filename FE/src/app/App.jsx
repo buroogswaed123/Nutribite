@@ -18,6 +18,7 @@ import CustomerHome from "../components/pages/customer/home/Home";
 import HomeEnhanced from "../components/pages/admin/home/Home";
 import CourierHome from "../components/pages/courier/home/Home";
 import UsersList from "../components/pages/admin/profile/management/UsersList";
+import FloatingMessageButton from "../components/common/FloatingMessageButton";
 
 // Profile pages (by role)
 import AdminProfile from "../components/pages/admin/profile/Profile";
@@ -99,7 +100,9 @@ function CourierLayoutRoute({ section, children, showHeader = true }) {
   };
   return (
     <CourierLayout activeSection={activeSection} onSectionChange={onSectionChange} showHeader={showHeader}>
-      {children}
+      <div key={location.pathname}>
+        {children}
+      </div>
     </CourierLayout>
   );
 }
@@ -187,6 +190,7 @@ function App() {
                     <Header />
                     <CustomerHome />
                     <Footer />
+                    <FloatingMessageButton />
                   </div>
                 </RequireAuth>
               }
@@ -199,6 +203,7 @@ function App() {
                     <Header />
                     <HomeEnhanced />
                     <Footer />
+                    <FloatingMessageButton />
                   </div>
                 </RequireAuth>
               }
@@ -308,46 +313,43 @@ function App() {
               element={
                 <RequireCourier>
                   <CourierUIProvider>
-                  <div className={classes.withNav}>
-                    <Header />
-                    <CourierLayoutRoute section="dashboard" showHeader={false}>
+                  <CourierLayout activeSection="dashboard" onSectionChange={() => {}}>
+                    <div className={classes.withNav}>
+                      <Header />
                       <CourierDashboard />
-                    </CourierLayoutRoute>
-                    <Footer />
-                  </div>
-                  </CourierUIProvider>                </RequireCourier>
+                      <Footer />
+                    </div>
+                  </CourierLayout>
+                  </CourierUIProvider>
+                </RequireCourier>
               }
             />
             <Route
               path="/courier/profile"
               element={
-                <CourierUIProvider> 
                 <RequireCourier>
-                  <div className={classes.withNav}>
-                    <Header />
-                    <CourierLayoutRoute section="profile" showHeader={false}>
-                      <CourierProfile />
-                    </CourierLayoutRoute>
-                    <Footer />
-                  </div>
+                  <CourierUIProvider>
+                  <CourierLayout activeSection="profile" onSectionChange={() => {}}>
+                    <CourierProfile />
+                  </CourierLayout>
+                  </CourierUIProvider>
                 </RequireCourier>
-                </CourierUIProvider>
               }
             />
             <Route
               path="/courier/support"
               element={
-                <CourierUIProvider> 
                 <RequireCourier>
-                  <div className={classes.withNav}>
-                    <Header />
-                    <CourierLayoutRoute section="support" showHeader={false}>
+                  <CourierUIProvider>
+                  <CourierLayout activeSection="support" onSectionChange={() => {}}>
+                    <div className={classes.withNav}>
+                      <Header />
                       <CourierSupport />
-                    </CourierLayoutRoute>
-                    <Footer />
-                  </div>
+                      <Footer />
+                    </div>
+                  </CourierLayout>
+                  </CourierUIProvider>
                 </RequireCourier>
-                </CourierUIProvider>
               }
             />
 

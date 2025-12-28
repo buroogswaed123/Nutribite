@@ -21,7 +21,7 @@ export default function Header() {
   const avatarWrapperRef = React.useRef(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
-  const displayName = (currentUser?.username || currentUser?.email || '').toString();
+  const [displayName, setDisplayName] = useState((currentUser?.username || currentUser?.email || '').toString());
 
   // Notifications hook (list/unread/mark-read/delete)
   const {
@@ -183,7 +183,7 @@ export default function Header() {
     return Array.isArray(filteredNotifList) ? filteredNotifList.filter(n => !n.is_read && (n.status !== 'read')).length : 0;
   }, [notifIsCourierContext, filteredNotifList, unreadCount]);
 
-  // Fetch courier online status
+  // Fetch courier online status and name
   useEffect(() => {
     if (!isCourier) return;
     let cancelled = false;
@@ -198,6 +198,8 @@ export default function Header() {
         if (!row || cancelled) return;
         const status = String(row.status || '').toLowerCase();
         setCourierIsOnline(status === 'active' || status === 'on route');
+        // Set actual courier name from database
+        if (row.name) setDisplayName(row.name);
       } catch (_) {}
     })();
     return () => { cancelled = true; };
@@ -333,15 +335,9 @@ export default function Header() {
                 style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
               >
                 {isCourier && location.pathname.startsWith('/courier') && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    marginInlineEnd: 10,
-                    whiteSpace: 'nowrap'
-                  }}>
+                  <div className={styles.courierWelcome}>
                     <div style={{ fontSize: 13 }}>
-                      <div>ברוך השב{displayName ? `, ${displayName}` : ''}</div>
+                      <div className={styles.courierName}>ברוך השב{displayName ? `, ${displayName}` : ''}</div>
                       <div style={{ display: 'flex', alignItems: 'center', color: courierIsOnline ? '#16a34a' : '#9ca3af', fontSize: 11 }}>
                         <span style={{
                           display: 'inline-block', width: 8, height: 8, borderRadius: 9999,
@@ -398,7 +394,12 @@ export default function Header() {
                       role="menuitem"
                       onClick={() => {
                         setIsAvatarMenuOpen(false);
-                        navigate(getProfilePath());
+                        const profilePath = getProfilePath();
+                        navigate(profilePath);
+                        // Force reload if already on profile page
+                        if (location.pathname === profilePath) {
+                          window.location.reload();
+                        }
                       }}
                       style={{
                         width: '100%',

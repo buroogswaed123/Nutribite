@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { 
   Send, 
   Phone, 
@@ -7,43 +7,153 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { mockSupportMessages } from './data/courierMockData.js';
+import { AuthContext } from '../../../app/App';
 import styles from './courierSupport.module.css';
 
 export default function CourierSupport() {
+  const { currentUser } = useContext(AuthContext) || {};
   const [messages, setMessages] = useState(mockSupportMessages);
   const [newMessage, setNewMessage] = useState('');
   const [emergencyType, setEmergencyType] = useState('');
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showContacts, setShowContacts] = useState(false);
   const [contactsMode, setContactsMode] = useState('chat'); // 'chat' | 'call'
-  const [selectedContact, setSelectedContact] = useState({ id: 'admin-1', name: 'דנה (תמיכה)', role: 'admin', active: true });
+  const [selectedContact, setSelectedContact] = useState({ id: 'admin-nawras', name: 'נורס (תמיכה)', role: 'admin', active: true });
+  const [adminContacts, setAdminContacts] = useState([]);
+  const [customerContacts, setCustomerContacts] = useState([]);
+  const [courierId, setCourierId] = useState(null);
 
-  const adminContacts = [
-    { id: 'admin-1', name: 'דנה (תמיכה)', role: 'admin', active: true },
-    { id: 'admin-2', name: 'עומר (תמיכה)', role: 'admin', active: false },
-  ];
+  // Fetch courier ID and active orders
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const uid = currentUser?.user_id;
+        if (!uid) return;
+        
+        // Get courier ID
+        const courierRes = await fetch(`/api/courier/by-user/${uid}`, { credentials: 'include' });
+        if (!courierRes.ok) return;
+        const courierData = await courierRes.json();
+        const courier = Array.isArray(courierData) ? courierData[0] : courierData;
+        if (!courier || cancelled) return;
+        setCourierId(courier.courier_id);
+        
+        // Get list of courier user IDs to exclude
+        const courierCheckRes = await fetch('/api/courier/couriers', { credentials: 'include' });
+        let courierUserIds = new Set();
+        if (courierCheckRes.ok) {
+          const couriers = await courierCheckRes.json();
+          courierUserIds = new Set((Array.isArray(couriers) ? couriers : []).map(c => c.user_id));
+        }
+        
+        // Get all users and filter by type
+        const usersRes = await fetch('/api/users', { credentials: 'include' });
+        if (usersRes.ok) {
+          const allUsers = await usersRes.json();
+          const users = Array.isArray(allUsers) ? allUsers : [];
+          
+          // Filter admins (exclude couriers)
+          const adminList = users
+            .filter(user => user.user_type === 'admin' && !courierUserIds.has(user.user_id))
+            .map(admin => ({
+              id: `admin-${admin.user_id}`,
+              name: admin.username === 'nawras' ? 'נורס (תמיכה)' : `${admin.username} (תמיכה)`,
+              role: 'admin',
+              active: admin.username === 'nawras', // Nawras is always active
+              phone: admin.phone || '+972-50-000-0000'
+            }));
+          setAdminContacts(adminList);
+          
+          // Set Nawras as default contact
+          const nawras = adminList.find(a => a.name.includes('נורס'));
+          if (nawras) {
+            setSelectedContact(nawras);
+          }
+          
+          // Get orders for this courier to find customers
+          let customerOrderMap = new Map(); // customer_id -> { active: boolean, customer_id }
+          try {
+            const ordersRes = await fetch(`/api/courier/deliveries?courier_id=${courier.courier_id}`, { credentials: 'include' });
+            if (ordersRes.ok) {
+              const orders = await ordersRes.json();
+              console.log('📦 Orders for courier:', courier.courier_id, orders);
+              for (const order of (Array.isArray(orders) ? orders : [])) {
+                if (order.customer_id) {
+                  const isActive = order.status === 'assigned' || order.status === 'in_transit';
+                  // If already exists, keep it active if any order is active
+                  const existing = customerOrderMap.get(order.customer_id);
+                  customerOrderMap.set(order.customer_id, {
+                    customer_id: order.customer_id,
+                    active: existing ? (existing.active || isActive) : isActive
+                  });
+                }
+              }
+              console.log('👥 Customer order map:', Array.from(customerOrderMap.entries()));
+            }
+          } catch (_) {}
+          
+          // Filter customers - only show those with orders from this courier
+          console.log('🔍 All users:', users.length);
+          console.log('🔍 Courier user IDs to exclude:', Array.from(courierUserIds));
+          console.log('🔍 Customer IDs from orders:', Array.from(customerOrderMap.keys()));
+          
+          const customerList = users
+            .filter(user => {
+              const isCustomer = user.user_type === 'customer';
+              const notCourier = !courierUserIds.has(user.user_id);
+              const hasOrder = customerOrderMap.has(user.user_id);
+              console.log(`User ${user.username} (ID: ${user.user_id}):`, { isCustomer, notCourier, hasOrder, user_type: user.user_type });
+              return isCustomer && notCourier && hasOrder;
+            })
+            .map(customer => {
+              const orderInfo = customerOrderMap.get(customer.user_id);
+              return {
+                id: `cust-${customer.user_id}`,
+                name: customer.username || 'לקוח',
+                role: 'customer',
+                active: orderInfo?.active || false,
+                phone: customer.phone || ''
+              };
+            });
+          console.log('✅ Final customer list:', customerList);
+          setCustomerContacts(customerList);
+        }
+      } catch (_) {}
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser]);
 
-  const customerContacts = [
-    { id: 'cust-101', name: 'יואב לוי', role: 'customer', active: true },
-    { id: 'cust-102', name: 'מאיה כהן', role: 'customer', active: false },
-  ];
-
-  const conversations = {
-    'admin-1': [
-      { id: 'a1', type: 'admin', message: 'היי אלקס, איך אפשר לעזור?', timestamp: new Date().toISOString(), isRead: true },
-      { id: 'a2', type: 'courier', message: 'היי! יש עיכוב בפקק בדרכי לכתובת הבאה.', timestamp: new Date().toISOString(), isRead: true },
-    ],
-    'admin-2': [
-      { id: 'b1', type: 'admin', message: 'אני זמין עד 18:00, מה הצורך?', timestamp: new Date().toISOString(), isRead: true },
-    ],
-    'cust-101': [
-      { id: 'c1', type: 'courier', message: 'שלום יואב, אני בדרך אליך. הגעה משוערת בעוד 10 דק׳.', timestamp: new Date().toISOString(), isRead: true },
-      { id: 'c2', type: 'admin', message: 'עדכן אם יש שינוי.', timestamp: new Date().toISOString(), isRead: true },
-    ],
-    'cust-102': [
-      { id: 'd1', type: 'courier', message: 'היי מאיה, הגעתי לבניין. לעלות לקומה 3?', timestamp: new Date().toISOString(), isRead: true },
-    ],
-  };
+  // Load messages when contact is selected
+  useEffect(() => {
+    if (!selectedContact || !currentUser) return;
+    
+    const loadMessages = async () => {
+      try {
+        const userId = parseInt(selectedContact.id.replace('admin-', '').replace('cust-', ''));
+        if (isNaN(userId)) return;
+        const res = await fetch(`/api/messages/conversation/${userId}`, { credentials: 'include' });
+        if (res.ok) {
+          const msgs = await res.json();
+          const formattedMsgs = (Array.isArray(msgs) ? msgs : []).map(m => ({
+            id: m.message_id,
+            type: m.sender_id === currentUser.user_id ? 'courier' : (selectedContact.role === 'admin' ? 'admin' : 'customer'),
+            message: m.message,
+            timestamp: m.created_at,
+            isRead: m.is_read
+          }));
+          setMessages(formattedMsgs);
+        }
+      } catch (err) {
+        console.error('Failed to load messages:', err);
+      }
+    };
+    
+    loadMessages();
+    // Poll for new messages every 0.5 seconds for faster updates
+    const interval = setInterval(loadMessages, 500);
+    return () => clearInterval(interval);
+  }, [selectedContact, currentUser]);
 
   const openContacts = (mode = 'chat') => { setContactsMode(mode); setShowContacts(true); };
   const closeContacts = () => setShowContacts(false);
@@ -55,24 +165,62 @@ export default function CourierSupport() {
       return;
     }
     setSelectedContact(contact);
-    const conv = conversations[contact.id] || [];
-    setMessages(conv);
+    setMessages([]); // Messages will be loaded by useEffect
     closeContacts();
   };
 
-  const sendMessage = () => {
-    if (!newMessage.trim()) return;
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedContact) return;
 
-    const message = {
-      id: Date.now().toString(),
-      type: 'courier',
-      message: newMessage,
-      timestamp: new Date().toISOString(),
-      isRead: true
-    };
+    const messageText = newMessage;
+    setNewMessage(''); // Clear input immediately
 
-    setMessages([...messages, message]);
-    setNewMessage('');
+    try {
+      const userId = parseInt(selectedContact.id.replace('admin-', '').replace('cust-', ''));
+      
+      // Optimistically add message to UI immediately
+      const tempMsg = {
+        id: 'temp-' + Date.now(),
+        type: 'courier',
+        message: messageText,
+        timestamp: new Date().toISOString(),
+        isRead: true
+      };
+      setMessages(prev => [...prev, tempMsg]);
+
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          receiver_id: userId,
+          message: messageText
+        })
+      });
+
+      if (res.ok) {
+        const savedMsg = await res.json();
+        // Replace temp message with real one
+        setMessages(prev => prev.map(m => 
+          m.id === tempMsg.id ? {
+            id: savedMsg.message_id,
+            type: 'courier',
+            message: savedMsg.message,
+            timestamp: savedMsg.created_at,
+            isRead: savedMsg.is_read
+          } : m
+        ));
+      } else {
+        // Remove temp message on error
+        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+        setNewMessage(messageText); // Restore message
+      }
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      // Remove temp message on error
+      setMessages(prev => prev.filter(m => m.id !== 'temp-' + Date.now()));
+      setNewMessage(messageText); // Restore message
+    }
   };
 
   const typeLabelHe = (type) => {

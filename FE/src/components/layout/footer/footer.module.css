@@ -8,15 +8,18 @@
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding-left: 1rem; /* px-4 */
-  padding-right: 1rem;
-  padding-top: 3rem; /* py-12 */
-  padding-bottom: 3rem;
+  padding: 2rem 1rem; /* Mobile: smaller padding */
 }
-@media (min-width: 768px) {
+
+@media (min-width: 640px) {
   .container {
-    padding-top: 4rem; /* md:py-16 */
-    padding-bottom: 4rem;
+    padding: 2.5rem 1.5rem; /* Tablet */
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding: 4rem 2rem; /* Desktop */
   }
 }
 
@@ -28,7 +31,10 @@
   justify-items: end; /* place grid items at the right edge in RTL */
 }
 /* Ensure each column aligns right the same */
-.grid > div { text-align: right; }
+.grid > div { 
+  text-align: right;
+  width: 100%;
+}
 /* Make first column (brand/desc/social) align content to far right */
 .grid > div:first-child {
   display: flex;
@@ -38,9 +44,20 @@
   width: 100%; /* allow children to reach far right */
   justify-self: end; /* place the column itself at the right edge */
 }
-@media (min-width: 768px) {
+
+/* Tablet: 2 columns */
+@media (min-width: 640px) {
   .grid {
-    grid-template-columns: repeat(4, 1fr); /* md:grid-cols-4 */
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.5rem;
+  }
+}
+
+/* Desktop: 4 columns */
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3rem;
   }
 }
 
@@ -66,10 +83,19 @@
 .grid > div:first-child .description { align-self: flex-end; }
 
 .description {
-  margin-top: 1rem; /* mt-4 */
-  font-size: 0.875rem; /* text-sm */
-  color: #4b5563; /* text-gray-600 */
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: #4b5563;
   text-align: right;
+  line-height: 1.6;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .description {
+    margin-top: 1rem;
+    max-width: 300px;
+  }
 }
 
 .socialRow {

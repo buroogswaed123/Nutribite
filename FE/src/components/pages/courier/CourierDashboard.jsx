@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Clock, MapPin, Phone, Package, CheckCircle } from 'lucide-react';
 import { AuthContext } from '../../../app/App';
+import { useCourierUI } from '../../layouts/CourierUiContext';
 import ErrorModal from './ErrorModal';
 import styles from './courierDashboard.module.css';
 
@@ -106,14 +107,81 @@ function OrderCard({ order, onOrderClick, onMarkDelivered }) {
 
 export default function CourierDashboard({ onOrderClick = () => {} }) {
   const { currentUser } = useContext(AuthContext) || {};
+  const { isOnline } = useCourierUI();
   const [courierId, setCourierId] = useState(null);
   const [activeOrders, setActiveOrders] = useState([]);
   const [completedOrders, setCompletedOrders] = useState([]);
   const [todayDeliveries, setTodayDeliveries] = useState(0);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
-  // Static shift time display per user request
-  const shiftTimeDisplay = '06:26:43';
+  const [onlineStartTime, setOnlineStartTime] = useState(null);
+  const [totalOnlineSeconds, setTotalOnlineSeconds] = useState(0);
+  const [shiftHours, setShiftHours] = useState('00:00:00');
+
+  // Load accumulated online time from localStorage
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const storedDate = localStorage.getItem('courier_online_date');
+    const storedSeconds = localStorage.getItem('courier_online_seconds');
+    
+    if (storedDate !== today) {
+      // New day, reset
+      localStorage.setItem('courier_online_date', today);
+      localStorage.setItem('courier_online_seconds', '0');
+      setTotalOnlineSeconds(0);
+    } else if (storedSeconds) {
+      setTotalOnlineSeconds(parseInt(storedSeconds) || 0);
+    }
+  }, []);
+
+  // Track online/offline transitions
+  useEffect(() => {
+    if (isOnline && !onlineStartTime) {
+      // Going online - start tracking
+      setOnlineStartTime(new Date());
+    } else if (!isOnline && onlineStartTime) {
+      // Going offline - save accumulated time
+      const now = new Date();
+      const sessionSeconds = Math.floor((now - onlineStartTime) / 1000);
+      const newTotal = totalOnlineSeconds + sessionSeconds;
+      setTotalOnlineSeconds(newTotal);
+      localStorage.setItem('courier_online_seconds', newTotal.toString());
+      setOnlineStartTime(null);
+    }
+  }, [isOnline, onlineStartTime, totalOnlineSeconds]);
+
+  // Update display timer every second when online
+  useEffect(() => {
+    if (!isOnline) {
+      // When offline, just show the accumulated time
+      const hours = Math.floor(totalOnlineSeconds / 3600);
+      const minutes = Math.floor((totalOnlineSeconds % 3600) / 60);
+      const seconds = totalOnlineSeconds % 60;
+      setShiftHours(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+      return;
+    }
+
+    if (!onlineStartTime) return;
+
+    const updateTimer = () => {
+      const now = new Date();
+      const currentSessionSeconds = Math.floor((now - onlineStartTime) / 1000);
+      const total = totalOnlineSeconds + currentSessionSeconds;
+      
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const seconds = total % 60;
+      setShiftHours(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+    };
+
+    // Update immediately
+    updateTimer();
+    
+    // Then update every second
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [isOnline, onlineStartTime, totalOnlineSeconds]);
 
   // Fetch courier ID
   useEffect(() => {
@@ -211,12 +279,12 @@ export default function CourierDashboard({ onOrderClick = () => {} }) {
           <div className={`${styles.cardIcon} ${styles.cardIconLight}`}><Clock size={24} color="#059669" /></div>
           <div className={styles.cardText}>
             <div className={styles.cardTitle}>שעות משמרת</div>
-            <p className={`${styles.cardValue} ${styles.noMargin}`}>{shiftTimeDisplay}</p>
+            <p className={`${styles.cardValue} ${styles.noMargin}`}>{shiftHours}</p>
           </div>
         </div>
 
         <div className={styles.card}>
-          <div className={`${styles.cardIcon} ${styles.cardIconGreen}`}><CheckCircle size={24} color="#059669" /></div>
+          <div className={styles.cardIcon}><Package size={24} color="#059669" /></div>
           <div className={styles.cardText}>
             <div className={styles.cardTitle}>מסירות היום</div>
             <div className={styles.cardValue}>{todayDeliveries}</div>

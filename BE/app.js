@@ -433,6 +433,9 @@ app.post('/api/demo/auto-assign', async (req, res) => {
 const notificationsRoutes = require('./routes/notifications');
 app.use('/api/notifications', notificationsRoutes);
 
+const messagesRoutes = require('./routes/messages');
+app.use('/api/messages', requireActiveUser, messagesRoutes);
+
 const customersRoutes = require('./routes/customers');
 app.use('/api/customers', customersRoutes);
 const usersRoutes = require('./routes/users');

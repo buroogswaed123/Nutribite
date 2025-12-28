@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { MapPin, Package, User, MessageCircle, X, Truck, Circle } from 'lucide-react';
+import { MapPin, Package, User, MessageCircle, X, Truck, Circle, Menu, LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { AuthContext } from '../../../app/App';
 import { useCourierUI } from '../CourierUiContext';
 import styles from './CourierLayout.module.css';
@@ -13,7 +14,7 @@ const navigation = [
 export default function CourierLayout({ children, activeSection, onSectionChange, showHeader = true }) {
   const { sidebarOpen, setSidebarOpen } = useCourierUI();
   const { currentUser } = useContext(AuthContext) || {};
-  const displayName = (currentUser?.username || currentUser?.email || 'משתמש').toString();
+  const [displayName, setDisplayName] = useState((currentUser?.username || currentUser?.email || 'משתמש').toString());
   const [isOnline, setIsOnline] = useState(false);
   const [courierId, setCourierId] = useState(null);
 
@@ -29,6 +30,8 @@ export default function CourierLayout({ children, activeSection, onSectionChange
         const row = Array.isArray(rows) ? rows[0] : rows;
         if (!row || cancelled) return;
         setCourierId(row.courier_id);
+        // Set actual courier name from database
+        if (row.name) setDisplayName(row.name);
         const status = String(row.status || '').toLowerCase();
         setIsOnline(status === 'active' || status === 'on route');
       } catch (_) {}
@@ -83,14 +86,16 @@ export default function CourierLayout({ children, activeSection, onSectionChange
             const Icon = item.icon;
             const active = activeSection === item.id;
             return (
-              <button
+              <Link
                 key={item.id}
-                onClick={() => { onSectionChange?.(item.id); setSidebarOpen(false); }}
+                to={`/courier/${item.id}`}
+                onClick={() => setSidebarOpen(false)}
                 className={`${styles.navBtn} ${active ? styles.navActive : ''}`}
+                style={{ textDecoration: 'none' }}
               >
                 <Icon size={18} className={styles.navIcon} />
                 <span>{item.name}</span>
-              </button>
+              </Link>
             );
           })}
         </nav>

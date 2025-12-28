@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import Loading from '../../../common/Loading';
 import {
-  User, Camera, Check, X, ArrowLeft
+  User, Camera, Check, X, ArrowLeft, Edit
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../../../../app/App';

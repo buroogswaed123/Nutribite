@@ -277,7 +277,11 @@ router.post('/:user_id/profile-image', upload.single('image'), (req, res) => {
           const uploadsRoot = path.join(__dirname, '..', 'uploads');
           const isUnderUploads = oldAbs.startsWith(uploadsRoot);
           const looksLikeProfile = /(^|\\|\/)uploads(\\|\/)profile(\\|\/)/.test(oldAbs);
-          if (isUnderUploads && looksLikeProfile && fs.existsSync(oldAbs)) {
+          
+          // Don't delete default.jpg - it's used for new accounts
+          const isDefaultImage = oldImg.includes('default.jpg') || oldAbs.includes('default.jpg');
+          
+          if (isUnderUploads && looksLikeProfile && !isDefaultImage && fs.existsSync(oldAbs)) {
             fs.unlinkSync(oldAbs);
           }
         } catch {}

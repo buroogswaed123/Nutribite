@@ -224,4 +224,95 @@ router.post('/:id/restore', async (req, res) => {
   }
 });
 
+// GET /api/admin/users/profile/me
+// Get current admin's profile (combines users + admin_profiles tables)
+router.get('/profile/me', async (req, res) => {
+  try {
+    const userId = req.session?.user?.user_id || req.user?.user_id;
+    if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+
+    const [rows] = await runQuery(
+      `SELECT 
+        u.user_id,
+        u.username,
+        u.email,
+        u.profile_image,
+        u.account_creation_time,
+        u.last_seen,
+        ap.full_name,
+        ap.phone
+       FROM users u
+       LEFT JOIN admin_profiles ap ON u.user_id = ap.user_id
+       WHERE u.user_id = ? LIMIT 1`,
+      [userId]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    return res.json(rows[0]);
+  } catch (err) {
+    console.error('ADMIN PROFILE GET ERROR:', err);
+    return res.status(500).json({ message: 'Error fetching profile', error: err.message });
+  }
+});
+
+// PATCH /api/admin/users/profile/me
+// Update current admin's profile
+router.patch('/profile/me', async (req, res) => {
+  try {
+    const userId = req.session?.user?.user_id || req.user?.user_id;
+    if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+
+    const { full_name, phone, email } = req.body;
+
+    // Update email in users table if provided
+    if (email) {
+      await runQuery('UPDATE users SET email = ? WHERE user_id = ?', [email, userId]);
+    }
+
+    // Update or insert admin_profiles
+    if (full_name !== undefined || phone !== undefined) {
+      const [existing] = await runQuery(
+        'SELECT admin_profile_id FROM admin_profiles WHERE user_id = ? LIMIT 1',
+        [userId]
+      );
+
+      if (existing && existing.length > 0) {
+        // Update existing profile
+        const updates = [];
+        const params = [];
+        if (full_name !== undefined) {
+          updates.push('full_name = ?');
+          params.push(full_name);
+        }
+        if (phone !== undefined) {
+          updates.push('phone = ?');
+          params.push(phone);
+        }
+        params.push(userId);
+
+        if (updates.length > 0) {
+          await runQuery(
+            `UPDATE admin_profiles SET ${updates.join(', ')} WHERE user_id = ?`,
+            params
+          );
+        }
+      } else {
+        // Insert new profile
+        await runQuery(
+          'INSERT INTO admin_profiles (user_id, full_name, phone) VALUES (?, ?, ?)',
+          [userId, full_name || null, phone || null]
+        );
+      }
+    }
+
+    return res.json({ success: true, message: 'Profile updated successfully' });
+  } catch (err) {
+    console.error('ADMIN PROFILE UPDATE ERROR:', err);
+    return res.status(500).json({ message: 'Error updating profile', error: err.message });
+  }
+});
+
 module.exports = router;

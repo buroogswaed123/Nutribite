@@ -10,6 +10,7 @@ export default function FloatingMessageButton() {
   const [newMessage, setNewMessage] = useState('');
   const [contacts, setContacts] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
+  const [hasUnread, setHasUnread] = useState(false);
   const messagesEndRef = React.useRef(null);
 
   // Fetch available contacts (couriers, admins, and people who messaged)
@@ -181,16 +182,63 @@ export default function FloatingMessageButton() {
     }
   };
 
-  const selectContact = (contact) => {
+  const selectContact = async (contact) => {
     setSelectedContact(contact);
     setShowContactList(false);
     setMessages([]);
+    
+    // Mark messages as read
+    try {
+      await fetch(`/api/messages/mark-read/${contact.id}`, {
+        method: 'PATCH',
+        credentials: 'include'
+      });
+    } catch (err) {
+      console.error('Failed to mark messages as read:', err);
+    }
   };
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Check for unread messages when chat is closed
+  useEffect(() => {
+    if (isOpen || !currentUser) {
+      setHasUnread(false);
+      return;
+    }
+
+    const checkUnread = async () => {
+      try {
+        const convRes = await fetch('/api/messages/all-conversations', { credentials: 'include' });
+        if (!convRes.ok) return;
+        
+        const conversations = await convRes.json();
+        
+        // Check each conversation for unread messages
+        for (const userId of conversations) {
+          const msgRes = await fetch(`/api/messages/conversation/${userId}`, { credentials: 'include' });
+          if (msgRes.ok) {
+            const msgs = await msgRes.json();
+            const unread = msgs.some(m => m.receiver_id === currentUser.user_id && !m.is_read);
+            if (unread) {
+              setHasUnread(true);
+              return;
+            }
+          }
+        }
+        setHasUnread(false);
+      } catch (err) {
+        console.error('Failed to check unread messages:', err);
+      }
+    };
+
+    checkUnread();
+    const interval = setInterval(checkUnread, 3000); // Check every 3 seconds
+    return () => clearInterval(interval);
+  }, [isOpen, currentUser]);
 
   if (!currentUser) return null;
 
@@ -215,13 +263,32 @@ export default function FloatingMessageButton() {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
-          transition: 'all 0.2s'
+          transition: 'all 0.3s'
         }}
         onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
         onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
       >
         <MessageCircle size={28} />
+        {hasUnread && (
+          <span style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            width: '14px',
+            height: '14px',
+            borderRadius: '50%',
+            background: '#ef4444',
+            border: '2px solid white',
+            animation: 'pulse 2s infinite'
+          }} />
+        )}
       </button>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.1); }
+        }
+      `}</style>
 
       {/* Chat Window */}
       {isOpen && (

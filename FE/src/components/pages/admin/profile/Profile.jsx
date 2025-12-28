@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import Loading from '../../../common/Loading';
 import {
-  User, Shield, Key, LogOut, Edit, Users, Camera, Check, X, ArrowLeft, Settings as SettingsIcon
+  User, Camera, Check, X, ArrowLeft
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../../../../app/App';
@@ -37,7 +37,8 @@ export default function Profile() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
 
   const username = currentUser?.username || 'Admin';
   const imgSrc = buildProfileImageUrl(profileData.profileImage);
@@ -46,21 +47,27 @@ export default function Profile() {
   useEffect(() => {
     const loadProfileData = async () => {
       try {
-        // Simulate API call - replace with actual API
-        const mockData = {
-          fullName: 'מנהל ראשי',
-          email: currentUser?.email || 'admin@nutribite.com',
-          phone: '+972-50-123-4567',
-          profileImage: currentUser?.profile_image || '',
+        const response = await fetch('/api/admin/users/profile/me', {
+          credentials: 'include'
+        });
+        
+        if (!response.ok) throw new Error('Failed to load profile');
+        
+        const data = await response.json();
+        
+        setProfileData({
+          fullName: data.full_name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          profileImage: data.profile_image || '',
           language: 'he',
           darkMode: false,
           emailNotifications: true,
           twoFactorEnabled: false,
           permissionLevel: 'מנהל ראשי',
-          accountCreated: '2024-01-15',
-          lastLogin: new Date().toISOString().split('T')[0]
-        };
-        setProfileData(mockData);
+          accountCreated: data.account_creation_time ? new Date(data.account_creation_time).toISOString().split('T')[0] : '',
+          lastLogin: data.last_seen ? new Date(data.last_seen).toISOString().split('T')[0] : ''
+        });
       } catch (error) {
         console.error('Error loading profile:', error);
       } finally {
@@ -79,23 +86,32 @@ export default function Profile() {
 
   const handleSaveField = async (field) => {
     try {
-      // TODO: Replace with actual API call
-      const response = await fetch(`/api/admin/profile/${field}`, {
-        method: 'PUT',
+      const fieldMap = {
+        fullName: 'full_name',
+        email: 'email',
+        phone: 'phone'
+      };
+      
+      const apiField = fieldMap[field] || field;
+      
+      const response = await fetch('/api/admin/users/profile/me', {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ [field]: profileData[field] }),
+        credentials: 'include',
+        body: JSON.stringify({ [apiField]: profileData[field] }),
       });
 
       if (!response.ok) throw new Error(`Failed to save ${field}`);
 
-      // Show success message
-      alert(`השדה ${field} נשמר בהצלחה!`);
+      setModalMessage('השדה נשמר בהצלחה!');
+      setShowModal(true);
       setIsEditing(prev => ({ ...prev, [field]: false }));
     } catch (error) {
       console.error(`Error saving ${field}:`, error);
-      alert(`שגיאה בשמירת השדה ${field}: ${error.message}`);
+      setModalMessage(`שגיאה בשמירת השדה: ${error.message}`);
+      setShowModal(true);
     }
   };
 
@@ -117,49 +133,6 @@ export default function Profile() {
     }
   };
 
-  const toggleDarkMode = () => {
-    setProfileData(prev => ({ ...prev, darkMode: !prev.darkMode }));
-    // TODO: Implement dark mode toggle
-  };
-
-  const toggleTwoFactor = async () => {
-    if (twoFactorLoading) return; // Prevent multiple clicks
-    setTwoFactorLoading(true);
-    const previousValue = profileData.twoFactorEnabled;
-    const newValue = !previousValue;
-    setProfileData(prev => ({ ...prev, twoFactorEnabled: newValue })); // Optimistic UI update
-    try {
-      // TODO: Replace with actual API call
-      const response = await fetch('/api/admin/profile/twoFactor', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ twoFactorEnabled: newValue }),
-      });
-
-      if (!response.ok) throw new Error('Failed to update 2FA setting');
-
-      alert(`אימות דו-שלבי ${newValue ? 'הופעל' : 'כובה'} בהצלחה!`);
-    } catch (error) {
-      console.error('Error updating 2FA:', error);
-      alert(`שגיאה בעדכון אימות דו-שלבי: ${error.message}`);
-      setProfileData(prev => ({ ...prev, twoFactorEnabled: previousValue })); // Revert on error
-    } finally {
-      setTwoFactorLoading(false);
-    }
-  };
-
-  // Removed unused functions to fix eslint warnings:
-  // handleChangePassword, handleResetPassword, handleSaveAllProfile
-
-  const handleLogoutClick = () => {
-    if (window.confirm('האם אתה בטוח שברצונך להתנתק?')) {
-      handleLogout();
-      navigate('/');
-    }
-  };
-
   if (loading) {
     return (
       <div className={styles.profileWrapper}>
@@ -172,7 +145,7 @@ export default function Profile() {
     <div className={styles.profileWrapper}>
       {/* Header */}
       <div className={headerStyles.container} style={{ marginTop: 0 }}>
-        <div className={headerStyles.row}>
+        <div className={headerStyles.row} style={{ justifyContent: 'flex-start' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
               className={styles.iconCircleBtn}
@@ -213,31 +186,11 @@ export default function Profile() {
               {profileData.permissionLevel}
             </div>
           </div>
-          <div className={styles.name}>
-            {isEditing.fullName ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="text"
-                  value={profileData.fullName}
-                  onChange={(e) => handleInputChange('fullName', e.target.value)}
-                  style={{ padding: 6, border: '1px solid #e5e7eb', borderRadius: 6 }}
-                />
-                <button className={styles.iconCircleBtn} onClick={() => handleSaveField('fullName')}>
-                  <Check size={16} />
-                </button>
-                <button className={styles.iconCircleBtn} onClick={() => setIsEditing(prev => ({ ...prev, fullName: false }))}>
-                  <X size={16} />
-                </button>
-              </span>
-            ) : (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <span>{profileData.fullName}</span>
-                <button className={styles.iconCircleBtn} onClick={() => setIsEditing(prev => ({ ...prev, fullName: true }))}>
-                  <Edit size={16} />
-                </button>
-              </span>
-            )}
-          </div>
+          {profileData.fullName && (
+            <div className={styles.name}>
+              {profileData.fullName}
+            </div>
+          )}
         </div>
       </section>
 
@@ -305,137 +258,6 @@ export default function Profile() {
             </div>
           </div>
         </div>
-
-        {/* Account Settings Section */}
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <Key size={20} />
-            <h2>הגדרות חשבון</h2>
-          </div>
-          <div className={styles.sectionContent}>
-            <div className={styles.field}>
-              <label>שינוי סיסמה</label>
-              <button className={styles.actionBtn}>שנה סיסמה</button>
-            </div>
-
-            <div className={styles.field}>
-              <label>שחזור סיסמה</label>
-              <button className={styles.actionBtn}>שלח קישור שחזור</button>
-            </div>
-
-            <div className={styles.field}>
-              <label>אימות דו-שלבי (2FA)</label>
-              <div className={styles.toggleContainer}>
-                <span>{profileData.twoFactorEnabled ? 'מופעל' : 'כבוי'}</span>
-            <button
-              className={`${styles.toggleBtn} ${profileData.twoFactorEnabled ? styles.active : ''}`}
-              onClick={toggleTwoFactor}
-              disabled={twoFactorLoading}
-              aria-busy={twoFactorLoading}
-              aria-label="Toggle Two Factor Authentication"
-            >
-              <div className={styles.toggleSlider}></div>
-            </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Preferences Section */}
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <SettingsIcon size={20} />
-            <h2>העדפות</h2>
-          </div>
-          <div className={styles.sectionContent}>
-            <div className={styles.field}>
-              <label>שפה</label>
-              <select
-                value={profileData.language}
-                onChange={(e) => handleInputChange('language', e.target.value)}
-              >
-                <option value="he">עברית</option>
-                <option value="en">English</option>
-              </select>
-            </div>
-
-            <div className={styles.field}>
-              <label>מצב כהה/בהיר</label>
-              <div className={styles.toggleContainer}>
-                <span>{profileData.darkMode ? 'כהה' : 'בהיר'}</span>
-                <button
-                  className={`${styles.toggleBtn} ${profileData.darkMode ? styles.active : ''}`}
-                  onClick={toggleDarkMode}
-                >
-                  <div className={styles.toggleSlider}></div>
-                </button>
-              </div>
-            </div>
-
-            <div className={styles.field}>
-              <label>התראות במייל</label>
-              <div className={styles.toggleContainer}>
-                <span>{profileData.emailNotifications ? 'מופעל' : 'כבוי'}</span>
-                <button
-                  className={`${styles.toggleBtn} ${profileData.emailNotifications ? styles.active : ''}`}
-                  onClick={() => handleInputChange('emailNotifications', !profileData.emailNotifications)}
-                >
-                  <div className={styles.toggleSlider}></div>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Management Status Section */}
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <Shield size={20} />
-            <h2>סטטוס ניהול</h2>
-          </div>
-          <div className={styles.sectionContent}>
-            <div className={styles.field}>
-              <label>רמת הרשאה</label>
-              <span className={styles.statusValue}>{profileData.permissionLevel}</span>
-            </div>
-
-            <div className={styles.field}>
-              <label>תאריך יצירת החשבון</label>
-              <span className={styles.statusValue}>{profileData.accountCreated}</span>
-            </div>
-
-            <div className={styles.field}>
-              <label>פעילות אחרונה</label>
-              <span className={styles.statusValue}>{profileData.lastLogin}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions Section */}
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <SettingsIcon size={20} />
-            <h2>פעולות מהירות</h2>
-          </div>
-          <div className={styles.quickActions}>
-            <button className={`${styles.quickActionBtn} ${styles.logoutBtn}`} onClick={handleLogoutClick}>
-              <LogOut size={18} />
-              צא מהחשבון
-            </button>
-
-            <button className={`${styles.quickActionBtn} ${styles.updateBtn}`} onClick={() => alert('עדכון פרטים')}>
-              <Edit size={18} />
-              עדכן פרטים
-            </button>
-
-            {profileData.permissionLevel === 'מנהל ראשי' && (
-              <button className={`${styles.quickActionBtn} ${styles.manageBtn}`} onClick={() => navigate('/admin/users')}>
-                <Users size={18} />
-                נהל מנהלים נוספים
-              </button>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Avatar Upload Modal */}
@@ -469,6 +291,30 @@ export default function Profile() {
               </button>
             </div>
             <button className={styles.iconBtn} onClick={() => setShowAvatarModal(false)}>×</button>
+          </div>
+        </div>
+      )}
+
+      {/* Success/Error Modal */}
+      {showModal && (
+        <div className={styles.modalBackdrop} onClick={() => setShowModal(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px', textAlign: 'center' }}>
+            <h3>{modalMessage}</h3>
+            <button 
+              onClick={() => setShowModal(false)}
+              style={{
+                marginTop: '20px',
+                padding: '10px 24px',
+                background: '#059669',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '16px'
+              }}
+            >
+              אישור
+            </button>
           </div>
         </div>
       )}

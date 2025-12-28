@@ -132,8 +132,29 @@ router.post('/', async (req, res) => {
   }
 });
 
+// PATCH /api/messages/mark-read/:userId
+// Mark all messages from a specific user as read
+router.patch('/mark-read/:userId', async (req, res) => {
+  try {
+    const currentUserId = req.session?.user?.user_id || req.user?.user_id;
+    if (!currentUserId) return res.status(401).json({ message: 'Not authenticated' });
+
+    const otherUserId = parseInt(req.params.userId);
+    
+    await runQuery(
+      'UPDATE messages SET is_read = TRUE WHERE sender_id = ? AND receiver_id = ?',
+      [otherUserId, currentUserId]
+    );
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('PATCH mark-read error:', err);
+    return res.status(500).json({ message: 'Failed to mark messages as read' });
+  }
+});
+
 // PATCH /api/messages/:messageId/read
-// Mark message as read
+// Mark single message as read
 router.patch('/:messageId/read', async (req, res) => {
   try {
     const currentUserId = req.session?.user?.user_id || req.user?.user_id;
@@ -147,7 +168,7 @@ router.patch('/:messageId/read', async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     console.error('PATCH message read error:', err);
-    return res.status(500).json({ message: 'Failed to mark as read' });
+    return res.status(500).json({ message: 'Failed to mark message as read' });
   }
 });
 

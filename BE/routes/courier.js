@@ -156,25 +156,28 @@ router.patch('/couriers/:id/status', async (req, res) => {
 });
 
 // GET /api/courier/couriers/:id/deliveries
-// List courier deliveries (optional ?status=)
+// List courier deliveries - includes both assigned AND available (pending/unassigned) deliveries
 router.get('/couriers/:id/deliveries', async (req, res) => {
   try {
-    const params = [req.params.id];
+    const courierId = req.params.id;
+    const params = [courierId];
     let sql = `
       SELECT 
         d.delivery_id,
         d.status AS delivery_status,
+        d.courier_id,
         CONCAT('#', o.order_id, '1000') AS order_number,
         c.name AS customer_name,
         c.phone_number AS customer_phone,
         a.street,
         a.city,
-        o.set_delivery_time AS delivery_time
+        o.set_delivery_time AS delivery_time,
+        o.order_id
       FROM deliveries d
       JOIN orders o ON d.order_id = o.order_id
       JOIN customers c ON o.cust_id = c.cust_id
       LEFT JOIN address a ON c.address_id = a.address_id
-      WHERE d.courier_id = ?`;
+      WHERE (d.courier_id = ? OR d.courier_id IS NULL)`;
     if (req.query.status) {
       sql += ' AND d.status = ?';
       params.push(req.query.status);

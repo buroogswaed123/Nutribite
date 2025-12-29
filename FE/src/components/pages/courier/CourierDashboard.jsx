@@ -217,10 +217,10 @@ export default function CourierDashboard({ onOrderClick = () => {} }) {
         return deliveryDate === today;
       }) : [];
 
-      // Separate active and completed
+      // Separate active and completed (include pending/unassigned deliveries in active)
       const active = todayDeliveries.filter(d => {
         const status = String(d.delivery_status || '').toLowerCase();
-        return status === 'assigned' || status === 'on route' || status === 'picked_up' || status === 'out_for_delivery';
+        return status === 'pending' || status === 'assigned' || status === 'on route' || status === 'picked_up' || status === 'out_for_delivery';
       });
       const completed = todayDeliveries.filter(d => {
         const status = String(d.delivery_status || '').toLowerCase();

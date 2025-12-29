@@ -241,8 +241,12 @@ export default function Profile() {
   }, [orders, activeTab]);
 
   const handleSaveName = async () => {
+    if (!custId) {
+      showToast('לא נמצא מזהה לקוח', 'error');
+      return;
+    }
     try {
-      const res = await fetch(`/api/customers/${currentUser.user_id}`, {
+      const res = await fetch(`/api/customers/${custId}`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

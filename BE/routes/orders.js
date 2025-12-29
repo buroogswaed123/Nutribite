@@ -348,6 +348,13 @@ router.post('/checkout', async (req, res) => {
           [orderId, it.product_id, it.quantity, Number(catKey) || null, orderDateValue]
         );
       }
+      
+      // Create delivery record for this order (unassigned, ready for courier to accept)
+      await tx.query(
+        `INSERT INTO deliveries (order_id, delivery_date, status, customer_id) VALUES (?, ?, 'pending', ?)`,
+        [orderId, orderDateValue, cust]
+      );
+      
       createdOrders.push({ order_id: orderId, delivery_time: orderDateValue, total_price: Number(orderTotal.toFixed(2)) });
     }
 

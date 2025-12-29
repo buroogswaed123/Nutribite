@@ -6,13 +6,12 @@ import {
   MessageCircle, 
   CheckCircle
 } from 'lucide-react';
-import { mockSupportMessages } from './data/courierMockData.js';
 import { AuthContext } from '../../../app/App';
 import styles from './courierSupport.module.css';
 
 export default function CourierSupport() {
   const { currentUser } = useContext(AuthContext) || {};
-  const [messages, setMessages] = useState(mockSupportMessages);
+  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [emergencyType, setEmergencyType] = useState('');
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
@@ -22,6 +21,7 @@ export default function CourierSupport() {
   const [adminContacts, setAdminContacts] = useState([]);
   const [customerContacts, setCustomerContacts] = useState([]);
   const [courierId, setCourierId] = useState(null);
+  const messagesEndRef = React.useRef(null);
 
   // Fetch courier ID and active orders
   useEffect(() => {
@@ -154,6 +154,13 @@ export default function CourierSupport() {
     const interval = setInterval(loadMessages, 500);
     return () => clearInterval(interval);
   }, [selectedContact, currentUser]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+  }, [messages]);
 
   const openContacts = (mode = 'chat') => { setContactsMode(mode); setShowContacts(true); };
   const closeContacts = () => setShowContacts(false);
@@ -300,6 +307,7 @@ export default function CourierSupport() {
               </div>
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
         <div className={styles.inputBar}>
